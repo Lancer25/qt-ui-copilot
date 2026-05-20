@@ -16,11 +16,12 @@ The goal is simple: detect each file's current encoding, decode it safely, write
    - For a directory or project, use recursive mode and include only text-like files.
    - Avoid binary files, lock files, build outputs, vendored dependencies, and generated assets unless the user explicitly asks.
 2. Run a dry scan first.
-   - Use `scripts/to_utf8.py --dry-run <path>` to detect encodings without writing.
+   - Use the absolute path to `scripts/to_utf8.py` whenever possible, because AI coding tools may run commands from changing working directories.
+   - Use `<absolute-skill-path>/scripts/to_utf8.py --dry-run <path>` to detect encodings without writing.
    - Review files reported as `needs-convert`, `decode-failed`, or `mojibake`.
    - If the detected encoding is wrong or ambiguous, rerun with `--from-encoding <encoding>`.
 3. Convert with the bundled script.
-   - Use `scripts/to_utf8.py <path>` for a single file or directory.
+   - Use the script absolute path for a single file or directory.
    - Use `--recursive` for directories.
    - Use `--backup` when converting many files or important legacy files.
 4. Verify after conversion.
@@ -31,41 +32,45 @@ The goal is simple: detect each file's current encoding, decode it safely, write
 
 ## Commands
 
-From the skill directory on Windows PowerShell:
+Prefer absolute script paths. Resolve the skill directory first, then call the bundled script by its full path so the command still works if the AI tool changes the current working directory.
+
+Windows PowerShell:
 
 ```powershell
-py .\scripts\to_utf8.py --dry-run path\to\file.cpp
-py .\scripts\to_utf8.py path\to\file.cpp
-py .\scripts\to_utf8.py --recursive --backup path\to\src
-py .\scripts\to_utf8.py --recursive --include "*.cpp" --include "*.h" path\to\src
+$script = "C:\absolute\path\to\skills\to-utf8\scripts\to_utf8.py"
+py $script --dry-run C:\absolute\path\to\file.cpp
+py $script C:\absolute\path\to\file.cpp
+py $script --recursive --backup C:\absolute\path\to\src
+py $script --recursive --include "*.cpp" --include "*.h" C:\absolute\path\to\src
 ```
 
-From the skill directory on Linux/macOS:
+Linux/macOS:
 
 ```bash
-python scripts/to_utf8.py --dry-run path/to/file.cpp
-python scripts/to_utf8.py path/to/file.cpp
-python scripts/to_utf8.py --recursive --backup path/to/src
-python scripts/to_utf8.py --recursive --include "*.cpp" --include "*.h" path/to/src
+SCRIPT="/absolute/path/to/skills/to-utf8/scripts/to_utf8.py"
+python3 "$SCRIPT" --dry-run /absolute/path/to/file.cpp
+python3 "$SCRIPT" /absolute/path/to/file.cpp
+python3 "$SCRIPT" --recursive --backup /absolute/path/to/src
+python3 "$SCRIPT" --recursive --include "*.cpp" --include "*.h" /absolute/path/to/src
 ```
 
-From another directory, call the script by absolute or relative path:
-
-```bash
-python skills/to-utf8/scripts/to_utf8.py --recursive --backup .
-```
-
-If `python` is not Python 3 on Linux, use `python3` instead:
+Relative paths are acceptable only when the current working directory is known and stable:
 
 ```bash
 python3 skills/to-utf8/scripts/to_utf8.py --recursive --backup .
 ```
 
+If `python` is not Python 3 on Linux, use `python3` instead:
+
+```bash
+python3 /absolute/path/to/skills/to-utf8/scripts/to_utf8.py --recursive --backup /absolute/path/to/project
+```
+
 If detection needs to be forced:
 
 ```bash
-python3 skills/to-utf8/scripts/to_utf8.py --from-encoding gb18030 legacy.txt
-py .\skills\to-utf8\scripts\to_utf8.py --from-encoding cp936 legacy.txt
+python3 /absolute/path/to/skills/to-utf8/scripts/to_utf8.py --from-encoding gb18030 /absolute/path/to/legacy.txt
+py C:\absolute\path\to\skills\to-utf8\scripts\to_utf8.py --from-encoding cp936 C:\absolute\path\to\legacy.txt
 ```
 
 ## File Selection Guidance
@@ -73,7 +78,7 @@ py .\skills\to-utf8\scripts\to_utf8.py --from-encoding cp936 legacy.txt
 Prefer explicit file lists or narrow include globs when working in a repository:
 
 ```bash
-python skills/to-utf8/scripts/to_utf8.py --recursive --include "*.c" --include "*.cpp" --include "*.h" --include "*.txt" src
+python3 /absolute/path/to/skills/to-utf8/scripts/to_utf8.py --recursive --include "*.c" --include "*.cpp" --include "*.h" --include "*.txt" /absolute/path/to/src
 ```
 
 The script skips common binary extensions and common dependency/build directories by default, including `.git`, `node_modules`, `dist`, `build`, `.venv`, and `__pycache__`.
@@ -81,6 +86,7 @@ The script skips common binary extensions and common dependency/build directorie
 ## Safety Rules
 
 - Do not repair text by manual find-and-replace unless the user provides the intended original text.
+- Prefer absolute paths for both the script and target files. AI tools often run shell commands from different working directories during long tasks, and absolute paths prevent accidental "file not found" or wrong-directory conversions.
 - If detection is ambiguous, prefer `--dry-run` and report the candidate encoding instead of guessing silently.
 - On Linux, Windows "ANSI" Chinese files usually decode as `gb18030`, `gbk`, or `cp936`; use `--from-encoding cp936` or `--from-encoding gb18030` when automatic detection is not enough.
 - On Windows, the script tries the active ANSI code page through `mbcs` when Python supports it, plus portable encodings such as `gb18030`, `gbk`, `big5`, `cp1252`, and `latin-1`.
