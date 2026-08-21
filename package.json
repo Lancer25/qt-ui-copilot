@@ -7,13 +7,17 @@
     "node": "24.x"
   },
   "scripts": {
+    "lint": "pnpm typecheck && git diff --check",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
-    "test:native:qt59": "pnpm test:fixture:qt59",
-    "test:native:qt6": "pnpm test:fixture:qt6",
+    "test:native:qt59": "node scripts/verify-qt-matrix.mjs --qt59-only --required",
+    "test:native:qt6": "node scripts/verify-qt-matrix.mjs --qt6-only --required",
     "test:fixture:qt59": "cmake -S fixtures/qt59-app -B .qt-ui-copilot/build/fixture-qt59 -DQT_MAJOR_VERSION=5 && cmake --build .qt-ui-copilot/build/fixture-qt59 && ctest --test-dir .qt-ui-copilot/build/fixture-qt59 --output-on-failure",
     "test:fixture:qt6": "cmake -S fixtures/qt6-app -B .qt-ui-copilot/build/fixture-qt6 -DQT_MAJOR_VERSION=6 && cmake --build .qt-ui-copilot/build/fixture-qt6 && ctest --test-dir .qt-ui-copilot/build/fixture-qt6 --output-on-failure",
-    "test:e2e": "echo \"Electron E2E tests are not wired yet\"",
-    "make": "pnpm --filter @qt-ui-copilot/desktop package"
+    "test:e2e": "node scripts/run-e2e.mjs",
+    "make": "pnpm --filter @qt-ui-copilot/desktop make"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.55.0"
   }
 }

@@ -18,7 +18,10 @@ describe('PreviewHost per-Kit cache key', () => {
 
 const fakeHost = path.join(import.meta.dirname, 'fake-host.mjs');
 const request = { uiFile: 'test.ui', width: 300, height: 200, rccExecutable: 'rcc' };
-function fakeClient(mode: string, timeout = 100): PreviewClient {
+// Process startup on a busy CI worker can exceed 100ms. Keep timeout behavior
+// covered by the dedicated 20ms case instead of making a valid JSON response
+// race against Node process creation.
+function fakeClient(mode: string, timeout = 1_000): PreviewClient {
   return new PreviewClient({ executable: process.execPath, args: [fakeHost] }, timeout);
 }
 

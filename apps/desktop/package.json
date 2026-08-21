@@ -7,8 +7,8 @@
     "start": "node scripts/dev.mjs",
     "forge:start": "electron-forge start",
     "build": "electron-forge package",
-    "package": "electron-forge package",
-    "make": "electron-forge make",
+    "package": "node scripts/prepare-packaging-assets.mjs && electron-forge package",
+    "make": "node scripts/prepare-packaging-assets.mjs && electron-forge make",
     "test": "vitest run --passWithNoTests",
     "typecheck": "tsc --noEmit"
   },

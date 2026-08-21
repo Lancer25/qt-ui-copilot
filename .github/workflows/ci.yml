@@ -1,0 +1,73 @@
+name: qualification
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  types-and-unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: pnpm }
+      - uses: pnpm/action-setup@v4
+        with: { version: 10.15.0 }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: git diff --check
+
+  windows-package:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: pnpm }
+      - uses: pnpm/action-setup@v4
+        with: { version: 10.15.0 }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @qt-ui-copilot/desktop package
+      - uses: actions/upload-artifact@v4
+        with: { name: windows-unpacked, path: out/**, if-no-files-found: error }
+
+  linux-package-verification:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: pnpm }
+      - uses: pnpm/action-setup@v4
+        with: { version: 10.15.0 }
+      - run: pnpm install --frozen-lockfile
+      # The current Forge makers target Windows; package verifies Linux's core
+      # layout without pretending to emit a Linux installer.
+      - run: pnpm --filter @qt-ui-copilot/desktop package
+      - uses: actions/upload-artifact@v4
+        with: { name: linux-unpacked, path: out/**, if-no-files-found: error }
+
+  qt-native-qualified:
+    # Qt 5.9.6 is a legacy ABI and must be supplied by a controlled runner.
+    # A hosted runner must never replace this job with a green placeholder.
+    runs-on: [self-hosted, windows, qt-ui-copilot, qt59, qt6]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: pnpm }
+      - uses: pnpm/action-setup@v4
+        with: { version: 10.15.0 }
+      - run: pnpm install --frozen-lockfile
+      - name: Qualify both target Kits
+        run: node scripts/verify-qt-matrix.mjs --required
+        env:
+          QT59_CMAKE_PREFIX_PATH: ${{ vars.QT59_CMAKE_PREFIX_PATH }}
+          QT6_CMAKE_PREFIX_PATH: ${{ vars.QT6_CMAKE_PREFIX_PATH }}
+      - name: Qualified Electron E2E
+        if: ${{ vars.QT_UI_COPILOT_E2E_ENABLED == 'true' }}
+        run: pnpm test:e2e
+        env:
+          QT_UI_COPILOT_E2E: '1'
+          QT59_CMAKE_PREFIX_PATH: ${{ vars.QT59_CMAKE_PREFIX_PATH }}
+          QT6_CMAKE_PREFIX_PATH: ${{ vars.QT6_CMAKE_PREFIX_PATH }}

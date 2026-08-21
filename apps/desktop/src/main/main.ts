@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, utilityProcess, type UtilityProcess } from
 import { join, resolve } from 'node:path';
 import { resolveMainWindowLoadTarget, resolvePreloadEntryPath } from './window-loading';
 import { createLocalBackend, registerIpc } from './ipc/register-ipc';
+import { verifyRuntimeAssets } from './runtime-assets';
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
@@ -66,7 +67,10 @@ const createWindow = (): BrowserWindow => new BrowserWindow({
   },
 });
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  // A packaged application must never silently use incomplete/tampered native
+  // helper sources. Development builds intentionally build these per Qt kit.
+  if (app.isPackaged) await verifyRuntimeAssets(join(process.resourcesPath, 'qt-ui-copilot-assets'));
   ipcMain.handle('desktop:getAppVersion', () => app.getVersion());
 
   const window = createWindow();
