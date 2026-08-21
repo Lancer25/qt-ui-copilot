@@ -52,3 +52,14 @@ target_compile_definitions(tst_previewhost PRIVATE
   PREVIEW_TEST_RCC_PATH="${PREVIEW_TEST_RCC_PATH}")
 target_link_libraries(tst_previewhost PRIVATE qt-ui-preview-host-core ${QT_PACKAGE}::Test)
 add_test(NAME tst_previewhost COMMAND tst_previewhost)
+
+# CTest starts tst_previewhost as a separate process.  On Windows the test
+# executable needs the *same* Kit's Qt DLLs (not whichever Qt happens to be
+# on the developer's PATH).  Keep the semicolons in PATH escaped: CMake uses
+# semicolons as its list separator, while CTest must receive one PATH value.
+if(WIN32)
+  set(PREVIEW_TEST_PATH "${QT_BIN_DIR};$ENV{PATH}")
+  string(REPLACE ";" "\\;" PREVIEW_TEST_PATH "${PREVIEW_TEST_PATH}")
+  set_tests_properties(tst_previewhost PROPERTIES
+    ENVIRONMENT "PATH=${PREVIEW_TEST_PATH}")
+endif()

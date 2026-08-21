@@ -49,4 +49,19 @@ describe('PreviewClient protocol failures', () => {
     await expect(fakeClient('timeout', 20).render(request)).rejects.toMatchObject<Partial<PreviewHostError>>({ code: 'TIMEOUT' });
     delete process.env.PREVIEW_FAKE_MODE;
   });
+
+  it('prepends the exact target Qt bin directory and forwards target-kit variables', async () => {
+    const qtBinDirectory = process.platform === 'win32' ? 'C:\\Qt\\6.10.2\\msvc2022_64\\bin' : '/opt/qt/6.10.2/bin';
+    const client = new PreviewClient({
+      executable: process.execPath,
+      args: [fakeHost],
+      qtBinDirectory,
+      environment: {
+        PREVIEW_FAKE_MODE: 'environment',
+        PREVIEW_TEST_QT_BIN: qtBinDirectory,
+        PREVIEW_TEST_MARKER: 'configured',
+      },
+    });
+    await expect(client.render(request)).resolves.toMatchObject({ success: true });
+  });
 });

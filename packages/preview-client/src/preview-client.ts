@@ -18,6 +18,26 @@ export class PreviewHostError extends Error {
 export interface PreviewHostCommand {
   executable: string;
   args?: string[];
+  /** Exact Qt Kit bin directory used to build this PreviewHost. */
+  qtBinDirectory?: string;
+  /** Optional target-kit variables, for example QT_PLUGIN_PATH. */
+  environment?: NodeJS.ProcessEnv;
+}
+
+function previewHostEnvironment(command: PreviewHostCommand): NodeJS.ProcessEnv {
+  const environment: NodeJS.ProcessEnv = { ...process.env, ...command.environment };
+  if (!command.qtBinDirectory) return environment;
+
+  // Windows environment variable names are case-insensitive.  Preserve the
+  // casing inherited from the launcher so Node does not pass PATH and Path as
+  // competing variables to CreateProcess.
+  const pathKey = Object.keys(environment).find((key) => key.toLowerCase() === 'path')
+    || (process.platform === 'win32' ? 'Path' : 'PATH');
+  const inheritedPath = environment[pathKey];
+  environment[pathKey] = inheritedPath
+    ? `${command.qtBinDirectory}${path.delimiter}${inheritedPath}`
+    : command.qtBinDirectory;
+  return environment;
 }
 
 export class PreviewClient {
@@ -34,7 +54,14 @@ export class PreviewClient {
     return new Promise<PreviewResult>((resolve, reject) => {
       let settled = false; let response = ''; let stderr = '';
       let child: ChildProcessWithoutNullStreams;
-      try { child = spawn(this.command.executable, this.command.args || [], { shell: false, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] }); }
+      try {
+        child = spawn(this.command.executable, this.command.args || [], {
+          shell: false,
+          windowsHide: true,
+          stdio: ['pipe', 'pipe', 'pipe'],
+          env: previewHostEnvironment(this.command),
+        });
+      }
       catch (error) { reject(new PreviewHostError(String(error), 'CRASHED')); return; }
       const finish = (callback: () => void): void => { if (settled) return; settled = true; clearTimeout(timeout); child.kill(); callback(); };
       const timeout = setTimeout(() => finish(() => reject(new PreviewHostError(`PreviewHost exceeded ${this.timeoutMs}ms`, 'TIMEOUT'))), this.timeoutMs);

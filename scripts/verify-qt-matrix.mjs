@@ -27,11 +27,22 @@ const run = (executable, args, prefix) => {
     env: { ...process.env, [pathKey]: `${kitBin}${path.delimiter}${inheritedPath}` },
   });
 };
-const qualifyCmakeProject = (label, source, build, major, prefix) => {
+const qualifyCmakeProject = (label, source, build, major, prefix, selfContainedTestRuntime = false) => {
   console.log(`[QT GATE] configuring ${label}`);
   const configure = run(cmake, ['-S', source, '-B', build, `-DQT_MAJOR_VERSION=${major}`, `-DCMAKE_PREFIX_PATH=${prefix}`], prefix);
   const compile = configure.status === 0 && run(cmake, ['--build', build, '--config', 'Debug'], prefix);
-  const test = compile?.status === 0 && run(ctest, ['--test-dir', build, '--output-on-failure', '-C', 'Debug'], prefix);
+  // PreviewHost owns its CTest DLL search path.  Keep this invocation clean
+  // so qualification catches a missing ENVIRONMENT property.  The separate
+  // fixture/probe project has its own runtime policy and still receives Kit
+  // variables through the harness.
+  const test = compile?.status === 0 && (selfContainedTestRuntime
+    ? spawnSync(ctest, ['--test-dir', build, '--output-on-failure', '-C', 'Debug'], {
+      cwd: root,
+      stdio: 'inherit',
+      shell: false,
+      env: process.env,
+    })
+    : run(ctest, ['--test-dir', build, '--output-on-failure', '-C', 'Debug'], prefix));
   if (configure.status !== 0 || compile?.status !== 0 || test?.status !== 0) {
     console.error(`[QT GATE] ${label} failed.`);
     return false;
@@ -59,6 +70,7 @@ for (const key of requested) {
     path.join(qualificationRoot, 'preview-host'),
     kit.major,
     kit.prefix,
+    true,
   );
   const fixturePassed = previewPassed && qualifyCmakeProject(
     `${kit.label} Fixture + QtUiProbe`,
