@@ -83,6 +83,22 @@ importers:
         specifier: 3.1.1
         version: 3.1.1(@types/node@22.15.3)(terser@5.50.0)
 
+  packages/probe-client:
+    dependencies:
+      '@qt-ui-copilot/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+    devDependencies:
+      '@types/node':
+        specifier: 22.15.3
+        version: 22.15.3
+      typescript:
+        specifier: 5.8.3
+        version: 5.8.3
+      vitest:
+        specifier: 3.1.1
+        version: 3.1.1(@types/node@22.15.3)(terser@5.50.0)
+
   packages/project-core:
     dependencies:
       '@qt-ui-copilot/contracts':
