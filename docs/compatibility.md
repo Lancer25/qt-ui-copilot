@@ -10,6 +10,15 @@ Qt UI Copilot 的 MVP 只支持 Qt Widgets 和 Qt Designer `.ui` 文件；最低
 | 真实应用验证 | 支持 | 支持 | 需要可重复启动状态与 Probe 接入 |
 | UI-TARS 导航 | Windows 实验性 | Windows 实验性 | 成功到达率低于 8/10 时不得作为演示主链路 |
 
+## 当前验证状态
+
+截至 2026-08-22：
+
+- Qt 6.10.2 `msvc2022_64` 已在本机通过 QtUiPreviewHost 的 `tst_previewhost` 与 Qt fixture + QtUiProbe 的 `qtuiprobe` 测试。
+- Qt 6 PreviewHost 已额外实测加载 `.ui + QRC + QSS` 并生成运行时截图。
+- QtUiProbe 已额外实测在 Windows Named Pipe 上接受跨进程 `listWindows` 请求。
+- Qt 5.9.6 尚未安装，因而没有原生通过声明；安装后必须运行相同资格矩阵。
+
 ## 本地 Qt 资格验证
 
 不要在没有 Qt Kit 的机器上把原生测试标为通过。每个可用 Kit 的资格验证都会独立配置、构建并运行 QtUiPreviewHost 测试，再构建 Fixture 与 QtUiProbe 测试。明确设置对应 Kit 的 CMake 前缀后执行：
