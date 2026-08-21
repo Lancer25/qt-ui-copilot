@@ -1,0 +1,20 @@
+{
+  "id": "network-connection-panel",
+  "name": "网络连接测试区域",
+  "description": "提供服务器地址输入和连接测试按钮的通用区域。",
+  "tags": ["网络", "连接", "测试", "settings"],
+  "sourceProject": "fixture-library",
+  "sourceUiFile": "network-connection-panel.ui",
+  "rootObjectName": "networkConnectionPanel",
+  "structureSummary": "QFrame with QFormLayout, QLineEdit and QPushButton",
+  "qssDependencies": [],
+  "qrcDependencies": ["network-icons.qrc"],
+  "customWidgets": [],
+  "connections": [],
+  "qtVersionRange": ">=5.9.6 <7.0.0",
+  "preview": {
+    "rccExecutable": "fixture-rcc-not-used-by-catalog-test",
+    "width": 640,
+    "height": 360
+  }
+}
