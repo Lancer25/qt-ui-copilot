@@ -37,6 +37,8 @@ export interface ModelSettings {
   baseUrl: string;
   model: string;
   hasApiKey: boolean;
+  hasPersistentApiKey?: boolean;
+  storageWarning?: string;
 }
 
 export type TaskStartResult =

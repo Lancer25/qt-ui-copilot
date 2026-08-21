@@ -55,4 +55,15 @@ export const DATABASE_SCHEMA = `
     updated_at INTEGER NOT NULL,
     UNIQUE(project_id, route_id)
   );
+
+  -- A singleton row for non-secret model configuration.  The API key, when
+  -- present, is an opaque Electron safeStorage ciphertext; plaintext must
+  -- never be written to this database.
+  CREATE TABLE IF NOT EXISTS model_settings (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    base_url TEXT NOT NULL,
+    model TEXT NOT NULL,
+    encrypted_api_key BLOB,
+    updated_at INTEGER NOT NULL
+  );
 `;

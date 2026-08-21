@@ -34,6 +34,14 @@ export interface StoredArtifact {
   createdAt: number;
 }
 
+export interface StoredModelSettings {
+  baseUrl: string;
+  model: string;
+  /** Opaque ciphertext created by Electron safeStorage, never plaintext. */
+  encryptedApiKey?: Buffer;
+  updatedAt: number;
+}
+
 export const SAFE_RESUME_NODES = new Set([
   'IMPORT_PROJECT', 'SELECT_UI', 'CAPTURE_BASELINE', 'RETRIEVE_COMPONENTS', 'UNDERSTAND_REQUIREMENT',
   'GENERATE_UI_PLAN', 'USER_APPROVAL', 'XML_VALIDATE', 'UIC_VALIDATE', 'ENHANCED_PREVIEW',
@@ -154,5 +162,27 @@ export class TaskRepository {
     const row = this.database.prepare('SELECT route_json FROM routes WHERE project_id = ? AND route_id = ?')
       .get(projectId, routeId) as { route_json: string } | undefined;
     return row && parseJson(row.route_json);
+  }
+
+  public saveModelSettings(settings: { baseUrl: string; model: string; encryptedApiKey?: Buffer }): void {
+    this.database.prepare(`
+      INSERT INTO model_settings (id, base_url, model, encrypted_api_key, updated_at)
+      VALUES (1, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET base_url = excluded.base_url, model = excluded.model,
+        encrypted_api_key = COALESCE(excluded.encrypted_api_key, model_settings.encrypted_api_key), updated_at = excluded.updated_at
+    `).run(settings.baseUrl, settings.model, settings.encryptedApiKey ?? null, Date.now());
+  }
+
+  public getModelSettings(): StoredModelSettings | undefined {
+    const row = this.database.prepare(
+      'SELECT base_url, model, encrypted_api_key, updated_at FROM model_settings WHERE id = 1',
+    ).get() as { base_url: string; model: string; encrypted_api_key: Buffer | Uint8Array | null; updated_at: number } | undefined;
+    if (!row) return undefined;
+    return {
+      baseUrl: row.base_url,
+      model: row.model,
+      ...(row.encrypted_api_key ? { encryptedApiKey: Buffer.from(row.encrypted_api_key) } : {}),
+      updatedAt: row.updated_at,
+    };
   }
 }

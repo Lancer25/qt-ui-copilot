@@ -57,4 +57,24 @@ describe('TaskRepository', () => {
     expect(repo.getRoute('demo', 'open-settings')).toEqual({ steps: [{ action: 'invoke', objectName: 'settingsButton' }] });
     database.close();
   });
+
+  it('persists model metadata and only an opaque API-key ciphertext across reopen', () => {
+    const directory = mkdtempSync(path.join(tmpdir(), 'qt-ui-copilot-model-settings-'));
+    const databasePath = path.join(directory, 'tasks.sqlite');
+    try {
+      const first = openDatabase(databasePath);
+      new TaskRepository(first).saveModelSettings({ baseUrl: 'https://models.example/v1', model: 'demo-model', encryptedApiKey: Buffer.from([7, 9, 11]) });
+      first.close();
+
+      const reopened = openDatabase(databasePath);
+      expect(new TaskRepository(reopened).getModelSettings()).toEqual({
+        baseUrl: 'https://models.example/v1', model: 'demo-model', encryptedApiKey: Buffer.from([7, 9, 11]), updatedAt: expect.any(Number),
+      });
+      const raw = reopened.prepare('SELECT encrypted_api_key FROM model_settings WHERE id = 1').get() as { encrypted_api_key: Buffer | Uint8Array };
+      expect(Buffer.from(raw.encrypted_api_key).equals(Buffer.from([7, 9, 11]))).toBe(true);
+      reopened.close();
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
 });

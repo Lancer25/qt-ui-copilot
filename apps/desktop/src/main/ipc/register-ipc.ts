@@ -16,7 +16,13 @@ const TaskIdSchema = z.object({ taskId: z.string().min(1) }).strict();
 const ApprovalSchema = TaskIdSchema.extend({ approved: z.boolean() }).strict();
 const ComponentSearchSchema = z.object({ projectId: z.string().min(1), query: z.string().max(10_000) }).strict();
 const ModelSettingsInputSchema = z.object({ baseUrl: z.string().url().max(2048), model: z.string().min(1).max(256), apiKey: z.string().min(1).max(4096).optional() }).strict();
-export const ModelSettingsSchema = z.object({ baseUrl: z.string().url(), model: z.string().min(1), hasApiKey: z.boolean() }).strict();
+export const ModelSettingsSchema = z.object({
+  baseUrl: z.string().url(),
+  model: z.string().min(1),
+  hasApiKey: z.boolean(),
+  hasPersistentApiKey: z.boolean(),
+  storageWarning: z.string().max(512).optional(),
+}).strict();
 const ReportSchema = z.object({ task: z.object({ taskId: z.string().min(1), targetUi: z.string().min(1), status: z.string().min(1), node: z.string().min(1), plan: z.object({ summary: z.string(), operations: z.array(z.unknown()), expectedResults: z.array(z.string()) }).passthrough().optional(), xmlBefore: z.string().max(2_000_000).optional(), xmlAfter: z.string().max(2_000_000).optional(), beforeImage: z.string().max(4_000_000).optional(), afterImage: z.string().max(4_000_000).optional(), deterministicFindings: z.array(z.string()), visualFindings: z.array(z.string()), routeEvidence: z.array(z.string()), qtKit: z.string().optional(), build: z.object({ executable: z.string(), args: z.array(z.string()), exitCode: z.number().optional() }).optional() }).passthrough(), selectedComponent: z.object({ component: z.object({ id: z.string(), name: z.string(), sourceUiFile: z.string() }).passthrough() }).passthrough().optional() }).strict();
 
 export interface DesktopBackend {
@@ -31,6 +37,8 @@ export interface DesktopBackend {
   getModelSettings(): Promise<z.infer<typeof ModelSettingsSchema>>;
   configureModelSettings(input: z.infer<typeof ModelSettingsInputSchema>): Promise<z.infer<typeof ModelSettingsSchema>>;
   subscribeWorkflow?(listener: (state: unknown) => void): () => void;
+  /** Releases the SQLite handle. Used by deterministic integration tests and app shutdown. */
+  dispose?(): void;
 }
 
 const escapeHtml = (value: string): string => value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
@@ -62,7 +70,19 @@ export function registerIpc(window: BrowserWindow, backend: DesktopBackend): voi
 /** Publishes only validated, app-owned workflow snapshots to subscribed renderer windows. */
 export function publishWorkflow(window: BrowserWindow, state: unknown): void { window.webContents.send('workflow:event', state); }
 
-export interface LocalBackendOptions { databasePath?: string; modelProvider?: ModelProvider; }
+/** The narrow subset of Electron safeStorage used by the Main-process backend. */
+export interface SecureStorage {
+  isEncryptionAvailable(): boolean;
+  encryptString(value: string): Buffer;
+  decryptString(value: Buffer): string;
+}
+
+export interface LocalBackendOptions {
+  databasePath?: string;
+  modelProvider?: ModelProvider;
+  /** Inject Electron safeStorage in production; tests supply a deterministic fake. */
+  secureStorage?: SecureStorage;
+}
 interface StoredProject { id: string; rootDir: string; uiFiles: string[]; }
 interface UiState { taskId: string; targetUi: string; status: WorkflowState['status']; node: WorkflowNode; plan?: unknown; events: Array<{ node: string; status: string; detail?: string }>; deterministicFindings: string[]; visualFindings: string[]; routeEvidence: string[]; qtKit?: string; }
 
@@ -80,14 +100,38 @@ class OpenAiCompatibleProvider implements ModelProvider {
 
 /** Main-only composition root. Tests inject a deterministic provider; production uses configured OpenAI-compatible HTTP. */
 export function createLocalBackend(options: LocalBackendOptions = {}): DesktopBackend {
-  const repository = new TaskRepository(openDatabase(options.databasePath ?? ':memory:'));
+  const database = openDatabase(options.databasePath ?? ':memory:');
+  const repository = new TaskRepository(database);
   const catalog = new ComponentCatalog({ databasePath: ':memory:' });
   const projects = new Map<string, StoredProject>();
   const snapshots = new Map<string, UiState>();
   const listeners = new Set<(state: unknown) => void>();
   const workflowStore = new TaskRepositoryWorkflowStore(repository);
-  let configured: { baseUrl: string; model: string; apiKey?: string } | undefined;
+  const storedModel = repository.getModelSettings();
+  let storageWarning: string | undefined;
+  let configured: { baseUrl: string; model: string; apiKey?: string } | undefined = storedModel && {
+    baseUrl: storedModel.baseUrl,
+    model: storedModel.model,
+  };
+  if (storedModel?.encryptedApiKey) {
+    if (!options.secureStorage?.isEncryptionAvailable()) {
+      storageWarning = '系统安全存储不可用；已保存的 API Key 无法在本次会话中读取。';
+    } else {
+      try {
+        configured = { ...configured!, apiKey: options.secureStorage.decryptString(storedModel.encryptedApiKey) };
+      } catch {
+        storageWarning = '无法从系统安全存储读取 API Key；请重新保存模型设置。';
+      }
+    }
+  }
   const provider = (): ModelProvider => options.modelProvider ?? new OpenAiCompatibleProvider(configured!);
+  const modelSettings = () => ModelSettingsSchema.parse({
+    baseUrl: configured?.baseUrl ?? 'http://localhost:11434/v1',
+    model: configured?.model ?? 'gpt-4o-mini',
+    hasApiKey: Boolean(configured?.apiKey),
+    hasPersistentApiKey: Boolean(configured?.apiKey && options.secureStorage?.isEncryptionAvailable()),
+    ...(storageWarning ? { storageWarning } : {}),
+  });
   const update = (state: UiState): UiState => { snapshots.set(state.taskId, state); const snapshot = structuredClone(state); listeners.forEach((listener) => listener(snapshot)); return snapshot; };
   const mutate = (taskId: string, change: Partial<UiState>): UiState => { const current = snapshots.get(taskId); if (!current) throw new Error(`Unknown task: ${taskId}`); return update({ ...current, ...change, events: [...current.events, { node: String(change.node ?? current.node), status: String(change.status ?? current.status) }] }); };
   const workflowFor = (taskId: string): WorkflowMachine => new WorkflowMachine({ store: workflowStore, execute: async (node, state) => {
@@ -104,8 +148,31 @@ export function createLocalBackend(options: LocalBackendOptions = {}): DesktopBa
     async acceptTask({ taskId }) { const state = await workflowFor(taskId).approve(taskId, { approved: true }); return mutate(taskId, { status: state.status, node: state.node }); },
     async rollbackTask({ taskId }) { const state = await workflowFor(taskId).approve(taskId, { approved: false }); return mutate(taskId, { status: state.status, node: state.node }); },
     async searchComponents({ query }) { return catalog.search({ text: query, limit: 3 }); },
-    async getModelSettings() { return ModelSettingsSchema.parse({ baseUrl: configured?.baseUrl ?? 'http://localhost:11434/v1', model: configured?.model ?? 'gpt-4o-mini', hasApiKey: Boolean(configured?.apiKey) }); },
-    async configureModelSettings(input) { configured = { baseUrl: input.baseUrl, model: input.model, apiKey: input.apiKey ?? configured?.apiKey }; return ModelSettingsSchema.parse({ baseUrl: configured.baseUrl, model: configured.model, hasApiKey: Boolean(configured.apiKey) }); },
+    async getModelSettings() { return modelSettings(); },
+    async configureModelSettings(input) {
+      const nextApiKey = input.apiKey ?? configured?.apiKey;
+      let encryptedApiKey: Buffer | undefined;
+      storageWarning = undefined;
+      if (input.apiKey) {
+        if (options.secureStorage?.isEncryptionAvailable()) {
+          try {
+            encryptedApiKey = options.secureStorage.encryptString(input.apiKey);
+          } catch {
+            storageWarning = '系统安全存储写入失败；API Key 只在当前会话内保存。';
+          }
+        } else {
+          storageWarning = '系统安全存储不可用；API Key 只在当前会话内保存。';
+        }
+      } else if (nextApiKey && !options.secureStorage?.isEncryptionAvailable()) {
+        storageWarning = '系统安全存储不可用；API Key 只在当前会话内保存。';
+      }
+      configured = { baseUrl: input.baseUrl, model: input.model, ...(nextApiKey ? { apiKey: nextApiKey } : {}) };
+      // Only ciphertext reaches SQLite. If no new key was supplied, preserve a
+      // prior ciphertext rather than accidentally clearing it in an insecure session.
+      repository.saveModelSettings({ baseUrl: configured.baseUrl, model: configured.model, ...(encryptedApiKey ? { encryptedApiKey } : {}) });
+      return modelSettings();
+    },
     subscribeWorkflow(listener) { listeners.add(listener); return () => listeners.delete(listener); },
+    dispose() { database.close(); },
   };
 }
