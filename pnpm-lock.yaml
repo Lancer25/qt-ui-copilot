@@ -19,6 +19,12 @@ importers:
       '@qt-ui-copilot/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@qt-ui-copilot/preview-client':
+        specifier: workspace:*
+        version: link:../../packages/preview-client
+      '@qt-ui-copilot/probe-client':
+        specifier: workspace:*
+        version: link:../../packages/probe-client
       '@qt-ui-copilot/project-core':
         specifier: workspace:*
         version: link:../../packages/project-core

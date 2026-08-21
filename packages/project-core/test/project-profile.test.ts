@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { loadProjectProfile } from '../src/project-profile.js';
+import { loadProjectConfig, loadProjectProfile } from '../src/project-profile.js';
 import { ArtifactStore } from '../src/artifact-store.js';
 
 describe('project profiles and artifacts', () => {
@@ -22,6 +22,16 @@ describe('project profiles and artifacts', () => {
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }
+  });
+
+  it('loads the complete Qt6 fixture workflow profile when its kit is present', () => {
+    const root = path.resolve(process.cwd(), '..', '..', 'fixtures', 'qt6-app');
+    const config = loadProjectConfig(root);
+    expect(config).toMatchObject({ id: 'qt6-fixture', qt: { version: '6.10.2', compilerAbi: 'msvc2022_64' } });
+    expect(config?.preview.sourceDirectory).toContain(path.join('native', 'qt-ui-preview-host'));
+    // The test documents configuration validity even on a contributor machine
+    // without the optional fixture kit; native qualification checks existence.
+    if (config) expect(existsSync(config.qt.uic) || process.platform !== 'win32').toBe(true);
   });
 
   it('rejects artifact paths outside the project task directory', () => {

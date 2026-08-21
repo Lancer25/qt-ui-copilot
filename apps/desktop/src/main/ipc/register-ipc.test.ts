@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -21,6 +21,33 @@ const unavailableStorage: SecureStorage = {
   decryptString: () => { throw new Error('unavailable'); },
 };
 
+function writeExecutionConfig(root: string): void {
+  mkdirSync(join(root, '.qt-ui-copilot'), { recursive: true });
+  writeFileSync(join(root, '.qt-ui-copilot', 'project.json'), JSON.stringify({
+    id: 'test-project',
+    qt: { version: '6.10.2', binDirectory: 'bin', uic: 'uic', rcc: 'rcc', cmake: 'cmake', cmakePrefixPath: 'qt', compilerAbi: 'test', architecture: 'x86_64' },
+    preview: { sourceDirectory: 'preview-host', cacheDirectory: '.qt-ui-copilot/cache', width: 300, height: 200, locale: 'zh_CN', style: 'Fusion', qrcFiles: [], stylesheets: [], fonts: [], pluginPaths: [] },
+    build: { command: { executable: 'cmake', args: ['--build', 'build'] } },
+    run: { executable: 'app', args: [], environment: {} },
+  }));
+}
+
+function writeQt6IntegrationConfig(root: string): void {
+  const repositoryRoot = join(process.cwd(), '..', '..');
+  mkdirSync(join(root, '.qt-ui-copilot'), { recursive: true });
+  writeFileSync(join(root, '.qt-ui-copilot', 'project.json'), JSON.stringify({
+    id: 'qt6-integration',
+    qt: {
+      version: '6.10.2', binDirectory: 'D:/Qt6.10.2/6.10.2/msvc2022_64/bin',
+      uic: 'D:/Qt6.10.2/6.10.2/msvc2022_64/bin/uic.exe', rcc: 'D:/Qt6.10.2/6.10.2/msvc2022_64/bin/rcc.exe',
+      cmake: 'C:/Program Files/CMake/bin/cmake.exe', cmakePrefixPath: 'D:/Qt6.10.2/6.10.2/msvc2022_64', cmakeGenerator: 'Visual Studio 18 2026', compilerAbi: 'msvc2022_64', architecture: 'x86_64',
+    },
+    preview: { sourceDirectory: join(repositoryRoot, 'native', 'qt-ui-preview-host'), cacheDirectory: join(root, '.qt-ui-copilot', 'preview-cache'), width: 360, height: 240, locale: 'zh_CN', style: 'Fusion', qrcFiles: [], stylesheets: [], fonts: [], pluginPaths: [] },
+    build: { command: { executable: 'C:/Program Files/CMake/bin/cmake.exe', args: ['-E', 'true'] } },
+    run: { executable: join(root, 'not-built.exe'), args: [], environment: {} },
+  }));
+}
+
 describe('local workflow backend', () => {
   it('returns an explicit configuration result instead of throwing when no model is configured', async () => {
     const backend = createLocalBackend();
@@ -33,18 +60,50 @@ describe('local workflow backend', () => {
       .toThrow('无法导入项目目录');
   });
 
+  it('imports an unconfigured project but blocks a real task with configuration_required', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'qt-ui-copilot-unconfigured-'));
+    try {
+      const ui = join(root, 'Settings.ui');
+      writeFileSync(ui, '<ui version="4.0"><class>Settings</class><widget class="QWidget" name="Settings"/><resources/><connections/></ui>');
+      const backend = createLocalBackend({ modelProvider: fakeProvider });
+      const project = await backend.importProject({ rootDir: root }) as { id: string; uiFiles: string[]; configurationRequired?: string };
+      expect(project.configurationRequired).toContain('project.json');
+      await expect(backend.startTask({ projectId: project.id, targetUi: project.uiFiles[0], requirement: 'test' })).resolves.toMatchObject({ kind: 'configuration_required' });
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+
   it('persists task workflow snapshots and emits updates with an injected deterministic model', async () => {
     const root = mkdtempSync(join(tmpdir(), 'qt-ui-copilot-backend-'));
     const ui = join(root, 'Settings.ui');
-    writeFileSync(ui, '<ui version="4.0"><class>Settings</class><widget class="QWidget" name="Settings"><layout class="QVBoxLayout" name="buttonLayout"/></widget><resources/><connections/></ui>');
+    writeFileSync(ui, '<ui version="4.0"><class>Settings</class><widget class="QWidget" name="Settings"><layout class="QVBoxLayout" name="buttonLayout"></layout></widget><resources/><connections/></ui>');
+    writeExecutionConfig(root);
     const backend = createLocalBackend({ databasePath: join(root, 'tasks.sqlite'), modelProvider: fakeProvider });
     const project = await backend.importProject({ rootDir: root }) as { id: string; uiFiles: string[] };
     const events: unknown[] = []; backend.subscribeWorkflow?.((state) => events.push(state));
     const started = await backend.startTask({ projectId: project.id, targetUi: project.uiFiles[0], requirement: '增加测试按钮' }) as { kind: string; state: { taskId: string; status: string; node: string; plan?: { summary: string } } };
     expect(started.kind).toBe('started'); expect(started.state.status).toBe('waiting_approval'); expect(started.state.plan?.summary).toBe('增加测试按钮');
-    const progressed = await backend.approveTask({ taskId: started.state.taskId, approved: true }) as { status: string; node: string };
-    expect(progressed.status).toBe('waiting_approval'); expect(progressed.node).toBe('ACCEPT_OR_ROLLBACK'); expect(events.length).toBeGreaterThan(1);
+    const progressed = await backend.approveTask({ taskId: started.state.taskId, approved: true }) as { status: string; node: string; failure?: { code: string } };
+    expect(progressed.status).toBe('failed'); expect(progressed.failure?.code).toBe('uic_validate_failed'); expect(events.length).toBeGreaterThan(1);
+    await expect(backend.rollbackTask({ taskId: started.state.taskId })).resolves.toMatchObject({ status: 'cancelled' });
+    expect(readFileSync(ui, 'utf8')).not.toContain('testButton');
   });
+
+  it.skipIf(!existsSync('D:/Qt6.10.2/6.10.2/msvc2022_64/bin/uic.exe'))('stages a UiOperation and runs target-kit uic plus PreviewHost with the Qt6 profile', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'qt-ui-copilot-qt6-workflow-'));
+    const ui = join(root, 'Settings.ui');
+    const original = '<ui version="4.0"><class>Settings</class><widget class="QWidget" name="Settings"><layout class="QVBoxLayout" name="buttonLayout"></layout></widget><resources/><connections/></ui>';
+    writeFileSync(ui, original); writeQt6IntegrationConfig(root);
+    const backend = createLocalBackend({ databasePath: join(root, 'tasks.sqlite'), modelProvider: fakeProvider });
+    try {
+      const project = await backend.importProject({ rootDir: root }) as { id: string; uiFiles: string[] };
+      const started = await backend.startTask({ projectId: project.id, targetUi: project.uiFiles[0], requirement: '增加测试按钮' }) as { state: { taskId: string } };
+      const result = await backend.approveTask({ taskId: started.state.taskId, approved: true }) as { status: string; failure?: { code: string } };
+      expect(result.status).toBe('failed');
+      expect(result.failure?.code).toBe('runtime_route_required');
+      expect(readFileSync(ui, 'utf8')).toContain('testButton');
+      expect(readFileSync(join(root, '.qt-ui-copilot', 'tasks', started.state.taskId, 'preview-after.png')).length).toBeGreaterThan(0);
+    } finally { backend.dispose?.(); writeFileSync(ui, original); rmSync(root, { recursive: true, force: true }); }
+  }, 120_000);
 
   it('reopens persisted model metadata and decrypts only safeStorage ciphertext', async () => {
     const root = mkdtempSync(join(tmpdir(), 'qt-ui-copilot-model-backend-'));

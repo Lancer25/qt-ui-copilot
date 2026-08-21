@@ -1,0 +1,38 @@
+{
+  "id": "qt6-fixture",
+  "qt": {
+    "version": "6.10.2",
+    "binDirectory": "D:/Qt6.10.2/6.10.2/msvc2022_64/bin",
+    "uic": "D:/Qt6.10.2/6.10.2/msvc2022_64/bin/uic.exe",
+    "rcc": "D:/Qt6.10.2/6.10.2/msvc2022_64/bin/rcc.exe",
+    "cmake": "C:/Program Files/CMake/bin/cmake.exe",
+    "cmakePrefixPath": "D:/Qt6.10.2/6.10.2/msvc2022_64",
+    "cmakeGenerator": "Visual Studio 18 2026",
+    "compilerAbi": "msvc2022_64",
+    "architecture": "x86_64"
+  },
+  "preview": {
+    "sourceDirectory": "${projectRoot}/../../native/qt-ui-preview-host",
+    "cacheDirectory": "${projectRoot}/.qt-ui-copilot/preview-cache",
+    "width": 900,
+    "height": 640,
+    "locale": "zh_CN",
+    "style": "Fusion",
+    "qrcFiles": ["${projectRoot}/../qt59-app/resources/common.qrc"],
+    "stylesheets": ["${projectRoot}/../qt59-app/resources/dark.qss"],
+    "fonts": [],
+    "pluginPaths": []
+  },
+  "build": {
+    "command": {
+      "executable": "C:/Program Files/CMake/bin/cmake.exe",
+      "args": ["--build", "${projectRoot}/.qt-ui-copilot/build", "--config", "Debug"]
+    }
+  },
+  "run": {
+    "executable": "${projectRoot}/.qt-ui-copilot/build/qt-ui-copilot-qt6-fixture.exe",
+    "args": [],
+    "environment": {},
+    "routeId": "network-settings"
+  }
+}

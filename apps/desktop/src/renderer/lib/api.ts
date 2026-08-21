@@ -26,6 +26,7 @@ export interface WorkflowUiState {
   routeEvidence: string[];
   qtKit?: string;
   build?: { executable: string; args: string[]; exitCode?: number };
+  failure?: { code: string; message: string };
 }
 
 export interface ReportRequest {
