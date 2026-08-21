@@ -7,7 +7,7 @@ import { FakeDesktopApi } from './test/FakeDesktopApi';
 import { makeReportRequest } from './features/report/EvidenceReport';
 
 describe('Qt UI Copilot product UI', () => {
-  it('keeps apply disabled until the user approves the structured plan', async () => {
+  it('approves and applies the structured plan from the primary candidate action', async () => {
     const user = userEvent.setup();
     const fakeApi = new FakeDesktopApi().withPlan({ summary: '增加测试按钮', riskLevel: 'medium', expectedResults: [], componentIds: [], operations: [{ op: 'addWidget', parentLayout: 'buttonLayout', widgetClass: 'QPushButton', objectName: 'testButton' }] });
     render(<App api={fakeApi} />);
@@ -15,9 +15,15 @@ describe('Qt UI Copilot product UI', () => {
     await user.click(screen.getByRole('button', { name: 'src/Settings.ui' }));
     await user.type(screen.getByLabelText('界面需求'), '增加测试按钮');
     await user.click(screen.getByRole('button', { name: '生成修改计划' }));
-    expect((screen.getByRole('button', { name: '应用候选修改' }) as HTMLButtonElement).disabled).toBe(true);
-    await user.click(screen.getByRole('button', { name: '批准计划' }));
-    await waitFor(() => expect((screen.getByRole('button', { name: '应用候选修改' }) as HTMLButtonElement).disabled).toBe(false));
+    const applyCandidate = screen.getByRole('button', { name: '批准并应用候选修改' });
+    expect((applyCandidate as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.queryByRole('button', { name: '批准计划' })).toBeNull();
+
+    await user.click(applyCandidate);
+
+    expect(fakeApi.approveRequests).toEqual([{ taskId: 'task-1', approved: true }]);
+    await waitFor(() => expect(screen.getByText('UIC_VALIDATE · running')).not.toBeNull());
+    expect((screen.getByRole('button', { name: '批准并应用候选修改' }) as HTMLButtonElement).disabled).toBe(true);
   });
 
   it('keeps report evidence structured for the Main-process exporter', () => {

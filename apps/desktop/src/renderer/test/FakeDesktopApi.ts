@@ -9,6 +9,7 @@ export class FakeDesktopApi implements DesktopApi {
   private listeners = new Set<(state: WorkflowUiState) => void>();
   private state?: WorkflowUiState;
   public takeoverRequested = false;
+  public approveRequests: Array<{ taskId: string; approved: boolean }> = [];
   public exported?: ReportRequest;
   withPlan(plan: UiPlan): this { this.plan = plan; return this; }
   projects = { import: async (): Promise<UiProject> => project };
@@ -17,7 +18,10 @@ export class FakeDesktopApi implements DesktopApi {
       taskId: 'task-1', targetUi, status: 'waiting_approval', node: 'USER_APPROVAL', plan: this.plan,
       events: [{ node: 'GENERATE_UI_PLAN', status: 'completed' }], deterministicFindings: [], visualFindings: [], routeEvidence: [],
     }) }),
-    approve: async (): Promise<WorkflowUiState> => this.publish(this.requireState({ status: 'running', node: 'UIC_VALIDATE' })),
+    approve: async (input: { taskId: string; approved: boolean }): Promise<WorkflowUiState> => {
+      this.approveRequests.push(input);
+      return this.publish(this.requireState({ status: 'running', node: 'UIC_VALIDATE' }));
+    },
     cancel: async (): Promise<WorkflowUiState> => this.publish(this.requireState({ status: 'cancelled', node: 'USER_APPROVAL' })),
     takeOver: async (): Promise<void> => { this.takeoverRequested = true; },
     accept: async (): Promise<WorkflowUiState> => this.publish(this.requireState({ status: 'completed', node: 'ACCEPT_OR_ROLLBACK' })),
