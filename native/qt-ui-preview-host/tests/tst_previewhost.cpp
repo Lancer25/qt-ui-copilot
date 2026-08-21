@@ -1,0 +1,31 @@
+#include "FormLoader.h"
+
+#include <QDir>
+#include <QFileInfo>
+#include <QtTest>
+
+class PreviewHostTest : public QObject {
+    Q_OBJECT
+private slots:
+    void loadsResourceAndStyleSheet();
+};
+
+void PreviewHostTest::loadsResourceAndStyleSheet()
+{
+    PreviewRequest request;
+    request.uiFile = QFINDTESTDATA("fixtures/resource-form.ui");
+    request.rccExecutable = QString::fromLocal8Bit(PREVIEW_TEST_RCC_PATH);
+    request.qrcFiles << QFINDTESTDATA("fixtures/common.qrc");
+    request.qssFiles << QFINDTESTDATA("fixtures/preview.qss");
+    request.outputImage = QDir(QDir::tempPath()).filePath("preview-host-test.png");
+    PreviewResult result = renderPreview(request);
+    QVERIFY2(result.success, qPrintable(result.error));
+    QVERIFY(result.loadedResources.contains("common.qrc"));
+    const PreviewWidget *save = result.widget("saveButton");
+    QVERIFY(save != 0);
+    QVERIFY(save->styleSheetMatched);
+    QVERIFY(QFileInfo(result.imagePath).size() > 1000);
+}
+
+QTEST_MAIN(PreviewHostTest)
+#include "tst_previewhost.moc"

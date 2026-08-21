@@ -1,0 +1,54 @@
+cmake_minimum_required(VERSION 3.10)
+project(QtUiPreviewHost LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_AUTOMOC ON)
+
+set(QT_MAJOR_VERSION "" CACHE STRING "Qt major version: 5 or 6")
+if(QT_MAJOR_VERSION STREQUAL "5")
+  find_package(Qt5 5.9.6 REQUIRED COMPONENTS Core Gui Widgets UiTools Test)
+  set(QT_PACKAGE Qt5)
+elseif(QT_MAJOR_VERSION STREQUAL "6")
+  find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets UiTools Test)
+  set(QT_PACKAGE Qt6)
+else()
+  message(FATAL_ERROR "Set -DQT_MAJOR_VERSION=5 or -DQT_MAJOR_VERSION=6. A PreviewHost is built per target Qt Kit.")
+endif()
+
+add_library(qt-ui-preview-host-core
+  src/PreviewRequest.cpp
+  src/ResourceLoader.cpp
+  src/FormLoader.cpp
+)
+target_include_directories(qt-ui-preview-host-core PUBLIC src)
+target_link_libraries(qt-ui-preview-host-core PUBLIC
+  ${QT_PACKAGE}::Core ${QT_PACKAGE}::Gui ${QT_PACKAGE}::Widgets ${QT_PACKAGE}::UiTools)
+
+add_executable(qt-ui-preview-host src/main.cpp)
+target_link_libraries(qt-ui-preview-host PRIVATE qt-ui-preview-host-core)
+
+if(QT_MAJOR_VERSION STREQUAL "5")
+  set(QT_QMAKE_PATH "${Qt5Core_QMAKE_EXECUTABLE}")
+else()
+  set(QT_QMAKE_PATH "${Qt6Core_QMAKE_EXECUTABLE}")
+endif()
+if(NOT QT_QMAKE_PATH)
+  get_target_property(QT_QMAKE_PATH ${QT_PACKAGE}::qmake IMPORTED_LOCATION)
+endif()
+if(NOT QT_QMAKE_PATH)
+  get_target_property(QT_QMAKE_PATH ${QT_PACKAGE}::qmake IMPORTED_LOCATION_RELEASE)
+endif()
+if(NOT QT_QMAKE_PATH)
+  message(FATAL_ERROR "The selected Qt Kit did not expose qmake; unable to locate its exact rcc executable")
+endif()
+get_filename_component(QT_BIN_DIR "${QT_QMAKE_PATH}" DIRECTORY)
+set(PREVIEW_TEST_RCC_PATH "${QT_BIN_DIR}/rcc${CMAKE_EXECUTABLE_SUFFIX}")
+
+enable_testing()
+add_executable(tst_previewhost tests/tst_previewhost.cpp)
+target_compile_definitions(tst_previewhost PRIVATE
+  PREVIEW_TEST_RCC_PATH="${PREVIEW_TEST_RCC_PATH}")
+target_link_libraries(tst_previewhost PRIVATE qt-ui-preview-host-core ${QT_PACKAGE}::Test)
+add_test(NAME tst_previewhost COMMAND tst_previewhost)
