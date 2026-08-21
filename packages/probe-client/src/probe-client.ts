@@ -12,6 +12,21 @@ export interface ProbeSuccess<T = unknown> { id: string; ok: true; result: T | u
 export interface ProbeFailure { id: string; ok: false; error: { code: string; message: string }; }
 export type ProbeReply<T = unknown> = ProbeSuccess<T> | ProbeFailure;
 
+/**
+ * Resolves the endpoint advertised by QtUiProbe into the form expected by
+ * Node's net.createConnection().  QLocalServer treats a bare server name as a
+ * Windows named pipe, whereas Node treats the same value as a filesystem path.
+ */
+export function resolveProbeEndpoint(serverName: string, platform: NodeJS.Platform | string = process.platform): string | net.NetConnectOpts {
+  const tcpMatch = /^([^:/]+):(\d+)$/.exec(serverName);
+  if (tcpMatch) return { host: tcpMatch[1], port: Number(tcpMatch[2]) };
+
+  const isQualifiedWindowsPipe = /^(?:\\\\\.\\pipe\\|\/\/\.\/pipe\/)/i.test(serverName);
+  if (platform === 'win32' && !isQualifiedWindowsPipe) return `\\\\.\\pipe\\${serverName}`;
+
+  return serverName;
+}
+
 export class ProbeError extends Error {
   constructor(readonly code: string, message: string) { super(message); this.name = 'ProbeError'; }
 }
@@ -64,8 +79,8 @@ export class ProbeClient {
   private createSocket(): net.Socket {
     // Qt uses a named pipe / Unix-domain-socket name in production.  Supporting
     // host:port as well keeps the client deterministically testable.
-    const match = /^([^:/]+):(\d+)$/.exec(this.serverName);
-    return match ? net.createConnection({ host: match[1], port: Number(match[2]) }) : net.createConnection(this.serverName);
+    const endpoint = resolveProbeEndpoint(this.serverName);
+    return typeof endpoint === 'string' ? net.createConnection(endpoint) : net.createConnection(endpoint);
   }
   private consume(chunk: string): void {
     this.buffer += chunk;

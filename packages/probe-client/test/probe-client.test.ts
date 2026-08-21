@@ -1,6 +1,6 @@
 import net from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
-import { ProbeClient, ProbeError } from '../src/index.js';
+import { ProbeClient, ProbeError, resolveProbeEndpoint } from '../src/index.js';
 
 const servers: net.Server[] = [];
 async function server(handler: (socket: net.Socket) => void): Promise<string> {
@@ -27,5 +27,24 @@ describe('ProbeClient JSON-lines protocol', () => {
     const name = await server((socket) => socket.on('data', () => socket.destroy()));
     const client = new ProbeClient(name); await client.connect();
     await expect(client.request({ id: 'c', token: 'token', method: 'listWindows' })).rejects.toMatchObject<Partial<ProbeError>>({ code: 'DISCONNECTED' }); client.close();
+  });
+});
+
+describe('resolveProbeEndpoint', () => {
+  it('maps Qt logical server names to Windows named-pipe paths', () => {
+    expect(resolveProbeEndpoint('qt-ui-copilot-session', 'win32')).toBe('\\\\.\\pipe\\qt-ui-copilot-session');
+  });
+
+  it('preserves an already-qualified Windows named-pipe path', () => {
+    const pipe = '\\\\.\\pipe\\qt-ui-copilot-session';
+    expect(resolveProbeEndpoint(pipe, 'win32')).toBe(pipe);
+  });
+
+  it('preserves explicit TCP endpoints on Windows', () => {
+    expect(resolveProbeEndpoint('127.0.0.1:45231', 'win32')).toEqual({ host: '127.0.0.1', port: 45231 });
+  });
+
+  it('keeps logical names unchanged on POSIX platforms', () => {
+    expect(resolveProbeEndpoint('/tmp/qt-ui-copilot.sock', 'linux')).toBe('/tmp/qt-ui-copilot.sock');
   });
 });
