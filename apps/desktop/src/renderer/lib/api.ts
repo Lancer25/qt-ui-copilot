@@ -33,10 +33,20 @@ export interface ReportRequest {
   selectedComponent?: ComponentCandidate;
 }
 
+export interface ModelSettings {
+  baseUrl: string;
+  model: string;
+  hasApiKey: boolean;
+}
+
+export type TaskStartResult =
+  | { kind: 'started'; state: WorkflowUiState }
+  | { kind: 'configuration_required'; message: string };
+
 export interface DesktopApi {
   projects: { import(input: { rootDir: string }): Promise<UiProject> };
   tasks: {
-    start(input: { projectId: string; targetUi: string; requirement: string }): Promise<WorkflowUiState>;
+    start(input: { projectId: string; targetUi: string; requirement: string }): Promise<TaskStartResult>;
     approve(input: { taskId: string; approved: boolean }): Promise<WorkflowUiState>;
     cancel(input: { taskId: string }): Promise<WorkflowUiState>;
     takeOver(input: { taskId: string }): Promise<void>;
@@ -45,6 +55,10 @@ export interface DesktopApi {
   };
   components: { search(input: { projectId: string; query: string }): Promise<ComponentCandidate[]> };
   reports: { export(input: ReportRequest): Promise<{ path?: string; cancelled: boolean }> };
+  settings: {
+    getModel(): Promise<ModelSettings>;
+    configureModel(input: { baseUrl: string; model: string; apiKey?: string }): Promise<ModelSettings>;
+  };
   onWorkflowEvent(listener: (state: WorkflowUiState) => void): () => void;
 }
 

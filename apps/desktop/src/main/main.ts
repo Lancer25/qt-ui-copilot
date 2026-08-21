@@ -1,5 +1,5 @@
 import { app, BrowserWindow, ipcMain, utilityProcess, type UtilityProcess } from 'electron';
-import { resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import { resolveMainWindowLoadTarget, resolvePreloadEntryPath } from './window-loading';
 import { createLocalBackend, registerIpc } from './ipc/register-ipc';
 
@@ -70,7 +70,7 @@ app.whenReady().then(() => {
   ipcMain.handle('desktop:getAppVersion', () => app.getVersion());
 
   const window = createWindow();
-  registerIpc(window, createLocalBackend());
+  registerIpc(window, createLocalBackend({ databasePath: join(app.getPath('userData'), 'qt-ui-copilot.sqlite') }));
   const target = resolveMainWindowLoadTarget(
     MAIN_WINDOW_VITE_DEV_SERVER_URL,
     MAIN_WINDOW_VITE_NAME,
