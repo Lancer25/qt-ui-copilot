@@ -1,5 +1,9 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'node:path';
+import { resolveMainWindowLoadTarget } from './window-loading';
+
+declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
+declare const MAIN_WINDOW_VITE_NAME: string;
 
 const createWindow = (): BrowserWindow => new BrowserWindow({
   width: 1280,
@@ -7,7 +11,7 @@ const createWindow = (): BrowserWindow => new BrowserWindow({
   minWidth: 960,
   minHeight: 640,
   webPreferences: {
-    preload: path.join(__dirname, '../preload/index.js'),
+    preload: path.join(__dirname, 'preload.js'),
     sandbox: true,
     contextIsolation: true,
     nodeIntegration: false,
@@ -18,7 +22,12 @@ app.whenReady().then(() => {
   ipcMain.handle('desktop:getAppVersion', () => app.getVersion());
 
   const window = createWindow();
-  void window.loadURL('data:text/html,<main><h1>Qt UI Copilot</h1></main>');
+  const target = resolveMainWindowLoadTarget(
+    MAIN_WINDOW_VITE_DEV_SERVER_URL,
+    MAIN_WINDOW_VITE_NAME,
+    __dirname,
+  );
+  void (target.kind === 'url' ? window.loadURL(target.value) : window.loadFile(target.value));
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
