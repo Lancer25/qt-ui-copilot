@@ -27,6 +27,12 @@ describe('local workflow backend', () => {
     await expect(backend.startTask({ projectId: 'missing', targetUi: 'missing.ui', requirement: 'test' })).resolves.toMatchObject({ kind: 'configuration_required' });
   });
 
+  it('returns a user-facing message when the selected project directory cannot be read', async () => {
+    const backend = createLocalBackend();
+    await expect(backend.importProject({ rootDir: join(tmpdir(), 'qt-ui-copilot-directory-does-not-exist') })).rejects
+      .toThrow('无法导入项目目录');
+  });
+
   it('persists task workflow snapshots and emits updates with an injected deterministic model', async () => {
     const root = mkdtempSync(join(tmpdir(), 'qt-ui-copilot-backend-'));
     const ui = join(root, 'Settings.ui');

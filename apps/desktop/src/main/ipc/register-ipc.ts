@@ -11,6 +11,7 @@ import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
 const ImportProjectSchema = z.object({ rootDir: z.string().min(1).max(4096) }).strict();
+const ChooseDirectorySchema = z.undefined();
 const StartTaskSchema = z.object({ projectId: z.string().min(1), targetUi: z.string().min(1), requirement: z.string().min(1).max(10_000) }).strict();
 const TaskIdSchema = z.object({ taskId: z.string().min(1) }).strict();
 const ApprovalSchema = TaskIdSchema.extend({ approved: z.boolean() }).strict();
@@ -47,6 +48,11 @@ const image = (source: string | undefined, title: string): string => source?.sta
 /** A deliberately small Main-process boundary. Renderer data is validated before every backend call. */
 export function registerIpc(window: BrowserWindow, backend: DesktopBackend): void {
   backend.subscribeWorkflow?.((state) => publishWorkflow(window, state));
+  ipcMain.handle('projects:chooseDirectory', async (_event, input: unknown = undefined) => {
+    ChooseDirectorySchema.parse(input);
+    const result = await dialog.showOpenDialog(window, { properties: ['openDirectory'] });
+    return result.canceled ? undefined : result.filePaths[0];
+  });
   ipcMain.handle('projects:import', (_event, input: unknown) => backend.importProject(ImportProjectSchema.parse(input)));
   ipcMain.handle('tasks:start', (_event, input: unknown) => backend.startTask(StartTaskSchema.parse(input)));
   ipcMain.handle('tasks:approve', (_event, input: unknown) => backend.approveTask(ApprovalSchema.parse(input)));
@@ -140,7 +146,16 @@ export function createLocalBackend(options: LocalBackendOptions = {}): DesktopBa
     return { kind: 'passed' as const, evidence: node === 'CAPTURE_BASELINE' ? ['baseline_capture'] : node === 'ENHANCED_PREVIEW' ? ['preview_capture'] : node === 'CAPTURE_REAL_RESULT' ? ['real_application_capture'] : [] };
   } });
   return {
-    async importProject({ rootDir }) { const inventory = scanProject(rootDir); const item = { id: randomUUID(), rootDir: inventory.rootDir, uiFiles: inventory.uiFiles }; projects.set(item.id, item); repository.upsertProject({ id: item.id, rootDir: item.rootDir }); return item; },
+    async importProject({ rootDir }) {
+      let inventory;
+      try {
+        inventory = scanProject(rootDir);
+      } catch {
+        throw new Error(`无法导入项目目录“${rootDir}”：请确认目录存在且可访问。`);
+      }
+      const item = { id: randomUUID(), rootDir: inventory.rootDir, uiFiles: inventory.uiFiles };
+      projects.set(item.id, item); repository.upsertProject({ id: item.id, rootDir: item.rootDir }); return item;
+    },
     async startTask({ projectId, targetUi, requirement }) { if (!options.modelProvider && !configured) return { kind: 'configuration_required', message: '请先在“模型设置”中配置 OpenAI-compatible Base URL、模型和可选 API Key。' }; const project = projects.get(projectId); if (!project || !project.uiFiles.includes(targetUi)) throw new Error('Target .ui file does not belong to the imported project'); const taskId = repository.createTask(projectId, targetUi); update({ taskId, targetUi, status: 'running', node: 'IMPORT_PROJECT', events: [{ node: 'UNDERSTAND_REQUIREMENT', status: 'completed', detail: requirement }], deterministicFindings: [], visualFindings: [], routeEvidence: [] }); const state = await workflowFor(taskId).start({ taskId }); const snapshot = snapshots.get(taskId)!; return { kind: 'started', state: update({ ...snapshot, status: state.status, node: state.node, events: [...snapshot.events, { node: state.node, status: state.status }] }) }; },
     async approveTask({ taskId, approved }) { const state = await workflowFor(taskId).approve(taskId, { approved }); return mutate(taskId, { status: state.status, node: state.node }); },
     async cancelTask({ taskId }) { const state = await workflowFor(taskId).cancel(taskId); return mutate(taskId, { status: state.status, node: state.node }); },

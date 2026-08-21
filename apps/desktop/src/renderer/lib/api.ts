@@ -46,7 +46,11 @@ export type TaskStartResult =
   | { kind: 'configuration_required'; message: string };
 
 export interface DesktopApi {
-  projects: { import(input: { rootDir: string }): Promise<UiProject> };
+  projects: {
+    /** Opens the native directory chooser in the Main process. Undefined means the user cancelled. */
+    chooseDirectory(): Promise<string | undefined>;
+    import(input: { rootDir: string }): Promise<UiProject>;
+  };
   tasks: {
     start(input: { projectId: string; targetUi: string; requirement: string }): Promise<TaskStartResult>;
     approve(input: { taskId: string; approved: boolean }): Promise<WorkflowUiState>;

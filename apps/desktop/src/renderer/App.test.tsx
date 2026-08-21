@@ -1,17 +1,18 @@
 // @vitest-environment jsdom
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { App } from './App';
 import { FakeDesktopApi } from './test/FakeDesktopApi';
 import { makeReportRequest } from './features/report/EvidenceReport';
 
 describe('Qt UI Copilot product UI', () => {
+  afterEach(cleanup);
   it('approves and applies the structured plan from the primary candidate action', async () => {
     const user = userEvent.setup();
     const fakeApi = new FakeDesktopApi().withPlan({ summary: '增加测试按钮', riskLevel: 'medium', expectedResults: [], componentIds: [], operations: [{ op: 'addWidget', parentLayout: 'buttonLayout', widgetClass: 'QPushButton', objectName: 'testButton' }] });
     render(<App api={fakeApi} />);
-    await user.click(screen.getByRole('button', { name: '导入示例项目' }));
+    await user.click(screen.getByRole('button', { name: '选择项目目录' }));
     await user.click(screen.getByRole('button', { name: 'src/Settings.ui' }));
     await user.type(screen.getByLabelText('界面需求'), '增加测试按钮');
     await user.click(screen.getByRole('button', { name: '生成修改计划' }));
@@ -24,6 +25,22 @@ describe('Qt UI Copilot product UI', () => {
     expect(fakeApi.approveRequests).toEqual([{ taskId: 'task-1', approved: true }]);
     await waitFor(() => expect(screen.getByText('UIC_VALIDATE · running')).not.toBeNull());
     expect((screen.getByRole('button', { name: '批准并应用候选修改' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('chooses a directory on first use, imports it, and leaves the workbench unchanged when cancelled', async () => {
+    const user = userEvent.setup();
+    const fakeApi = new FakeDesktopApi();
+    render(<App api={fakeApi} />);
+
+    await user.click(screen.getByRole('button', { name: '选择项目目录' }));
+    expect(fakeApi.importedDirectories).toEqual(['D:/demo']);
+    expect(screen.getByDisplayValue('D:/demo')).not.toBeNull();
+
+    const cancelledApi = new FakeDesktopApi();
+    cancelledApi.selectedDirectory = undefined;
+    render(<App api={cancelledApi} />);
+    await user.click(screen.getByRole('button', { name: '选择项目目录' }));
+    expect(cancelledApi.importedDirectories).toEqual([]);
   });
 
   it('keeps report evidence structured for the Main-process exporter', () => {

@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 describe('sandboxed preload boundary', () => {
   it('exposes only the fixed task API and no generic IPC or filesystem bridge', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/preload/index.ts'), 'utf8');
+    expect(source).toContain("'projects:chooseDirectory'");
     expect(source).toContain("'projects:import'");
     expect(source).toContain("'tasks:start'");
     expect(source).toContain("'workflow:event'");

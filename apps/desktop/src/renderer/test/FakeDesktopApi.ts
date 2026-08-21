@@ -11,8 +11,16 @@ export class FakeDesktopApi implements DesktopApi {
   public takeoverRequested = false;
   public approveRequests: Array<{ taskId: string; approved: boolean }> = [];
   public exported?: ReportRequest;
+  public selectedDirectory: string | undefined = 'D:/demo';
+  public importedDirectories: string[] = [];
   withPlan(plan: UiPlan): this { this.plan = plan; return this; }
-  projects = { import: async (): Promise<UiProject> => project };
+  projects = {
+    chooseDirectory: async (): Promise<string | undefined> => this.selectedDirectory,
+    import: async ({ rootDir }: { rootDir: string }): Promise<UiProject> => {
+      this.importedDirectories.push(rootDir);
+      return { ...project, rootDir };
+    },
+  };
   tasks = {
     start: async ({ targetUi }: { projectId: string; targetUi: string; requirement: string }) => ({ kind: 'started' as const, state: this.publish({
       taskId: 'task-1', targetUi, status: 'waiting_approval', node: 'USER_APPROVAL', plan: this.plan,

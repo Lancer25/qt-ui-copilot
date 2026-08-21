@@ -2,7 +2,10 @@ import { contextBridge, ipcRenderer } from 'electron';
 import type { DesktopApi, ModelSettings, ReportRequest, TaskStartResult, UiProject, WorkflowUiState } from '../renderer/lib/api';
 
 const desktopApi: DesktopApi = {
-  projects: { import: (input) => ipcRenderer.invoke('projects:import', input) as Promise<UiProject> },
+  projects: {
+    chooseDirectory: () => ipcRenderer.invoke('projects:chooseDirectory') as Promise<string | undefined>,
+    import: (input) => ipcRenderer.invoke('projects:import', input) as Promise<UiProject>,
+  },
   tasks: {
     start: (input) => ipcRenderer.invoke('tasks:start', input) as Promise<TaskStartResult>, approve: (input) => ipcRenderer.invoke('tasks:approve', input) as Promise<WorkflowUiState>,
     cancel: (input) => ipcRenderer.invoke('tasks:cancel', input) as Promise<WorkflowUiState>, takeOver: (input) => ipcRenderer.invoke('tasks:takeOver', input) as Promise<void>,
