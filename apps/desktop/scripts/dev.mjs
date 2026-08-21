@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { build, createServer } from 'vite';
-import { createDevLauncherPlan, resolveElectronExecutable } from './dev-config.mjs';
+import { createDevLauncherPlan, ensureElectronExecutable } from './dev-config.mjs';
 
 const desktopDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -51,9 +51,9 @@ const run = async () => {
     await build(plan.preloadBuild);
     await waitForHttpOk(plan.rendererUrl);
 
-    const electronExecutable = resolveElectronExecutable(
+    const electronExecutable = await ensureElectronExecutable(
       desktopDirectory,
-      process.env.ELECTRON_EXECUTABLE_PATH,
+      { overridePath: process.env.ELECTRON_EXECUTABLE_PATH },
     );
     electronProcess = spawn(electronExecutable, ['.'], {
       cwd: desktopDirectory,

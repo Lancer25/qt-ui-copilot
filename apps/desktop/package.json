@@ -13,12 +13,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@qt-ui-copilot/component-library": "workspace:*",
     "@qt-ui-copilot/agent-workflow": "workspace:*",
+    "@qt-ui-copilot/component-library": "workspace:*",
     "@qt-ui-copilot/contracts": "workspace:*",
-    "@qt-ui-copilot/project-core": "workspace:*",
     "@qt-ui-copilot/preview-client": "workspace:*",
     "@qt-ui-copilot/probe-client": "workspace:*",
+    "@qt-ui-copilot/project-core": "workspace:*",
     "@qt-ui-copilot/task-store": "workspace:*",
     "@qt-ui-copilot/ui-document": "workspace:*",
     "react": "19.2.4",
@@ -29,17 +29,19 @@
     "@electron-forge/cli": "7.11.1",
     "@electron-forge/maker-squirrel": "7.11.1",
     "@electron-forge/plugin-vite": "7.11.1",
+    "@electron/get": "3.1.0",
+    "@playwright/test": "1.55.0",
+    "@testing-library/react": "16.3.0",
+    "@testing-library/user-event": "14.6.1",
     "@types/node": "24.3.0",
     "@types/react": "19.1.12",
     "@types/react-dom": "19.1.9",
-    "@playwright/test": "1.55.0",
-    "electron": "40.0.0",
     "@vitejs/plugin-react": "4.3.4",
+    "electron": "40.0.0",
+    "extract-zip": "2.0.1",
+    "jsdom": "26.1.0",
     "typescript": "5.8.3",
     "vite": "5.4.17",
-    "vitest": "3.1.1",
-    "@testing-library/react": "16.3.0",
-    "@testing-library/user-event": "14.6.1",
-    "jsdom": "26.1.0"
+    "vitest": "3.1.1"
   }
 }
