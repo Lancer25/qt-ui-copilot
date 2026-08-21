@@ -16,8 +16,5 @@
     "test:fixture:qt6": "cmake -S fixtures/qt6-app -B .qt-ui-copilot/build/fixture-qt6 -DQT_MAJOR_VERSION=6 && cmake --build .qt-ui-copilot/build/fixture-qt6 && ctest --test-dir .qt-ui-copilot/build/fixture-qt6 --output-on-failure",
     "test:e2e": "node scripts/run-e2e.mjs",
     "make": "pnpm --filter @qt-ui-copilot/desktop make"
-  },
-  "devDependencies": {
-    "@playwright/test": "1.55.0"
   }
 }

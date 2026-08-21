@@ -6,11 +6,7 @@ settings:
 
 importers:
 
-  .:
-    devDependencies:
-      '@playwright/test':
-        specifier: 1.55.0
-        version: 1.55.0
+  .: {}
 
   apps/desktop:
     dependencies:
@@ -51,6 +47,9 @@ importers:
       '@electron-forge/plugin-vite':
         specifier: 7.11.1
         version: 7.11.1
+      '@playwright/test':
+        specifier: 1.55.0
+        version: 1.55.0
       '@testing-library/react':
         specifier: 16.3.0
         version: 16.3.0(@testing-library/dom@10.4.1)(@types/react-dom@19.1.9(@types/react@19.1.12))(@types/react@19.1.12)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
