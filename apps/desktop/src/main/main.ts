@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, utilityProcess, type UtilityProcess } from 'electron';
 import { resolve } from 'node:path';
 import { resolveMainWindowLoadTarget, resolvePreloadEntryPath } from './window-loading';
+import { createLocalBackend, registerIpc } from './ipc/register-ipc';
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
@@ -69,6 +70,7 @@ app.whenReady().then(() => {
   ipcMain.handle('desktop:getAppVersion', () => app.getVersion());
 
   const window = createWindow();
+  registerIpc(window, createLocalBackend());
   const target = resolveMainWindowLoadTarget(
     MAIN_WINDOW_VITE_DEV_SERVER_URL,
     MAIN_WINDOW_VITE_NAME,

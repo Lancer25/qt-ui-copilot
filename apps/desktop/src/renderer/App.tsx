@@ -1,6 +1,40 @@
-export const App = () => (
-  <main>
-    <h1>Qt UI Copilot</h1>
-    <p>安全工作区已就绪。</p>
-  </main>
-);
+import { useEffect, useMemo, useState } from 'react';
+import type { ComponentCandidate } from '@qt-ui-copilot/component-library';
+import { ComponentCandidates } from './features/components/ComponentCandidates';
+import { UiDiffPanel } from './features/diff/UiDiffPanel';
+import { PreviewComparison } from './features/preview/PreviewComparison';
+import { ProjectSidebar } from './features/projects/ProjectSidebar';
+import { EvidenceReport, makeReportRequest } from './features/report/EvidenceReport';
+import { WorkflowTimeline } from './features/workflow/WorkflowTimeline';
+import { desktopApi, type DesktopApi, type UiProject, type WorkflowUiState } from './lib/api';
+import './app.css';
+
+export function App({ api = desktopApi() }: { api?: DesktopApi }) {
+  const [project, setProject] = useState<UiProject>();
+  const [targetUi, setTargetUi] = useState<string>();
+  const [requirement, setRequirement] = useState('');
+  const [task, setTask] = useState<WorkflowUiState>();
+  const [candidates, setCandidates] = useState<ComponentCandidate[]>([]);
+  const [selectedComponent, setSelectedComponent] = useState<ComponentCandidate>();
+  const [message, setMessage] = useState('');
+  const [projectDirectory, setProjectDirectory] = useState('');
+
+  useEffect(() => api.onWorkflowEvent(setTask), [api]);
+  const canStart = Boolean(project && targetUi && requirement.trim());
+  const canApply = task?.status === 'running' && task.node !== 'USER_APPROVAL';
+  const planSummary = useMemo(() => task?.plan && `${task.plan.summary}（${task.plan.operations.length} 项受控修改）`, [task?.plan]);
+  const call = async <T,>(action: () => Promise<T>): Promise<T | undefined> => { try { setMessage(''); return await action(); } catch (error) { setMessage(error instanceof Error ? error.message : String(error)); return undefined; } };
+  const importProject = async (): Promise<void> => { const imported = await call(() => api.projects.import({ rootDir: projectDirectory || 'D:/demo' })); if (imported) { setProject(imported); setTargetUi(undefined); setTask(undefined); } };
+  const selectUi = async (uiFile: string): Promise<void> => { setTargetUi(uiFile); setTask(undefined); setSelectedComponent(undefined); if (project) { const result = await call(() => api.components.search({ projectId: project.id, query: requirement })); if (result) setCandidates(result); } };
+  const start = async (): Promise<void> => { if (!project || !targetUi) return; const next = await call(() => api.tasks.start({ projectId: project.id, targetUi, requirement })); if (next) { setTask(next); const result = await call(() => api.components.search({ projectId: project.id, query: requirement })); if (result) setCandidates(result); } };
+  const approve = async (): Promise<void> => { if (task) { const next = await call(() => api.tasks.approve({ taskId: task.taskId, approved: true })); if (next) setTask(next); } };
+  const takeOver = async (): Promise<void> => { if (task) { await call(() => api.tasks.takeOver({ taskId: task.taskId })); setMessage('人工接管已请求：请在真实应用中完成导航，完成后继续任务。'); } };
+  const cancel = async (): Promise<void> => { if (task) { const next = await call(() => api.tasks.cancel({ taskId: task.taskId })); if (next) setTask(next); } };
+  const accept = async (): Promise<void> => { if (task) { const next = await call(() => api.tasks.accept({ taskId: task.taskId })); if (next) setTask(next); } };
+  const rollback = async (): Promise<void> => { if (task) { const next = await call(() => api.tasks.rollback({ taskId: task.taskId })); if (next) setTask(next); } };
+  const exportReport = async (): Promise<void> => { if (task) { const result = await call(() => api.reports.export(makeReportRequest(task, selectedComponent))); if (result && !result.cancelled) setMessage(`证据报告已导出：${result.path}`); } };
+  return <main className="app-shell"><header><div><h1>Qt UI Copilot</h1><p>真实 Qt 运行验证驱动的界面开发助手</p></div><div className="import-project"><label htmlFor="project-directory">项目目录</label><input id="project-directory" value={projectDirectory} onChange={(event) => setProjectDirectory(event.target.value)} placeholder="D:\\projects\\qt-app" /><button onClick={importProject}>{projectDirectory ? '导入项目' : '导入示例项目'}</button></div></header>
+    {message && <p role="alert" className="message">{message}</p>}<div className="workbench"><div className="left-pane"><ProjectSidebar project={project} selectedUi={targetUi} onSelect={selectUi} /><ComponentCandidates candidates={candidates} selectedId={selectedComponent?.componentId} onSelect={setSelectedComponent} /></div>
+      <section className="center-pane"><div className="request"><label htmlFor="requirement">界面需求</label><textarea id="requirement" value={requirement} onChange={(event) => setRequirement(event.target.value)} placeholder="例如：新增测试连接按钮，并保证英文小窗口不截断" /><button onClick={start} disabled={!canStart}>生成修改计划</button><button disabled={!canApply}>应用候选修改</button></div>{planSummary && <section aria-label="结构化修改计划" className="plan"><h2>结构化修改计划</h2><p>{planSummary}</p><ul>{task?.plan?.operations.map((operation, index) => <li key={index}>{operation.op}</li>)}</ul></section>}<PreviewComparison beforeImage={task?.beforeImage} afterImage={task?.afterImage} quickImage={task?.quickImage} /></section>
+      <WorkflowTimeline task={task} onApprove={approve} onTakeOver={takeOver} onCancel={cancel} onAccept={accept} onRollback={rollback} /></div><section className="bottom-pane"><UiDiffPanel before={task?.xmlBefore} after={task?.xmlAfter} findings={task?.deterministicFindings ?? []} visualFindings={task?.visualFindings ?? []} routeEvidence={task?.routeEvidence ?? []} /><EvidenceReport task={task} selectedComponent={selectedComponent} onExport={exportReport} /></section></main>;
+}
