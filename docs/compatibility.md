@@ -12,7 +12,7 @@ Qt UI Copilot 的 MVP 只支持 Qt Widgets 和 Qt Designer `.ui` 文件；最低
 
 ## 本地 Qt 资格验证
 
-不要在没有 Qt Kit 的机器上把原生测试标为通过。明确设置对应 Kit 的 CMake 前缀后执行：
+不要在没有 Qt Kit 的机器上把原生测试标为通过。每个可用 Kit 的资格验证都会独立配置、构建并运行 QtUiPreviewHost 测试，再构建 Fixture 与 QtUiProbe 测试。明确设置对应 Kit 的 CMake 前缀后执行：
 
 ```powershell
 $env:QT59_CMAKE_PREFIX_PATH = 'C:\Qt\5.9.6\msvc2017_64'

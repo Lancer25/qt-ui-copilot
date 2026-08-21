@@ -2,6 +2,7 @@
 #include "PreviewRequest.h"
 
 #include <QApplication>
+#include <QIODevice>
 #include <QJsonDocument>
 #include <QTextStream>
 

@@ -54,11 +54,11 @@ QJsonObject PreviewResult::toJson() const
     QJsonArray styles; foreach (const QString &value, loadedStyleSheets) styles.append(value);
     QJsonArray fonts; foreach (const QString &value, loadedFonts) fonts.append(value);
     QJsonArray degraded;
-    foreach (const DegradedWidget &value, degraded) {
+    foreach (const DegradedWidget &value, degradedWidgets) {
         QJsonObject item; item.insert("className", value.className); item.insert("fallbackClass", value.fallbackClass); item.insert("objectName", value.objectName); degraded.append(item);
     }
     QJsonArray widgets;
-    foreach (const PreviewWidget &value, widgets) {
+    foreach (const PreviewWidget &value, this->widgets) {
         QJsonObject item; item.insert("objectName", value.objectName); item.insert("className", value.className); item.insert("styleSheetMatched", value.styleSheetMatched); widgets.append(item);
     }
     object.insert("loadedResources", resources); object.insert("loadedStyleSheets", styles); object.insert("loadedFonts", fonts);

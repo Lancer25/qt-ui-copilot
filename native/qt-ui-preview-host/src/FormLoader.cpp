@@ -2,6 +2,7 @@
 #include "ResourceLoader.h"
 
 #include <QApplication>
+#include <QCoreApplication>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -68,7 +69,8 @@ PreviewResult renderPreview(const PreviewRequest &request)
     foreach (QWidget *widget, all) {
         if (widget->objectName().isEmpty()) continue;
         PreviewWidget entry; entry.objectName = widget->objectName(); entry.className = QString::fromLatin1(widget->metaObject()->className());
-        entry.styleSheetMatched = !QApplication::styleSheet().isEmpty() || !widget->styleSheet().isEmpty(); result.widgets.append(entry);
+        QApplication *application = qobject_cast<QApplication *>(QCoreApplication::instance());
+        entry.styleSheetMatched = (application && !application->styleSheet().isEmpty()) || !widget->styleSheet().isEmpty(); result.widgets.append(entry);
     }
     result.success = true; result.imagePath = request.outputImage; delete root; return result;
 }

@@ -7,6 +7,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
+enable_testing()
 
 find_package(Qt5 5.9 REQUIRED COMPONENTS Core Gui Widgets Network)
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../../native/qt-ui-probe ${CMAKE_BINARY_DIR}/qt-ui-probe)
