@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>ModernSettings</class>
+ <widget class="QWidget" name="ModernSettings">
+  <property name="geometry"><rect><x>0</x><y>0</y><width>640</width><height>480</height></rect></property>
+  <layout class="QFormLayout" name="formLayout">
+   <item row="0" column="0"><widget class="QLabel" name="serverLabel"><property name="text"><string>服务器</string></property><property name="buddy"><cstring>serverLineEdit</cstring></property></widget></item>
+   <item row="0" column="1"><widget class="QLineEdit" name="serverLineEdit"/></item>
+   <item row="1" column="1"><widget class="QPushButton" name="saveButton"><property name="text"><string>Save</string></property></widget></item>
+  </layout>
+  <modern-qt6-metadata enabled="true"><payload>keep-me</payload></modern-qt6-metadata>
+ </widget>
+ <customwidgets>
+  <customwidget><class>FancyWidget</class><extends>QWidget</extends><header>FancyWidget.h</header></customwidget>
+ </customwidgets>
+</ui>

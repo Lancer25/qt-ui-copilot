@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Qt 5.9.6 legacy form: preserve this comment and every byte. -->
+<ui version="4.0">
+ <class>SettingsDialog</class>
+ <widget class="QDialog" name="SettingsDialog">
+  <property name="windowTitle"><string>设置</string></property>
+  <layout class="QVBoxLayout" name="mainLayout">
+   <item>
+    <widget class="QLineEdit" name="serverLineEdit">
+     <property name="placeholderText"><string>服务器地址</string></property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QPushButton" name="saveButton">
+     <property name="text"><string>保存</string></property>
+     <property name="orientation"><enum>Qt::Horizontal</enum></property>
+    </widget>
+   </item>
+  </layout>
+  <legacy-extension qt59="true"><opaque>untouched</opaque></legacy-extension>
+ </widget>
+ <tabstops><tabstop>serverLineEdit</tabstop><tabstop>saveButton</tabstop></tabstops>
+ <resources><include location="settings.qrc"/></resources>
+ <connections>
+  <connection><sender>saveButton</sender><signal>clicked()</signal><receiver>SettingsDialog</receiver><slot>accept()</slot></connection>
+ </connections>
+</ui>
