@@ -67,6 +67,41 @@ importers:
         specifier: 3.1.1
         version: 3.1.1(@types/node@24.13.3)(terser@5.50.0)
 
+  packages/project-core:
+    dependencies:
+      '@qt-ui-copilot/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+    devDependencies:
+      '@types/node':
+        specifier: 24.3.0
+        version: 24.3.0
+      typescript:
+        specifier: 5.8.3
+        version: 5.8.3
+      vitest:
+        specifier: 3.1.1
+        version: 3.1.1(@types/node@24.3.0)(terser@5.50.0)
+
+  packages/task-store:
+    dependencies:
+      '@qt-ui-copilot/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      zod:
+        specifier: 4.3.6
+        version: 4.3.6
+    devDependencies:
+      '@types/node':
+        specifier: 24.3.0
+        version: 24.3.0
+      typescript:
+        specifier: 5.8.3
+        version: 5.8.3
+      vitest:
+        specifier: 3.1.1
+        version: 3.1.1(@types/node@24.3.0)(terser@5.50.0)
+
 packages:
 
   '@babel/code-frame@7.29.7':
