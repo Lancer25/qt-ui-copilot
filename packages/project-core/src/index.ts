@@ -3,3 +3,4 @@ export * from './project-profile.js';
 export * from './project-scan.js';
 export * from './process-runner.js';
 export * from './toolchain-probe.js';
+export * from './runtime-session.js';

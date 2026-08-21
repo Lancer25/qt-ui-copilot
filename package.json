@@ -9,8 +9,10 @@
   "scripts": {
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
-    "test:native:qt59": "echo \"Qt 5.9 native tests are not wired yet\"",
-    "test:native:qt6": "echo \"Qt 6 native tests are not wired yet\"",
+    "test:native:qt59": "pnpm test:fixture:qt59",
+    "test:native:qt6": "pnpm test:fixture:qt6",
+    "test:fixture:qt59": "cmake -S fixtures/qt59-app -B .qt-ui-copilot/build/fixture-qt59 -DQT_MAJOR_VERSION=5 && cmake --build .qt-ui-copilot/build/fixture-qt59 && ctest --test-dir .qt-ui-copilot/build/fixture-qt59 --output-on-failure",
+    "test:fixture:qt6": "cmake -S fixtures/qt6-app -B .qt-ui-copilot/build/fixture-qt6 -DQT_MAJOR_VERSION=6 && cmake --build .qt-ui-copilot/build/fixture-qt6 && ctest --test-dir .qt-ui-copilot/build/fixture-qt6 --output-on-failure",
     "test:e2e": "echo \"Electron E2E tests are not wired yet\"",
     "make": "pnpm --filter @qt-ui-copilot/desktop package"
   }

@@ -88,6 +88,9 @@ importers:
       '@qt-ui-copilot/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@qt-ui-copilot/ui-document':
+        specifier: workspace:*
+        version: link:../ui-document
     devDependencies:
       '@types/node':
         specifier: 22.15.3

@@ -5,6 +5,6 @@
   "type": "module",
   "exports": { ".": { "types": "./src/index.ts", "default": "./src/index.ts" } },
   "scripts": { "test": "vitest run", "typecheck": "tsc --noEmit" },
-  "dependencies": { "@qt-ui-copilot/contracts": "workspace:*" },
+  "dependencies": { "@qt-ui-copilot/contracts": "workspace:*", "@qt-ui-copilot/ui-document": "workspace:*" },
   "devDependencies": { "@types/node": "22.15.3", "typescript": "5.8.3", "vitest": "3.1.1" }
 }

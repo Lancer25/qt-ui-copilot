@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="mainWindow">
+  <property name="windowTitle"><string>Qt UI Copilot Fixture</string></property>
+  <property name="windowIcon"><iconset resource="../resources/common.qrc"><normaloff>:/icons/network.svg</normaloff>:/icons/network.svg</iconset></property>
+  <widget class="QWidget" name="centralWidget">
+   <layout class="QVBoxLayout" name="centralLayout">
+    <item><widget class="QPushButton" name="settingsButton"><property name="text"><string>Settings</string></property></widget></item>
+    <item>
+     <widget class="QStackedWidget" name="settingsStack">
+      <widget class="QWidget" name="overviewPage"><layout class="QVBoxLayout" name="overviewLayout"><item><widget class="QLabel" name="overviewLabel"><property name="text"><string>Overview</string></property></widget></item></layout></widget>
+      <widget class="QWidget" name="settingsLandingPage"><layout class="QVBoxLayout" name="settingsLayout"><item><widget class="QPushButton" name="networkButton"><property name="text"><string>Network settings</string></property></widget></item></layout></widget>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+ </widget>
+ <resources><include location="../resources/common.qrc"/></resources>
+ <connections/>
+</ui>

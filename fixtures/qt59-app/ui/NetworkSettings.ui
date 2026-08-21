@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>NetworkSettings</class>
+ <widget class="QDialog" name="networkSettingsDialog">
+  <property name="windowTitle"><string>Network Settings</string></property>
+  <layout class="QVBoxLayout" name="mainLayout">
+   <item><widget class="QLabel" name="connectionIcon"><property name="pixmap"><pixmap resource="../resources/common.qrc">:/icons/network.svg</pixmap></property><property name="text"><string/></property></widget></item>
+   <item><widget class="QComboBox" name="proxyComboBox"><item><property name="text"><string>System proxy</string></property></item><item><property name="text"><string>Manual proxy</string></property></item></widget></item>
+   <item><widget class="QLineEdit" name="serverLineEdit"><property name="placeholderText"><string>Server address</string></property></widget></item>
+   <item><widget class="QPushButton" name="testConnectionButton"><property name="text"><string>Test connection</string></property></widget></item>
+  </layout>
+ </widget>
+ <resources><include location="../resources/common.qrc"/></resources>
+ <connections/>
+</ui>

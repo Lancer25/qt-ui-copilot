@@ -1,0 +1,3 @@
+QMainWindow, QDialog { background: #20252b; color: #e7edf5; }
+QPushButton { background: #2f81f7; color: white; border: 0; border-radius: 4px; padding: 6px 12px; }
+QLineEdit, QComboBox { background: #15191e; color: #e7edf5; border: 1px solid #536170; padding: 4px; }

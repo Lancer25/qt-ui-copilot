@@ -1,0 +1,4 @@
+<RCC>
+ <qresource prefix="/icons"><file>network.svg</file></qresource>
+ <qresource prefix="/styles"><file>dark.qss</file></qresource>
+</RCC>
