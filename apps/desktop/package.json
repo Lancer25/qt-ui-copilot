@@ -4,7 +4,8 @@
   "private": true,
   "main": ".vite/build/main.js",
   "scripts": {
-    "start": "electron-forge start",
+    "start": "node scripts/dev.mjs",
+    "forge:start": "electron-forge start",
     "build": "electron-forge package",
     "package": "electron-forge package",
     "make": "electron-forge make",
