@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { DEV_HOST, DEV_PORT, RENDERER_NAME, createDevLauncherPlan } from '../scripts/dev-config.mjs';
+import { DEV_HOST, DEV_PORT, RENDERER_NAME, createDevLauncherPlan, resolveElectronExecutable } from '../scripts/dev-config.mjs';
 
 describe('development launcher plan', () => {
   it('starts a loopback-only renderer and defines the matching main-process globals', () => {
@@ -27,5 +27,9 @@ describe('development launcher plan', () => {
       emptyOutDir: false,
       lib: { fileName: 'index' },
     });
+  });
+
+  it('uses an explicit Electron path when one is supplied', () => {
+    expect(resolveElectronExecutable('/workspace/apps/desktop', process.execPath)).toBe(process.execPath);
   });
 });

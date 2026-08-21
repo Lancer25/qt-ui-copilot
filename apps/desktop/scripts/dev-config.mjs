@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { existsSync } from 'node:fs';
 
 export const DEV_HOST = '127.0.0.1';
 export const DEV_PORT = 5173;
@@ -44,4 +45,22 @@ export const createDevLauncherPlan = (desktopDirectory) => {
       },
     },
   };
+};
+
+export const resolveElectronExecutable = (desktopDirectory, overridePath) => {
+  const executable = overridePath ?? path.resolve(
+    desktopDirectory,
+    '..',
+    '..',
+    'node_modules',
+    'electron',
+    'dist',
+    process.platform === 'win32' ? 'electron.exe' : 'electron',
+  );
+
+  if (!existsSync(executable)) {
+    throw new Error(`Electron executable is missing: ${executable}`);
+  }
+
+  return executable;
 };
