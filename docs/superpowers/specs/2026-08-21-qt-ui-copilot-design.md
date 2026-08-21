@@ -33,7 +33,7 @@ Qt UI Copilot 是一个面向已有 Qt Widgets 项目的 AI 界面开发应用�
 - Qt Widgets。
 - 由 Qt Designer `.ui` 文件描述的界面。
 - `QWidget`、`QDialog`、`QMainWindow` 及其嵌套页面。
-- Qt 5.15+ 和 Qt 6.x；QtUiProbe 以源码形式随目标项目编译，避免 ABI 绑定。
+- 最低兼容 Qt 5.9.6，并覆盖后续 Qt 5.x 和 Qt 6.x；QtUiProbe 以源码形式随目标项目编译，避免 ABI 绑定。
 - Windows 和 Linux 的核心预览、Probe 和语义路线。
 - Windows 上的 UI-TARS 指导式导航；Linux UI-TARS 标记为实验性。
 - CMake 自动接入；qmake 和自定义系统通过用户配置命令接入。
@@ -147,6 +147,28 @@ Electron Application
 | 可选外部接入 | MCP TypeScript SDK v1 |
 
 不在 MVP 中引入 LangGraph 或 Mastra。工作流步骤已知，采用显式、可持久化的类型化状态机更容易测试、恢复和展示。模型只用于需求理解、组件检索重排、变更规划和视觉评审。
+
+### 5.1 Qt 5.9.6 兼容基线
+
+QtUiProbe 和 QtUiPreviewHost 的公共 C++ 代码以 C++11 为上限，不使用 Qt 5.9.6 之后新增的类型、重载或便捷 API。差异通过 `QT_VERSION` 和 `QT_VERSION_CHECK` 条件编译隔离，至少覆盖以下兼容点：
+
+- Qt 5 与 Qt 6 的 `QMetaType`、事件坐标和容器 API 差异。
+- Qt 5 高 DPI 开关必须在 `QApplication` 构造前设置；Qt 6 使用自身的默认高 DPI 行为。
+- Qt 5.9 的本地 Socket、JSON、Widget 截图和资源 API 仅使用当时已经存在的基础接口。
+- 不依赖 Qt 5.12 才引入的 CMake Resource 便捷命令。
+- qmake 项目通过 `.pri` 文件接入 Probe；CMake 项目通过 `add_subdirectory` 接入。
+
+预览与校验必须使用目标项目所属 Qt Kit 自己的 `uic` 和 `rcc`，不能用较新的 Qt 工具处理 Qt 5.9.6 项目。原因包括 `.ui` 生成差异、资源格式和压缩能力差异。`rcc -binary` 也由目标 Kit 执行，保证生成的 `.rcc` 能被对应 PreviewHost 加载。
+
+QtUiPreviewHost 按 Qt Kit 构建和缓存，而不是提供一个跨所有 Qt 版本的通用二进制。缓存键至少包含：
+
+- Qt 版本。
+- 编译器及 ABI。
+- CPU 架构。
+- Debug/Release 类型。
+- 操作系统。
+
+Designer 插件只在 Qt 版本、编译器 ABI 和架构匹配时加载；不匹配时使用 promoted base 占位，并在报告中明确降级。`.ui` 解析器需要为 Qt 5.9.6 的实际文件准备回归样例，保留旧属性、枚举文本和未知节点。
 
 ## 6. UI Document Engine
 
@@ -284,8 +306,9 @@ MVP 首先可靠复用标准 Qt Widget 和 Layout 组成的静态片段。包含
 preview:
   uiFile: src/settings/NetworkSettings.ui
   qt:
-    uic: C:/Qt/6.8.0/msvc2022_64/bin/uic.exe
-    rcc: C:/Qt/6.8.0/msvc2022_64/bin/rcc.exe
+    version: 5.9.6
+    uic: ${QT_ROOT}/bin/uic.exe
+    rcc: ${QT_ROOT}/bin/rcc.exe
     style: Fusion
     pluginPaths:
       - build/designer-plugins
@@ -299,13 +322,14 @@ preview:
   fonts:
     - resources/fonts/SourceHanSansCN-Regular.otf
   locale: zh_CN
+  highDpiScaling: project-default
   size: [900, 640]
 ```
 
 ### 8.2 资源加载
 
 1. 从 `.ui` 和 Profile 收集 `.qrc`。
-2. 使用项目 Qt 版本对应的 `rcc -binary` 生成缓存 `.rcc`。
+2. 使用目标 Qt Kit 自己的 `rcc -binary` 生成缓存 `.rcc`；Qt 5.9.6 不接受由新 Qt `rcc` 代生成的资源包。
 3. 缓存键包含 `.qrc` 及全部引用资源的内容摘要。
 4. `QResource::registerResource()` 注册资源。
 5. 注册应用字体。
@@ -335,6 +359,8 @@ endif()
 ```
 
 应用在 `QApplication` 创建后显式调用 `QtUiProbe::install()`。显式调用优先于静态库中的自动启动宏，避免链接器消除。
+
+对于 qmake/Qt 5.9.6 项目，提供等价的 `qt-ui-probe.pri`，负责加入源文件、头文件以及 `core gui widgets network` 模块；不要求项目迁移到 CMake。
 
 ### 9.2 IPC
 
@@ -521,6 +547,8 @@ AND 视觉评分超过阈值或用户确认
 
 周验收：同一个 `.ui` 在增强预览中显示项目 QSS/QRC，并可在真实 EXE 中识别和捕获对应页面。
 
+兼容验收至少包含一个 Qt 5.9.6 样例项目和一个 Qt 6.x 样例项目；两者分别使用自己的 `uic`、`rcc`、PreviewHost 和 Probe 构建产物。
+
 ### 第二周：AI 与组件复用
 
 - `UiOperation` 全集和最小 Patch。
@@ -567,6 +595,7 @@ AND 视觉评分超过阈值或用户确认
 | 风险 | 控制措施 |
 |---|---|
 | `.ui` 重写产生大 Diff | 保留原 XML 节点和最小文本 Patch |
+| Qt 5.9.6 工具链陈旧或安装不完整 | 使用用户现有 Kit；启动时检查 `uic/rcc/UiTools`，缺失项明确阻断对应能力 |
 | 自定义 Widget 无法预览 | 插件路径、promoted base 占位、真实 EXE 验收 |
 | 组件复用携带隐式依赖 | 依赖清单、用户确认、缺失依赖阻断 |
 | 本地或可选向量召回不准确 | 结构和兼容性重排、最多 3 个候选、允许跳过 |
