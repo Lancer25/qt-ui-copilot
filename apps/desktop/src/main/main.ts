@@ -1,6 +1,5 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
-import path from 'node:path';
-import { resolveMainWindowLoadTarget } from './window-loading';
+import { resolveMainWindowLoadTarget, resolvePreloadEntryPath } from './window-loading';
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
 declare const MAIN_WINDOW_VITE_NAME: string;
@@ -11,7 +10,7 @@ const createWindow = (): BrowserWindow => new BrowserWindow({
   minWidth: 960,
   minHeight: 640,
   webPreferences: {
-    preload: path.join(__dirname, 'preload.js'),
+    preload: resolvePreloadEntryPath(__dirname),
     sandbox: true,
     contextIsolation: true,
     nodeIntegration: false,

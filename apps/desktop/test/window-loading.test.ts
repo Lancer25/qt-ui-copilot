@@ -1,7 +1,7 @@
 import config from '../forge.config';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { resolveMainWindowLoadTarget } from '../src/main/window-loading';
+import { resolveMainWindowLoadTarget, resolvePreloadEntryPath } from '../src/main/window-loading';
 
 describe('desktop build and renderer wiring', () => {
   it('declares Vite entries for main, preload, and the React renderer', () => {
@@ -21,5 +21,10 @@ describe('desktop build and renderer wiring', () => {
       .toEqual({ kind: 'url', value: 'http://localhost:5173' });
     expect(resolveMainWindowLoadTarget(undefined, 'main_window', 'C:/app/.vite/build'))
       .toEqual({ kind: 'file', value: path.join('C:/app/.vite/build', '../renderer/main_window/index.html') });
+  });
+
+  it('uses Forge Vite\'s stable preload bundle name', () => {
+    expect(resolvePreloadEntryPath('C:/app/.vite/build'))
+      .toBe(path.join('C:/app/.vite/build', 'index.js'));
   });
 });
