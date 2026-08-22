@@ -19,7 +19,9 @@ export const desktopAppPath = path.join(workspaceRoot, 'apps', 'desktop');
 export const fixturePath = (name: string): string => path.join(workspaceRoot, 'fixtures', name);
 
 export async function importProject(window: Page, root: string): Promise<void> {
-  await window.getByLabel('项目目录').fill(root);
+  const projectDirectory = window.locator('#project-directory');
+  await expect(projectDirectory).toBeVisible();
+  await projectDirectory.fill(root);
   await window.getByRole('button', { name: '导入项目' }).click();
   await expect(window.getByText(/\.ui$/).first()).toBeVisible();
   // The Qt6 fixture intentionally contains a reduced Settings.ui surface,
