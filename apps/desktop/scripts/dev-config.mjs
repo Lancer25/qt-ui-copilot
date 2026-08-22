@@ -7,16 +7,16 @@ export const DEV_HOST = '127.0.0.1';
 export const DEV_PORT = 5173;
 export const RENDERER_NAME = 'main_window';
 
-export const createDevLauncherPlan = (desktopDirectory) => {
+export const createDevLauncherPlan = (desktopDirectory, port = DEV_PORT) => {
   const buildDirectory = path.join(desktopDirectory, '.vite', 'build');
-  const rendererUrl = `http://${DEV_HOST}:${DEV_PORT}`;
+  const rendererUrl = `http://${DEV_HOST}:${port}`;
 
   return {
     buildDirectory,
     rendererUrl,
     rendererServer: {
       configFile: path.join(desktopDirectory, 'vite.renderer.config.ts'),
-      server: { host: DEV_HOST, port: DEV_PORT, strictPort: true },
+      server: { host: DEV_HOST, port, strictPort: true },
     },
     mainBuild: {
       configFile: path.join(desktopDirectory, 'vite.main.config.ts'),
