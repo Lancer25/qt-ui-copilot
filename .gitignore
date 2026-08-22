@@ -4,6 +4,9 @@ out/
 dist/
 .vite/
 .qt-ui-copilot/
+test-results/
+apps/desktop/test-results/
+fixtures/*/.qt-ui-copilot/
 !fixtures/qt6-app/.qt-ui-copilot/
 !fixtures/qt6-app/.qt-ui-copilot/project.json
 *.log

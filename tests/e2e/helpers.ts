@@ -1,7 +1,22 @@
 import { expect, type Page } from '@playwright/test';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 
-export const fixturePath = (name: string): string => path.resolve(process.cwd(), 'fixtures', name);
+const workspaceRoot = path.resolve(import.meta.dirname, '..', '..');
+const electronExecutableName = process.platform === 'win32' ? 'electron.exe' : process.platform === 'darwin' ? path.join('Electron.app', 'Contents', 'MacOS', 'Electron') : 'electron';
+
+/** Resolve Electron directly; the npm wrapper needs path.txt, which may be
+ * absent after a package-manager repair even when dist/electron.exe exists. */
+export function electronExecutablePath(): string {
+  const dist = process.env.ELECTRON_OVERRIDE_DIST_PATH ?? path.join(workspaceRoot, 'node_modules', 'electron', 'dist');
+  const executable = path.join(dist, electronExecutableName);
+  if (!existsSync(executable)) throw new Error(`Electron executable is missing: ${executable}`);
+  return executable;
+}
+
+export const desktopAppPath = path.join(workspaceRoot, 'apps', 'desktop');
+
+export const fixturePath = (name: string): string => path.join(workspaceRoot, 'fixtures', name);
 
 export async function importProject(window: Page, root: string): Promise<void> {
   await window.getByLabel('项目目录').fill(root);

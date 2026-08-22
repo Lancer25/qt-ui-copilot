@@ -1,11 +1,13 @@
 import { test, expect, _electron as electron } from '@playwright/test';
-import { approvePlan, fixturePath, importProject, requestChange } from './helpers.js';
+import { approvePlan, desktopAppPath, electronExecutablePath, fixturePath, importProject, requestChange } from './helpers.js';
 
 test.describe('qualified desktop workflow', () => {
   test.skip(process.env.QT_UI_COPILOT_E2E !== '1', 'Requires an explicitly configured local Qt kit and model endpoint.');
 
   test('modifies and validates the real Qt 6.10.2 app', async () => {
-    const electronApp = await electron.launch({ args: ['apps/desktop'] });
+    const executablePath = electronExecutablePath();
+    expect(executablePath).toMatch(/electron(?:\.exe)?$/i);
+    const electronApp = await electron.launch({ executablePath, args: [desktopAppPath] });
     try {
       const window = await electronApp.firstWindow();
       await importProject(window, fixturePath('qt6-app'));
@@ -19,7 +21,9 @@ test.describe('qualified desktop workflow', () => {
 
   test('modifies and validates the real Qt 5.9.6 app', async () => {
     test.skip(!process.env.QT59_CMAKE_PREFIX_PATH, 'Qt 5.9.6 scenario is enabled only when QT59_CMAKE_PREFIX_PATH is configured.');
-    const electronApp = await electron.launch({ args: ['apps/desktop'] });
+    const executablePath = electronExecutablePath();
+    expect(executablePath).toMatch(/electron(?:\.exe)?$/i);
+    const electronApp = await electron.launch({ executablePath, args: [desktopAppPath] });
     try {
       const window = await electronApp.firstWindow();
       await importProject(window, fixturePath('qt59-app'));
