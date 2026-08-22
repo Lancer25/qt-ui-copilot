@@ -115,11 +115,21 @@ export class OpenAiCompatibleProvider implements ModelProvider {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
     const schemaInstruction = `Return one valid JSON object and no markdown. The response must be valid json matching this schema: ${request.responseSchema}. Example: {"summary":"..."}.`;
+    let isDeepSeek = false;
+    try {
+      isDeepSeek = new URL(this.settings.baseUrl).hostname.toLowerCase() === 'api.deepseek.com';
+    } catch { /* URL validation happens at the IPC boundary; keep provider behavior safe for direct callers. */ }
     try {
       const response = await this.fetchImpl(`${this.settings.baseUrl.replace(/\/$/, '')}/chat/completions`, {
         method: 'POST',
         headers: { 'content-type': 'application/json', ...(this.settings.apiKey ? { authorization: `Bearer ${this.settings.apiKey}` } : {}) },
-        body: JSON.stringify({ model: this.settings.model, response_format: { type: 'json_object' }, max_tokens: 4096, stream: false, messages: [{ role: 'system', content: `${request.systemPrompt}\n${schemaInstruction}` }, { role: 'user', content: JSON.stringify(request.input) }] }),
+        body: JSON.stringify({
+          model: this.settings.model,
+          response_format: { type: 'json_object' },
+          ...(isDeepSeek ? { thinking: { type: 'disabled' }, max_tokens: 2048 } : { max_tokens: 4096 }),
+          stream: false,
+          messages: [{ role: 'system', content: `${request.systemPrompt}\n${schemaInstruction}` }, { role: 'user', content: JSON.stringify(request.input) }],
+        }),
         signal: controller.signal,
       });
       if (!response.ok) throw new Error(`Model request failed: HTTP ${response.status}`);

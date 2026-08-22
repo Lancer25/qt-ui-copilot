@@ -58,12 +58,28 @@ describe('local workflow backend', () => {
     });
     const request: ModelRequest = { kind: 'ui_plan', systemPrompt: 'Return JSON only.', input: { requirement: 'add button' }, responseSchema: '{"summary":"string"}' };
     await expect(provider.generate(request)).resolves.toBe('{"summary":"ok"}');
-    const body = JSON.parse(String(requests[0]?.init?.body)) as { max_tokens: number; stream: boolean; response_format: { type: string }; messages: Array<{ content: string }> };
-    expect(body.max_tokens).toBe(4096);
+    const body = JSON.parse(String(requests[0]?.init?.body)) as { max_tokens: number; thinking: { type: string }; stream: boolean; response_format: { type: string }; messages: Array<{ content: string }> };
+    expect(body.max_tokens).toBe(2048);
+    expect(body.thinking).toEqual({ type: 'disabled' });
     expect(body.stream).toBe(false);
     expect(body.response_format).toEqual({ type: 'json_object' });
     expect(body.messages[0]?.content).toContain('valid json');
     expect(body.messages[0]?.content).toContain('{"summary":"string"}');
+  });
+
+  it('preserves the standard bounded request body for other OpenAI-compatible hosts', async () => {
+    const requests: Array<{ init?: RequestInit }> = [];
+    const provider = new OpenAiCompatibleProvider({ baseUrl: 'https://api.openai.com/v1', model: 'gpt-test' }, async (_input, init) => {
+      requests.push({ init });
+      return new Response(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: '{"summary":"ok"}' } }] }), { status: 200 });
+    });
+    const request: ModelRequest = { kind: 'ui_plan', systemPrompt: 'Return JSON only.', input: {}, responseSchema: '{}' };
+    await expect(provider.generate(request)).resolves.toBe('{"summary":"ok"}');
+    const body = JSON.parse(String(requests[0]?.init?.body)) as { max_tokens: number; thinking?: unknown; stream: boolean; response_format: { type: string } };
+    expect(body.max_tokens).toBe(4096);
+    expect(body.thinking).toBeUndefined();
+    expect(body.stream).toBe(false);
+    expect(body.response_format).toEqual({ type: 'json_object' });
   });
 
   it('times out a provider request and does not accept reasoning-only output', async () => {
