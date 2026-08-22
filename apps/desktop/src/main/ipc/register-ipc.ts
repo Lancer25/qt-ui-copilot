@@ -33,6 +33,7 @@ export const ModelConnectionResultSchema = z.object({
   status: z.number().int().optional(),
   code: z.string().max(64).optional(),
   message: z.string().max(1024).optional(),
+  warning: z.string().max(1024).optional(),
   elapsedMs: z.number().int().nonnegative(),
   model: z.string().max(256),
 }).strict();
@@ -108,15 +109,33 @@ export interface LocalBackendOptions {
 interface StoredProject { id: string; rootDir: string; uiFiles: string[]; profile?: ProjectProfile; config?: ProjectConfig; configRequired?: string; }
 interface UiState { taskId: string; targetUi: string; status: WorkflowState['status']; node: WorkflowNode; plan?: unknown; events: Array<{ node: string; status: string; detail?: string }>; deterministicFindings: string[]; visualFindings: string[]; routeEvidence: string[]; qtKit?: string; xmlBefore?: string; xmlAfter?: string; beforeImage?: string; quickImage?: string; afterImage?: string; failure?: { code: string; message: string }; }
 
-class OpenAiCompatibleProvider implements ModelProvider {
-  constructor(private readonly settings: { baseUrl: string; model: string; apiKey?: string }) {}
+export class OpenAiCompatibleProvider implements ModelProvider {
+  constructor(private readonly settings: { baseUrl: string; model: string; apiKey?: string }, private readonly fetchImpl: typeof fetch, private readonly timeoutMs = 60_000) {}
   async generate(request: ModelRequest): Promise<unknown> {
-    const response = await fetch(`${this.settings.baseUrl.replace(/\/$/, '')}/chat/completions`, { method: 'POST', headers: { 'content-type': 'application/json', ...(this.settings.apiKey ? { authorization: `Bearer ${this.settings.apiKey}` } : {}) }, body: JSON.stringify({ model: this.settings.model, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: request.systemPrompt }, { role: 'user', content: JSON.stringify(request.input) }] }) });
-    if (!response.ok) throw new Error(`Model request failed: HTTP ${response.status}`);
-    const body = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
-    const content = body.choices?.[0]?.message?.content;
-    if (!content) throw new Error('Model response did not include JSON content');
-    return content;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+    const schemaInstruction = `Return one valid JSON object and no markdown. The response must be valid json matching this schema: ${request.responseSchema}. Example: {"summary":"..."}.`;
+    try {
+      const response = await this.fetchImpl(`${this.settings.baseUrl.replace(/\/$/, '')}/chat/completions`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', ...(this.settings.apiKey ? { authorization: `Bearer ${this.settings.apiKey}` } : {}) },
+        body: JSON.stringify({ model: this.settings.model, response_format: { type: 'json_object' }, max_tokens: 4096, stream: false, messages: [{ role: 'system', content: `${request.systemPrompt}\n${schemaInstruction}` }, { role: 'user', content: JSON.stringify(request.input) }] }),
+        signal: controller.signal,
+      });
+      if (!response.ok) throw new Error(`Model request failed: HTTP ${response.status}`);
+      const body = await response.json() as { choices?: Array<{ finish_reason?: unknown; message?: { content?: unknown; reasoning_content?: unknown } }> };
+      const choice = body.choices?.[0];
+      const finishReason = typeof choice?.finish_reason === 'string' ? choice.finish_reason : undefined;
+      const content = typeof choice?.message?.content === 'string' ? choice.message.content.trim() : '';
+      if (!content) {
+        const reasoning = typeof choice?.message?.reasoning_content === 'string' ? choice.message.reasoning_content.trim() : '';
+        throw new Error(reasoning ? `Model returned reasoning without JSON content${finishReason ? ` (finish_reason=${finishReason})` : ''}` : `Model response did not include JSON content${finishReason ? ` (finish_reason=${finishReason})` : ''}`);
+      }
+      return content;
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') throw new Error(`Model request timed out after ${Math.max(1, Math.round(this.timeoutMs / 1000))} seconds`);
+      throw error;
+    } finally { clearTimeout(timeout); }
   }
 }
 
@@ -131,6 +150,14 @@ const diagnosticCode = (status: number): string => status === 401 || status === 
     : status === 429 ? 'rate_limited'
       : status >= 500 ? 'provider_server_error' : 'request_rejected';
 
+const deepSeekModelWarning = (baseUrl: string, model: string): string | undefined => {
+  try {
+    const hostname = new URL(baseUrl).hostname.toLowerCase();
+    if (hostname !== 'api.deepseek.com' || ['deepseek-v4-flash', 'deepseek-v4-pro', 'deepseek-chat', 'deepseek-reasoner'].includes(model)) return undefined;
+    return `DeepSeek 模型名“${model}”可能不受当前 API 支持；请确认模型 ID，建议使用 deepseek-v4-flash 或 deepseek-v4-pro。`;
+  } catch { return undefined; }
+};
+
 async function testOpenAiCompatibleConnection(settings: { baseUrl: string; model: string; apiKey?: string }, fetchImpl: typeof fetch): Promise<z.infer<typeof ModelConnectionResultSchema>> {
   const startedAt = Date.now();
   const controller = new AbortController();
@@ -143,16 +170,16 @@ async function testOpenAiCompatibleConnection(settings: { baseUrl: string; model
       signal: controller.signal,
     });
     const raw = await response.text();
-    if (response.ok) return { ok: true, status: response.status, elapsedMs: Date.now() - startedAt, model: settings.model };
+    if (response.ok) return { ok: true, status: response.status, warning: deepSeekModelWarning(settings.baseUrl, settings.model), elapsedMs: Date.now() - startedAt, model: settings.model };
     let detail = raw;
     try {
       const parsed = JSON.parse(raw) as { error?: { message?: unknown }; message?: unknown };
       detail = typeof parsed.error?.message === 'string' ? parsed.error.message : typeof parsed.message === 'string' ? parsed.message : raw;
     } catch { /* preserve a truncated plain-text response */ }
-    return { ok: false, status: response.status, code: diagnosticCode(response.status), message: sanitizeDiagnosticMessage(`HTTP ${response.status}${detail ? `: ${detail}` : ''}`, settings.apiKey), elapsedMs: Date.now() - startedAt, model: settings.model };
+    return { ok: false, status: response.status, code: diagnosticCode(response.status), message: sanitizeDiagnosticMessage(`HTTP ${response.status}${detail ? `: ${detail}` : ''}`, settings.apiKey), warning: deepSeekModelWarning(settings.baseUrl, settings.model), elapsedMs: Date.now() - startedAt, model: settings.model };
   } catch (error) {
     const aborted = error instanceof DOMException ? error.name === 'AbortError' : error instanceof Error && error.name === 'AbortError';
-    return { ok: false, code: aborted ? 'timeout' : 'network_error', message: aborted ? '模型服务连接超时（15 秒）。' : sanitizeDiagnosticMessage(error instanceof Error ? error.message : String(error), settings.apiKey), elapsedMs: Date.now() - startedAt, model: settings.model };
+    return { ok: false, code: aborted ? 'timeout' : 'network_error', message: aborted ? '模型服务连接超时（15 秒）。' : sanitizeDiagnosticMessage(error instanceof Error ? error.message : String(error), settings.apiKey), warning: deepSeekModelWarning(settings.baseUrl, settings.model), elapsedMs: Date.now() - startedAt, model: settings.model };
   } finally { clearTimeout(timeout); }
 }
 
@@ -184,8 +211,8 @@ export function createLocalBackend(options: LocalBackendOptions = {}): DesktopBa
       }
     }
   }
-  const provider = (): ModelProvider => options.modelProvider ?? new OpenAiCompatibleProvider(configured!);
   const fetchImpl = options.fetchImpl ?? fetch;
+  const provider = (): ModelProvider => options.modelProvider ?? new OpenAiCompatibleProvider(configured!, fetchImpl);
   const modelSettings = () => ModelSettingsSchema.parse({
     baseUrl: configured?.baseUrl ?? 'http://localhost:11434/v1',
     model: configured?.model ?? 'gpt-4o-mini',

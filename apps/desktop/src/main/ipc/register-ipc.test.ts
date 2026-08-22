@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { ModelProvider } from '@qt-ui-copilot/agent-workflow';
-import { createLocalBackend, type SecureStorage } from './register-ipc';
+import { createLocalBackend, OpenAiCompatibleProvider, type SecureStorage } from './register-ipc';
+import type { ModelRequest } from '@qt-ui-copilot/agent-workflow';
 
 const fakeProvider: ModelProvider = { generate: async (request) => request.kind === 'visual_review'
   ? { requirementSatisfied: true, score: 100, blockingIssues: [], suggestions: [] }
@@ -49,6 +50,33 @@ function writeQt6IntegrationConfig(root: string): void {
 }
 
 describe('local workflow backend', () => {
+  it('sends DeepSeek-compatible JSON-mode requests with bounded output and schema guidance', async () => {
+    const requests: Array<{ init?: RequestInit }> = [];
+    const provider = new OpenAiCompatibleProvider({ baseUrl: 'https://api.deepseek.com', model: 'deepseek-v4-flash' }, async (_input, init) => {
+      requests.push({ init });
+      return new Response(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: '{"summary":"ok"}' } }] }), { status: 200 });
+    });
+    const request: ModelRequest = { kind: 'ui_plan', systemPrompt: 'Return JSON only.', input: { requirement: 'add button' }, responseSchema: '{"summary":"string"}' };
+    await expect(provider.generate(request)).resolves.toBe('{"summary":"ok"}');
+    const body = JSON.parse(String(requests[0]?.init?.body)) as { max_tokens: number; stream: boolean; response_format: { type: string }; messages: Array<{ content: string }> };
+    expect(body.max_tokens).toBe(4096);
+    expect(body.stream).toBe(false);
+    expect(body.response_format).toEqual({ type: 'json_object' });
+    expect(body.messages[0]?.content).toContain('valid json');
+    expect(body.messages[0]?.content).toContain('{"summary":"string"}');
+  });
+
+  it('times out a provider request and does not accept reasoning-only output', async () => {
+    const provider = new OpenAiCompatibleProvider({ baseUrl: 'https://api.deepseek.com', model: 'deepseek-v4-pro' }, async (_input, init) => new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')), { once: true });
+    }), 20);
+    const request: ModelRequest = { kind: 'ui_plan', systemPrompt: 'Return JSON.', input: {}, responseSchema: '{}' };
+    await expect(provider.generate(request)).rejects.toThrow('timed out after 1 seconds');
+
+    const reasoningProvider = new OpenAiCompatibleProvider({ baseUrl: 'https://api.deepseek.com', model: 'deepseek-v4-pro' }, async () => new Response(JSON.stringify({ choices: [{ finish_reason: 'length', message: { content: '', reasoning_content: 'thinking' } }] }), { status: 200 }));
+    await expect(reasoningProvider.generate(request)).rejects.toThrow('reasoning without JSON content');
+  });
+
   it('tests a configured model connection without exposing the API key', async () => {
     const requests: Array<{ url: string; init?: RequestInit }> = [];
     const backend = createLocalBackend({ fetchImpl: async (input, init) => {
@@ -61,6 +89,13 @@ describe('local workflow backend', () => {
     expect(String(requests[0]?.init?.body)).toContain('gpt-test');
     expect(String(requests[0]?.init?.body)).not.toContain('sk-secret');
     expect((requests[0]?.init?.headers as Record<string, string>).authorization).toBe('Bearer sk-secret');
+    backend.dispose?.();
+  });
+
+  it('warns about an unrecognized DeepSeek model without replacing the configured name', async () => {
+    const backend = createLocalBackend({ fetchImpl: async () => new Response(JSON.stringify({ choices: [{ message: { content: 'OK' } }] }), { status: 200 }), secureStorage: encryptedStorage() });
+    await backend.configureModelSettings({ baseUrl: 'https://api.deepseek.com', model: 'deepseek-v4-flash-vision-exp', apiKey: 'sk-secret' });
+    await expect(backend.testModelConnection()).resolves.toMatchObject({ ok: true, model: 'deepseek-v4-flash-vision-exp', warning: expect.stringContaining('deepseek-v4-flash') });
     backend.dispose?.();
   });
 

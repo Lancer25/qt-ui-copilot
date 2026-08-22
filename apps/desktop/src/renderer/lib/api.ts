@@ -47,6 +47,7 @@ export interface ModelConnectionResult {
   status?: number;
   code?: string;
   message?: string;
+  warning?: string;
   elapsedMs: number;
   model: string;
 }
