@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { ModelProvider } from '@qt-ui-copilot/agent-workflow';
-import { createLocalBackend, OpenAiCompatibleProvider, type SecureStorage } from './register-ipc';
+import { createLocalBackend, OpenAiCompatibleProvider, type ModelTraceEvent, type SecureStorage } from './register-ipc';
 import type { ModelRequest } from '@qt-ui-copilot/agent-workflow';
 
 const fakeProvider: ModelProvider = { generate: async (request) => request.kind === 'visual_review'
@@ -82,12 +82,34 @@ describe('local workflow backend', () => {
     expect(body.response_format).toEqual({ type: 'json_object' });
   });
 
+  it('emits redacted request/response trace metadata with elapsed timing', async () => {
+    const events: ModelTraceEvent[] = [];
+    const provider = new OpenAiCompatibleProvider(
+      { baseUrl: 'https://api.openai.com/v1', model: 'gpt-test', apiKey: 'sk-never-log' },
+      async () => new Response(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: '{"ok":true}' } }] }), { status: 200 }),
+      1_000,
+      (event) => events.push(event),
+    );
+    const request: ModelRequest = { kind: 'ui_plan', systemPrompt: 'private system prompt', input: { requirement: '中文按钮' }, responseSchema: '{"ok":"boolean"}' };
+    await expect(provider.generate(request)).resolves.toBe('{"ok":true}');
+
+    expect(events).toHaveLength(2);
+    expect(events[0]).toMatchObject({ phase: 'request', kind: 'ui_plan', model: 'gpt-test', inputJsonBytes: Buffer.byteLength(JSON.stringify(request.input), 'utf8'), elapsedMs: 0 });
+    expect(events[1]).toMatchObject({ phase: 'response', kind: 'ui_plan', model: 'gpt-test', httpStatus: 200, finishReason: 'stop', contentLength: 11 });
+    expect(events[1].elapsedMs).toEqual(expect.any(Number));
+    expect(JSON.stringify(events)).not.toContain('sk-never-log');
+    expect(JSON.stringify(events)).not.toContain('private system prompt');
+    expect(JSON.stringify(events)).not.toContain('{"ok":true}');
+  });
+
   it('times out a provider request and does not accept reasoning-only output', async () => {
+    const traceEvents: ModelTraceEvent[] = [];
     const provider = new OpenAiCompatibleProvider({ baseUrl: 'https://api.deepseek.com', model: 'deepseek-v4-pro' }, async (_input, init) => new Promise<Response>((_resolve, reject) => {
       init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')), { once: true });
-    }), 20);
+    }), 20, (event) => traceEvents.push(event));
     const request: ModelRequest = { kind: 'ui_plan', systemPrompt: 'Return JSON.', input: {}, responseSchema: '{}' };
     await expect(provider.generate(request)).rejects.toThrow('timed out after 1 seconds');
+    expect(traceEvents.at(-1)).toMatchObject({ phase: 'error', kind: 'ui_plan', errorCode: 'timeout' });
 
     const reasoningProvider = new OpenAiCompatibleProvider({ baseUrl: 'https://api.deepseek.com', model: 'deepseek-v4-pro' }, async () => new Response(JSON.stringify({ choices: [{ finish_reason: 'length', message: { content: '', reasoning_content: 'thinking' } }] }), { status: 200 }));
     await expect(reasoningProvider.generate(request)).rejects.toThrow('reasoning without JSON content');

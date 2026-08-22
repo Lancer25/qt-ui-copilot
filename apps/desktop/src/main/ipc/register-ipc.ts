@@ -105,16 +105,52 @@ export interface LocalBackendOptions {
   secureStorage?: SecureStorage;
   /** Injectable for deterministic connection diagnostics; production uses global fetch. */
   fetchImpl?: typeof fetch;
+  /** Main-process model trace sink. The default writes redacted metadata to Electron stdio. */
+  modelTraceLogger?: ModelTraceLogger;
 }
 interface StoredProject { id: string; rootDir: string; uiFiles: string[]; profile?: ProjectProfile; config?: ProjectConfig; configRequired?: string; }
 interface UiState { taskId: string; targetUi: string; status: WorkflowState['status']; node: WorkflowNode; plan?: unknown; events: Array<{ node: string; status: string; detail?: string }>; deterministicFindings: string[]; visualFindings: string[]; routeEvidence: string[]; qtKit?: string; xmlBefore?: string; xmlAfter?: string; beforeImage?: string; quickImage?: string; afterImage?: string; failure?: { code: string; message: string }; }
 
+export interface ModelTraceEvent {
+  phase: 'request' | 'response' | 'error';
+  kind: string;
+  model: string;
+  inputJsonBytes: number;
+  elapsedMs: number;
+  httpStatus?: number;
+  finishReason?: string;
+  contentLength?: number;
+  errorCode?: string;
+}
+
+export type ModelTraceLogger = (event: ModelTraceEvent) => void;
+
+const defaultModelTraceLogger: ModelTraceLogger = (event) => {
+  // Keep this event deliberately metadata-only: no URL, headers, prompt, or response body.
+  console.info('[model-trace]', JSON.stringify(event));
+};
+
 export class OpenAiCompatibleProvider implements ModelProvider {
-  constructor(private readonly settings: { baseUrl: string; model: string; apiKey?: string }, private readonly fetchImpl: typeof fetch, private readonly timeoutMs = 60_000) {}
+  constructor(
+    private readonly settings: { baseUrl: string; model: string; apiKey?: string },
+    private readonly fetchImpl: typeof fetch,
+    private readonly timeoutMs = 60_000,
+    private readonly traceLogger: ModelTraceLogger = defaultModelTraceLogger,
+  ) {}
+
+  private trace(event: ModelTraceEvent): void {
+    // Diagnostics must never change model behavior, including when an injected logger fails.
+    try { this.traceLogger(event); } catch { /* ignore logging failures */ }
+  }
+
   async generate(request: ModelRequest): Promise<unknown> {
+    const startedAt = Date.now();
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
     const schemaInstruction = `Return one valid JSON object and no markdown. The response must be valid json matching this schema: ${request.responseSchema}. Example: {"summary":"..."}.`;
+    const inputJson = JSON.stringify(request.input);
+    const inputJsonBytes = Buffer.byteLength(inputJson, 'utf8');
+    this.trace({ phase: 'request', kind: request.kind, model: this.settings.model, inputJsonBytes, elapsedMs: 0 });
     let isDeepSeek = false;
     try {
       isDeepSeek = new URL(this.settings.baseUrl).hostname.toLowerCase() === 'api.deepseek.com';
@@ -128,22 +164,31 @@ export class OpenAiCompatibleProvider implements ModelProvider {
           response_format: { type: 'json_object' },
           ...(isDeepSeek ? { thinking: { type: 'disabled' }, max_tokens: 2048 } : { max_tokens: 4096 }),
           stream: false,
-          messages: [{ role: 'system', content: `${request.systemPrompt}\n${schemaInstruction}` }, { role: 'user', content: JSON.stringify(request.input) }],
+          messages: [{ role: 'system', content: `${request.systemPrompt}\n${schemaInstruction}` }, { role: 'user', content: inputJson }],
         }),
         signal: controller.signal,
       });
-      if (!response.ok) throw new Error(`Model request failed: HTTP ${response.status}`);
+      if (!response.ok) {
+        const elapsedMs = Date.now() - startedAt;
+        this.trace({ phase: 'response', kind: request.kind, model: this.settings.model, inputJsonBytes, elapsedMs, httpStatus: response.status, errorCode: `http_${response.status}` });
+        throw new Error(`Model request failed: HTTP ${response.status}`);
+      }
       const body = await response.json() as { choices?: Array<{ finish_reason?: unknown; message?: { content?: unknown; reasoning_content?: unknown } }> };
       const choice = body.choices?.[0];
       const finishReason = typeof choice?.finish_reason === 'string' ? choice.finish_reason : undefined;
       const content = typeof choice?.message?.content === 'string' ? choice.message.content.trim() : '';
+      this.trace({ phase: 'response', kind: request.kind, model: this.settings.model, inputJsonBytes, elapsedMs: Date.now() - startedAt, httpStatus: response.status, ...(finishReason ? { finishReason } : {}), contentLength: content.length });
       if (!content) {
         const reasoning = typeof choice?.message?.reasoning_content === 'string' ? choice.message.reasoning_content.trim() : '';
         throw new Error(reasoning ? `Model returned reasoning without JSON content${finishReason ? ` (finish_reason=${finishReason})` : ''}` : `Model response did not include JSON content${finishReason ? ` (finish_reason=${finishReason})` : ''}`);
       }
       return content;
     } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') throw new Error(`Model request timed out after ${Math.max(1, Math.round(this.timeoutMs / 1000))} seconds`);
+      if (error instanceof Error && error.name === 'AbortError') {
+        this.trace({ phase: 'error', kind: request.kind, model: this.settings.model, inputJsonBytes, elapsedMs: Date.now() - startedAt, errorCode: 'timeout' });
+        throw new Error(`Model request timed out after ${Math.max(1, Math.round(this.timeoutMs / 1000))} seconds`);
+      }
+      this.trace({ phase: 'error', kind: request.kind, model: this.settings.model, inputJsonBytes, elapsedMs: Date.now() - startedAt, errorCode: error instanceof Error ? 'request_error' : 'unknown_error' });
       throw error;
     } finally { clearTimeout(timeout); }
   }
@@ -222,7 +267,7 @@ export function createLocalBackend(options: LocalBackendOptions = {}): DesktopBa
     }
   }
   const fetchImpl = options.fetchImpl ?? fetch;
-  const provider = (): ModelProvider => options.modelProvider ?? new OpenAiCompatibleProvider(configured!, fetchImpl);
+  const provider = (): ModelProvider => options.modelProvider ?? new OpenAiCompatibleProvider(configured!, fetchImpl, 60_000, options.modelTraceLogger);
   const modelSettings = () => ModelSettingsSchema.parse({
     baseUrl: configured?.baseUrl ?? 'http://localhost:11434/v1',
     model: configured?.model ?? 'gpt-4o-mini',
