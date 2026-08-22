@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { loadProjectConfig, loadProjectProfile } from '../src/project-profile.js';
+import { loadProjectConfig, loadProjectProfile, profileFromConfig } from '../src/project-profile.js';
 import { ArtifactStore } from '../src/artifact-store.js';
 
 describe('project profiles and artifacts', () => {
@@ -32,6 +32,17 @@ describe('project profiles and artifacts', () => {
     // The test documents configuration validity even on a contributor machine
     // without the optional fixture kit; native qualification checks existence.
     if (config) expect(existsSync(config.qt.uic) || process.platform !== 'win32').toBe(true);
+  });
+
+  it('keeps route metadata out of the strict launch profile', () => {
+    const root = path.resolve(process.cwd(), '..', '..', 'fixtures', 'qt6-app');
+    const config = loadProjectConfig(root);
+    expect(config).toBeDefined();
+    expect(profileFromConfig(root, config!)).toMatchObject({
+      id: 'qt6-fixture',
+      run: { executable: expect.stringContaining('qt-ui-copilot-qt6-fixture.exe') },
+    });
+    expect(profileFromConfig(root, config!).run).not.toHaveProperty('routeId');
   });
 
   it('rejects artifact paths outside the project task directory', () => {

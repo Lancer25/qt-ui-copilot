@@ -1,4 +1,6 @@
 import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 
 const root = path.resolve(import.meta.dirname, '..');
@@ -7,5 +9,20 @@ if (process.env.QT_UI_COPILOT_E2E !== '1') {
   process.exit(2);
 }
 const desktopRoot = path.join(root, 'apps', 'desktop');
-const result = spawnSync(process.execPath, ['node_modules/@playwright/test/cli.js', 'test'], { cwd: desktopRoot, stdio: 'inherit', shell: false, env: process.env });
+// The workspace installs Playwright at the root (pnpm may not link it into
+// the desktop package). Resolve the CLI from this script's module context and
+// run Playwright with the repository root as cwd so the root config and tests
+// are found consistently on Windows and Linux.
+const playwrightCli = fileURLToPath(import.meta.resolve('@playwright/test/cli'));
+const electronDist = path.join(root, 'node_modules', 'electron', 'dist');
+const e2eEnvironment = {
+  ...process.env,
+  // The repository's offline Electron bootstrap may have the extracted
+  // runtime but no electron/path.txt. Playwright resolves Electron through
+  // the package entry point, so point it at the verified runtime directory.
+  ...(process.env.ELECTRON_OVERRIDE_DIST_PATH || !existsSync(path.join(electronDist, 'electron.exe'))
+    ? {}
+    : { ELECTRON_OVERRIDE_DIST_PATH: electronDist }),
+};
+const result = spawnSync(process.execPath, [playwrightCli, 'test'], { cwd: root, stdio: 'inherit', shell: false, env: e2eEnvironment });
 process.exitCode = result.status ?? 1;

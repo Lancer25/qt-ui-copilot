@@ -52,6 +52,10 @@ export function profileFromConfig(rootDir: string, config: ProjectConfig): Proje
     id: config.id, rootDir,
     qt: { version: config.qt.version, uic: config.qt.uic, rcc: config.qt.rcc },
     build: config.build,
-    run: config.run,
+    // `routeId` belongs to the execution config and is resolved by the
+    // runtime workflow. ProjectProfile is the legacy launch profile and has
+    // a deliberately strict run schema, so do not leak the routing metadata
+    // into it.
+    run: { executable: config.run.executable, args: config.run.args, environment: config.run.environment },
   });
 }

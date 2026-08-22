@@ -7,7 +7,10 @@ export async function importProject(window: Page, root: string): Promise<void> {
   await window.getByLabel('项目目录').fill(root);
   await window.getByRole('button', { name: '导入项目' }).click();
   await expect(window.getByText(/\.ui$/).first()).toBeVisible();
-  await window.getByRole('button', { name: /NetworkSettings\.ui$/ }).click();
+  // The Qt6 fixture intentionally contains a reduced Settings.ui surface,
+  // while the Qt5 fixture contains NetworkSettings.ui. Select the first
+  // discovered .ui file so the test remains valid across both fixtures.
+  await window.getByRole('button', { name: /\.ui$/ }).first().click();
 }
 
 export async function requestChange(window: Page, request: string): Promise<void> {
@@ -20,5 +23,7 @@ export async function chooseComponent(window: Page, componentId: string): Promis
 }
 
 export async function approvePlan(window: Page): Promise<void> {
-  await window.getByRole('button', { name: '批准计划' }).click();
+  const button = window.getByRole('button', { name: '批准并应用候选修改' });
+  await expect(button).toBeEnabled({ timeout: 120_000 });
+  await button.click();
 }
