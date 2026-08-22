@@ -16,6 +16,7 @@ const desktopApi: DesktopApi = {
   settings: {
     getModel: () => ipcRenderer.invoke('settings:getModel') as Promise<ModelSettings>,
     configureModel: (input) => ipcRenderer.invoke('settings:configureModel', input) as Promise<ModelSettings>,
+    testModel: () => ipcRenderer.invoke('settings:testModel', undefined) as Promise<import('../renderer/lib/api').ModelConnectionResult>,
   },
   onWorkflowEvent: (listener) => { const handler = (_event: Electron.IpcRendererEvent, state: WorkflowUiState) => listener(state); ipcRenderer.on('workflow:event', handler); return () => ipcRenderer.removeListener('workflow:event', handler); },
 };

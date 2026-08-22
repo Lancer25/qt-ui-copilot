@@ -49,6 +49,40 @@ function writeQt6IntegrationConfig(root: string): void {
 }
 
 describe('local workflow backend', () => {
+  it('tests a configured model connection without exposing the API key', async () => {
+    const requests: Array<{ url: string; init?: RequestInit }> = [];
+    const backend = createLocalBackend({ fetchImpl: async (input, init) => {
+      requests.push({ url: String(input), init });
+      return new Response(JSON.stringify({ choices: [{ message: { content: 'OK' } }] }), { status: 200 });
+    }, secureStorage: encryptedStorage() });
+    await backend.configureModelSettings({ baseUrl: 'https://api.openai.com/v1', model: 'gpt-test', apiKey: 'sk-secret' });
+    await expect(backend.testModelConnection()).resolves.toMatchObject({ ok: true, status: 200, model: 'gpt-test' });
+    expect(requests[0]?.url).toBe('https://api.openai.com/v1/chat/completions');
+    expect(String(requests[0]?.init?.body)).toContain('gpt-test');
+    expect(String(requests[0]?.init?.body)).not.toContain('sk-secret');
+    expect((requests[0]?.init?.headers as Record<string, string>).authorization).toBe('Bearer sk-secret');
+    backend.dispose?.();
+  });
+
+  it.each([
+    [401, 'authentication_failed'],
+    [404, 'model_or_endpoint_not_found'],
+  ])('returns a useful sanitized diagnostic for HTTP %s', async (status, code) => {
+    const backend = createLocalBackend({ fetchImpl: async () => new Response(JSON.stringify({ error: { message: 'bad key sk-secret should not leak' } }), { status }), secureStorage: encryptedStorage() });
+    await backend.configureModelSettings({ baseUrl: 'https://api.openai.com/v1', model: 'gpt-test', apiKey: 'sk-secret' });
+    await expect(backend.testModelConnection()).resolves.toMatchObject({ ok: false, status, code, model: 'gpt-test' });
+    const result = await backend.testModelConnection();
+    expect(result.message).not.toContain('sk-secret');
+    backend.dispose?.();
+  });
+
+  it('returns a bounded timeout diagnostic', async () => {
+    const backend = createLocalBackend({ fetchImpl: async () => { throw new DOMException('The operation was aborted.', 'AbortError'); } });
+    await backend.configureModelSettings({ baseUrl: 'https://api.openai.com/v1', model: 'gpt-test' });
+    await expect(backend.testModelConnection()).resolves.toMatchObject({ ok: false, code: 'timeout', model: 'gpt-test' });
+    backend.dispose?.();
+  });
+
   it('returns an explicit configuration result instead of throwing when no model is configured', async () => {
     const backend = createLocalBackend();
     await expect(backend.startTask({ projectId: 'missing', targetUi: 'missing.ui', requirement: 'test' })).resolves.toMatchObject({ kind: 'configuration_required' });

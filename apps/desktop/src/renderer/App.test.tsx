@@ -50,4 +50,13 @@ describe('Qt UI Copilot product UI', () => {
     expect(request.task.deterministicFindings).toEqual(['uic 校验通过']);
     expect(request.task.build?.exitCode).toBe(0);
   });
+
+  it('exposes a model connection test in model settings', async () => {
+    const user = userEvent.setup();
+    const fakeApi = new FakeDesktopApi();
+    render(<App api={fakeApi} />);
+    await user.click(screen.getByRole('button', { name: '模型设置' }));
+    await user.click(screen.getByRole('button', { name: '测试连接' }));
+    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('连接成功'));
+  });
 });

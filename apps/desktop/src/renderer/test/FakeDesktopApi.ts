@@ -1,6 +1,6 @@
 import type { ComponentCandidate } from '@qt-ui-copilot/component-library';
 import type { UiPlan } from '@qt-ui-copilot/contracts';
-import type { DesktopApi, ModelSettings, ReportRequest, UiProject, WorkflowUiState } from '../lib/api';
+import type { DesktopApi, ModelConnectionResult, ModelSettings, ReportRequest, UiProject, WorkflowUiState } from '../lib/api';
 
 const project: UiProject = { id: 'demo', rootDir: 'D:/demo', uiFiles: ['src/Settings.ui'] };
 
@@ -37,7 +37,7 @@ export class FakeDesktopApi implements DesktopApi {
   };
   components = { search: async (): Promise<ComponentCandidate[]> => [] };
   reports = { export: async (request: ReportRequest) => { this.exported = request; return { cancelled: false, path: 'D:/report.html' }; } };
-  settings = { getModel: async (): Promise<ModelSettings> => ({ baseUrl: 'http://localhost:11434/v1', model: 'fake', hasApiKey: false }), configureModel: async ({ baseUrl, model, apiKey }: { baseUrl: string; model: string; apiKey?: string }): Promise<ModelSettings> => ({ baseUrl, model, hasApiKey: Boolean(apiKey) }) };
+  settings = { getModel: async (): Promise<ModelSettings> => ({ baseUrl: 'http://localhost:11434/v1', model: 'fake', hasApiKey: false }), configureModel: async ({ baseUrl, model, apiKey }: { baseUrl: string; model: string; apiKey?: string }): Promise<ModelSettings> => ({ baseUrl, model, hasApiKey: Boolean(apiKey) }), testModel: async (): Promise<ModelConnectionResult> => ({ ok: true, status: 200, elapsedMs: 1, model: 'fake' }) };
   onWorkflowEvent(listener: (state: WorkflowUiState) => void): () => void { this.listeners.add(listener); return () => this.listeners.delete(listener); }
   private requireState(change: Partial<WorkflowUiState>): WorkflowUiState { if (!this.state) throw new Error('No task'); return { ...this.state, ...change }; }
   private publish(state: WorkflowUiState): WorkflowUiState { this.state = state; this.listeners.forEach((listener) => listener(state)); return state; }

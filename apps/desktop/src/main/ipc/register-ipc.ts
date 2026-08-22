@@ -20,12 +20,21 @@ const TaskIdSchema = z.object({ taskId: z.string().min(1) }).strict();
 const ApprovalSchema = TaskIdSchema.extend({ approved: z.boolean() }).strict();
 const ComponentSearchSchema = z.object({ projectId: z.string().min(1), query: z.string().max(10_000) }).strict();
 const ModelSettingsInputSchema = z.object({ baseUrl: z.string().url().max(2048), model: z.string().min(1).max(256), apiKey: z.string().min(1).max(4096).optional() }).strict();
+const TestModelInputSchema = z.undefined();
 export const ModelSettingsSchema = z.object({
   baseUrl: z.string().url(),
   model: z.string().min(1),
   hasApiKey: z.boolean(),
   hasPersistentApiKey: z.boolean(),
   storageWarning: z.string().max(512).optional(),
+}).strict();
+export const ModelConnectionResultSchema = z.object({
+  ok: z.boolean(),
+  status: z.number().int().optional(),
+  code: z.string().max(64).optional(),
+  message: z.string().max(1024).optional(),
+  elapsedMs: z.number().int().nonnegative(),
+  model: z.string().max(256),
 }).strict();
 const ReportSchema = z.object({ task: z.object({ taskId: z.string().min(1), targetUi: z.string().min(1), status: z.string().min(1), node: z.string().min(1), plan: z.object({ summary: z.string(), operations: z.array(z.unknown()), expectedResults: z.array(z.string()) }).passthrough().optional(), xmlBefore: z.string().max(2_000_000).optional(), xmlAfter: z.string().max(2_000_000).optional(), beforeImage: z.string().max(4_000_000).optional(), afterImage: z.string().max(4_000_000).optional(), deterministicFindings: z.array(z.string()), visualFindings: z.array(z.string()), routeEvidence: z.array(z.string()), qtKit: z.string().optional(), build: z.object({ executable: z.string(), args: z.array(z.string()), exitCode: z.number().optional() }).optional() }).passthrough(), selectedComponent: z.object({ component: z.object({ id: z.string(), name: z.string(), sourceUiFile: z.string() }).passthrough() }).passthrough().optional() }).strict();
 
@@ -40,6 +49,7 @@ export interface DesktopBackend {
   searchComponents(input: z.infer<typeof ComponentSearchSchema>): Promise<unknown>;
   getModelSettings(): Promise<z.infer<typeof ModelSettingsSchema>>;
   configureModelSettings(input: z.infer<typeof ModelSettingsInputSchema>): Promise<z.infer<typeof ModelSettingsSchema>>;
+  testModelConnection(): Promise<z.infer<typeof ModelConnectionResultSchema>>;
   subscribeWorkflow?(listener: (state: unknown) => void): () => void;
   /** Releases the SQLite handle. Used by deterministic integration tests and app shutdown. */
   dispose?(): void;
@@ -66,6 +76,7 @@ export function registerIpc(window: BrowserWindow, backend: DesktopBackend): voi
   ipcMain.handle('components:search', (_event, input: unknown) => backend.searchComponents(ComponentSearchSchema.parse(input)));
   ipcMain.handle('settings:getModel', () => backend.getModelSettings());
   ipcMain.handle('settings:configureModel', (_event, input: unknown) => backend.configureModelSettings(ModelSettingsInputSchema.parse(input)));
+  ipcMain.handle('settings:testModel', (_event, input: unknown = undefined) => { TestModelInputSchema.parse(input); return backend.testModelConnection(); });
   ipcMain.handle('reports:export', async (_event, input: unknown) => {
     const request = ReportSchema.parse(input); const { task, selectedComponent } = request;
     const selected = selectedComponent?.component;
@@ -91,6 +102,8 @@ export interface LocalBackendOptions {
   modelProvider?: ModelProvider;
   /** Inject Electron safeStorage in production; tests supply a deterministic fake. */
   secureStorage?: SecureStorage;
+  /** Injectable for deterministic connection diagnostics; production uses global fetch. */
+  fetchImpl?: typeof fetch;
 }
 interface StoredProject { id: string; rootDir: string; uiFiles: string[]; profile?: ProjectProfile; config?: ProjectConfig; configRequired?: string; }
 interface UiState { taskId: string; targetUi: string; status: WorkflowState['status']; node: WorkflowNode; plan?: unknown; events: Array<{ node: string; status: string; detail?: string }>; deterministicFindings: string[]; visualFindings: string[]; routeEvidence: string[]; qtKit?: string; xmlBefore?: string; xmlAfter?: string; beforeImage?: string; quickImage?: string; afterImage?: string; failure?: { code: string; message: string }; }
@@ -105,6 +118,42 @@ class OpenAiCompatibleProvider implements ModelProvider {
     if (!content) throw new Error('Model response did not include JSON content');
     return content;
   }
+}
+
+const sanitizeDiagnosticMessage = (value: string, apiKey?: string): string => value
+  .replaceAll(apiKey ?? '\u0000', '[REDACTED]')
+  .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, 'Bearer [REDACTED]')
+  .replace(/(api[_-]?key|authorization)\s*[:=]\s*[^,\s}]+/gi, '$1: [REDACTED]')
+  .slice(0, 1024);
+
+const diagnosticCode = (status: number): string => status === 401 || status === 403 ? 'authentication_failed'
+  : status === 404 ? 'model_or_endpoint_not_found'
+    : status === 429 ? 'rate_limited'
+      : status >= 500 ? 'provider_server_error' : 'request_rejected';
+
+async function testOpenAiCompatibleConnection(settings: { baseUrl: string; model: string; apiKey?: string }, fetchImpl: typeof fetch): Promise<z.infer<typeof ModelConnectionResultSchema>> {
+  const startedAt = Date.now();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15_000);
+  try {
+    const response = await fetchImpl(`${settings.baseUrl.replace(/\/$/, '')}/chat/completions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...(settings.apiKey ? { authorization: `Bearer ${settings.apiKey}` } : {}) },
+      body: JSON.stringify({ model: settings.model, messages: [{ role: 'user', content: 'Reply with OK.' }], max_tokens: 1, stream: false }),
+      signal: controller.signal,
+    });
+    const raw = await response.text();
+    if (response.ok) return { ok: true, status: response.status, elapsedMs: Date.now() - startedAt, model: settings.model };
+    let detail = raw;
+    try {
+      const parsed = JSON.parse(raw) as { error?: { message?: unknown }; message?: unknown };
+      detail = typeof parsed.error?.message === 'string' ? parsed.error.message : typeof parsed.message === 'string' ? parsed.message : raw;
+    } catch { /* preserve a truncated plain-text response */ }
+    return { ok: false, status: response.status, code: diagnosticCode(response.status), message: sanitizeDiagnosticMessage(`HTTP ${response.status}${detail ? `: ${detail}` : ''}`, settings.apiKey), elapsedMs: Date.now() - startedAt, model: settings.model };
+  } catch (error) {
+    const aborted = error instanceof DOMException ? error.name === 'AbortError' : error instanceof Error && error.name === 'AbortError';
+    return { ok: false, code: aborted ? 'timeout' : 'network_error', message: aborted ? '模型服务连接超时（15 秒）。' : sanitizeDiagnosticMessage(error instanceof Error ? error.message : String(error), settings.apiKey), elapsedMs: Date.now() - startedAt, model: settings.model };
+  } finally { clearTimeout(timeout); }
 }
 
 /** Main-only composition root. Tests inject a deterministic provider; production uses configured OpenAI-compatible HTTP. */
@@ -136,6 +185,7 @@ export function createLocalBackend(options: LocalBackendOptions = {}): DesktopBa
     }
   }
   const provider = (): ModelProvider => options.modelProvider ?? new OpenAiCompatibleProvider(configured!);
+  const fetchImpl = options.fetchImpl ?? fetch;
   const modelSettings = () => ModelSettingsSchema.parse({
     baseUrl: configured?.baseUrl ?? 'http://localhost:11434/v1',
     model: configured?.model ?? 'gpt-4o-mini',
@@ -368,6 +418,10 @@ export function createLocalBackend(options: LocalBackendOptions = {}): DesktopBa
       // prior ciphertext rather than accidentally clearing it in an insecure session.
       repository.saveModelSettings({ baseUrl: configured.baseUrl, model: configured.model, ...(encryptedApiKey ? { encryptedApiKey } : {}) });
       return modelSettings();
+    },
+    async testModelConnection() {
+      if (!configured) return { ok: false, code: 'configuration_required', message: '请先保存 Base URL、模型和 API Key。', elapsedMs: 0, model: modelSettings().model };
+      return testOpenAiCompatibleConnection(configured, fetchImpl);
     },
     subscribeWorkflow(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     dispose() { database.close(); },

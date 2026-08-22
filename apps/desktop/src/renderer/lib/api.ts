@@ -42,6 +42,15 @@ export interface ModelSettings {
   storageWarning?: string;
 }
 
+export interface ModelConnectionResult {
+  ok: boolean;
+  status?: number;
+  code?: string;
+  message?: string;
+  elapsedMs: number;
+  model: string;
+}
+
 export type TaskStartResult =
   | { kind: 'started'; state: WorkflowUiState }
   | { kind: 'configuration_required'; message: string };
@@ -65,6 +74,7 @@ export interface DesktopApi {
   settings: {
     getModel(): Promise<ModelSettings>;
     configureModel(input: { baseUrl: string; model: string; apiKey?: string }): Promise<ModelSettings>;
+    testModel(): Promise<ModelConnectionResult>;
   };
   onWorkflowEvent(listener: (state: WorkflowUiState) => void): () => void;
 }
