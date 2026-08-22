@@ -39,8 +39,8 @@ export async function chooseComponent(window: Page, componentId: string): Promis
   await window.getByTestId(`component-${componentId}`).click();
 }
 
-export async function approvePlan(window: Page): Promise<void> {
+export async function approvePlan(window: Page, timeoutMs = 120_000): Promise<void> {
   const button = window.getByRole('button', { name: '批准并应用候选修改' });
-  await expect(button).toBeEnabled({ timeout: 120_000 });
+  await expect(button).toBeEnabled({ timeout: timeoutMs });
   await button.click();
 }
