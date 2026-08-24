@@ -42,7 +42,10 @@ export async function chooseComponent(window: Page, componentId: string): Promis
 export async function approvePlan(window: Page, timeoutMs = 120_000): Promise<void> {
   const button = window.getByRole('button', { name: '批准并应用候选修改' });
   try {
-    await expect(button).toBeEnabled({ timeout: timeoutMs });
+    // The primary action deliberately keeps its native button semantics so
+    // keyboard/focus automation can observe the action even while it is
+    // unavailable.  Read the ARIA state instead of the native disabled flag.
+    await expect(button).toHaveAttribute('aria-disabled', 'false', { timeout: timeoutMs });
   } catch (error) {
     const redact = (value: string): string => value
       .replace(/https?:\/\/[^\s'"<>]+/g, '<url>')

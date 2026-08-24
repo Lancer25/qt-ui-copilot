@@ -8,6 +8,18 @@ import { makeReportRequest } from './features/report/EvidenceReport';
 
 describe('Qt UI Copilot product UI', () => {
   afterEach(cleanup);
+  it('keeps the primary action focusable and explains why approval is unavailable', async () => {
+    const user = userEvent.setup();
+    render(<App api={new FakeDesktopApi()} />);
+    const applyCandidate = screen.getByRole('button', { name: '批准并应用候选修改' });
+
+    expect((applyCandidate as HTMLButtonElement).disabled).toBe(false);
+    expect(applyCandidate.getAttribute('aria-disabled')).toBe('true');
+    await user.click(applyCandidate);
+
+    expect(screen.getByRole('alert').textContent).toContain('当前没有可批准的候选修改计划');
+  });
+
   it('approves and applies the structured plan from the primary candidate action', async () => {
     const user = userEvent.setup();
     const fakeApi = new FakeDesktopApi().withPlan({ summary: '增加测试按钮', riskLevel: 'medium', expectedResults: [], componentIds: [], operations: [{ op: 'addWidget', parentLayout: 'buttonLayout', widgetClass: 'QPushButton', objectName: 'testButton' }] });
@@ -17,7 +29,7 @@ describe('Qt UI Copilot product UI', () => {
     await user.type(screen.getByLabelText('界面需求'), '增加测试按钮');
     await user.click(screen.getByRole('button', { name: '生成修改计划' }));
     const applyCandidate = screen.getByRole('button', { name: '批准并应用候选修改' });
-    expect((applyCandidate as HTMLButtonElement).disabled).toBe(false);
+    expect(applyCandidate.getAttribute('aria-disabled')).toBe('false');
     expect(screen.queryByRole('button', { name: '批准计划' })).toBeNull();
 
     await user.click(applyCandidate);
@@ -26,7 +38,7 @@ describe('Qt UI Copilot product UI', () => {
     await waitFor(() => expect(screen.getByText('UIC_VALIDATE · running')).not.toBeNull());
     // A complete plan remains actionable while the workflow is running; the
     // main-process workflow machine remains authoritative for repeat/illegal approvals.
-    expect((screen.getByRole('button', { name: '批准并应用候选修改' }) as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.getByRole('button', { name: '批准并应用候选修改' }).getAttribute('aria-disabled')).toBe('false');
   });
 
   it.each(['waiting_approval', 'running'] as const)('enables approval for a complete USER_APPROVAL candidate when status is %s', async (status) => {
@@ -38,7 +50,7 @@ describe('Qt UI Copilot product UI', () => {
     await user.type(screen.getByLabelText('界面需求'), '增加测试按钮');
     await user.click(screen.getByRole('button', { name: '生成修改计划' }));
 
-    expect((screen.getByRole('button', { name: '批准并应用候选修改' }) as HTMLButtonElement).disabled).toBe(false);
+    expect(screen.getByRole('button', { name: '批准并应用候选修改' }).getAttribute('aria-disabled')).toBe('false');
   });
 
   it('keeps approval disabled for a failed planner node even when a plan is present', async () => {
@@ -50,7 +62,7 @@ describe('Qt UI Copilot product UI', () => {
     await user.type(screen.getByLabelText('界面需求'), '增加测试按钮');
     await user.click(screen.getByRole('button', { name: '生成修改计划' }));
 
-    expect((screen.getByRole('button', { name: '批准并应用候选修改' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByRole('button', { name: '批准并应用候选修改' }).getAttribute('aria-disabled')).toBe('true');
   });
 
   it('keeps approval disabled for a cancelled task even when a plan is present', async () => {
@@ -62,7 +74,7 @@ describe('Qt UI Copilot product UI', () => {
     await user.type(screen.getByLabelText('界面需求'), '增加测试按钮');
     await user.click(screen.getByRole('button', { name: '生成修改计划' }));
 
-    expect((screen.getByRole('button', { name: '批准并应用候选修改' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByRole('button', { name: '批准并应用候选修改' }).getAttribute('aria-disabled')).toBe('true');
   });
 
   it('chooses a directory on first use, imports it, and leaves the workbench unchanged when cancelled', async () => {
