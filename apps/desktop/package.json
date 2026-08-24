@@ -8,6 +8,7 @@
     "forge:start": "electron-forge start",
     "build": "electron-forge package",
     "package": "node scripts/prepare-packaging-assets.mjs && electron-forge package",
+    "package:portable": "node scripts/prepare-packaging-assets.mjs && node scripts/package-portable.mjs",
     "make": "node scripts/prepare-packaging-assets.mjs && electron-forge make",
     "test": "vitest run --passWithNoTests",
     "typecheck": "tsc --noEmit"
