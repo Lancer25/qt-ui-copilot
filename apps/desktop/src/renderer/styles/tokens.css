@@ -1,0 +1,51 @@
+:root {
+  color-scheme: dark;
+
+  /* B1 墨黑紫 · AI 原生 palette */
+  --surface-0: #0b0a14;
+  --surface-1: #121022;
+  --surface-2: #1a1730;
+  --surface-3: #24203d;
+  --surface-raised: #211d38;
+  --surface-overlay: rgba(18, 16, 34, 0.92);
+  --border-subtle: rgba(177, 163, 255, 0.14);
+  --border-default: rgba(177, 163, 255, 0.24);
+  --border-strong: rgba(177, 163, 255, 0.42);
+
+  --text-primary: #f5f1ff;
+  --text-secondary: #c7bfdc;
+  --text-muted: #9188ad;
+  --text-inverse: #110d20;
+
+  --accent-primary: #9d7bff;
+  --accent-primary-hover: #b39aff;
+  --accent-primary-active: #8965ed;
+  --accent-secondary: #30255f;
+  --accent-focus: rgba(157, 123, 255, 0.42);
+
+  --status-success: #5ed6a0;
+  --status-warning: #f4bd68;
+  --status-error: #ff7e8a;
+  --status-info: #6ec5ff;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
+
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 12px 32px rgba(0, 0, 0, 0.28);
+  --shadow-glow: 0 0 0 1px var(--accent-focus), 0 8px 28px rgba(108, 76, 214, 0.2);
+
+  --font-sans: Inter, "Microsoft YaHei", "Segoe UI", sans-serif;
+  --font-mono: "Cascadia Code", Consolas, monospace;
+}
