@@ -7,6 +7,22 @@ export interface UiProject {
   id: string;
   rootDir: string;
   uiFiles: string[];
+  configurationRequired?: string;
+}
+
+export interface ProjectSummary extends UiProject {
+  profilePath?: string;
+  updatedAt?: number;
+  health?: 'ready' | 'needs_configuration' | 'missing';
+}
+
+export interface TaskSummary {
+  id: string;
+  projectId: string;
+  targetUi: string;
+  createdAt: number;
+  updatedAt: number;
+  lastEvent?: { node: string; status: 'started' | 'completed' | 'failed' | 'cancelled'; at: number };
 }
 
 export interface WorkflowUiState {
@@ -94,8 +110,11 @@ export interface DesktopApi {
     /** Opens the native directory chooser in the Main process. Undefined means the user cancelled. */
     chooseDirectory(): Promise<string | undefined>;
     import(input: { rootDir: string }): Promise<UiProject>;
+    list(): Promise<ProjectSummary[]>;
   };
   tasks: {
+    list(input?: { projectId?: string; status?: 'started' | 'completed' | 'failed' | 'cancelled' }): Promise<TaskSummary[]>;
+    get(input: { taskId: string }): Promise<WorkflowUiState | undefined>;
     start(input: { projectId: string; targetUi: string; requirement: string }): Promise<TaskStartResult>;
     approve(input: { taskId: string; approved: boolean }): Promise<WorkflowUiState>;
     cancel(input: { taskId: string }): Promise<WorkflowUiState>;

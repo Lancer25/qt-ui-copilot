@@ -58,6 +58,18 @@ describe('TaskRepository', () => {
     database.close();
   });
 
+  it('lists persisted tasks newest first with their last durable state', () => {
+    const database = openDatabase(':memory:');
+    const repo = new TaskRepository(database);
+    repo.upsertProject({ id: 'p1', rootDir: 'D:/p1' });
+    const older = repo.createTask('p1', 'Old.ui');
+    const newer = repo.createTask('p1', 'New.ui');
+    repo.appendEvent(newer, { node: 'REPORT', status: 'completed', at: Date.now(), payload: {} });
+    expect(repo.listTasks({ projectId: 'p1' }).map((task) => task.id)).toEqual([newer, older]);
+    expect(repo.listTasks({ projectId: 'p1' })[0].lastEvent).toMatchObject({ node: 'REPORT', status: 'completed' });
+    database.close();
+  });
+
   it('persists model metadata and only an opaque API-key ciphertext across reopen', () => {
     const directory = mkdtempSync(path.join(tmpdir(), 'qt-ui-copilot-model-settings-'));
     const databasePath = path.join(directory, 'tasks.sqlite');

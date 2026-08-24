@@ -5,8 +5,11 @@ const desktopApi: DesktopApi = {
   projects: {
     chooseDirectory: () => ipcRenderer.invoke('projects:chooseDirectory') as Promise<string | undefined>,
     import: (input) => ipcRenderer.invoke('projects:import', input) as Promise<UiProject>,
+    list: () => ipcRenderer.invoke('projects:list') as ReturnType<DesktopApi['projects']['list']>,
   },
   tasks: {
+    list: (input) => ipcRenderer.invoke('tasks:list', input) as ReturnType<DesktopApi['tasks']['list']>,
+    get: (input) => ipcRenderer.invoke('tasks:get', input) as ReturnType<DesktopApi['tasks']['get']>,
     start: (input) => ipcRenderer.invoke('tasks:start', input) as Promise<TaskStartResult>, approve: (input) => ipcRenderer.invoke('tasks:approve', input) as Promise<WorkflowUiState>,
     cancel: (input) => ipcRenderer.invoke('tasks:cancel', input) as Promise<WorkflowUiState>, takeOver: (input) => ipcRenderer.invoke('tasks:takeOver', input) as Promise<void>,
     accept: (input) => ipcRenderer.invoke('tasks:accept', input) as Promise<WorkflowUiState>, rollback: (input) => ipcRenderer.invoke('tasks:rollback', input) as Promise<WorkflowUiState>,

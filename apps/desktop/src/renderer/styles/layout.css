@@ -33,6 +33,28 @@
   overflow: auto;
 }
 
+.page-content { max-width: 1280px; margin: 0 auto; padding: var(--space-6); }
+.page-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); padding-bottom: var(--space-4); border-bottom: 1px solid var(--border-subtle); }
+.page-heading h1 { margin: 0; font-size: 28px; letter-spacing: -0.02em; }
+.page-heading p { margin: var(--space-2) 0 0; color: var(--text-secondary); }
+.eyebrow { color: var(--accent-primary) !important; font-size: 11px; font-weight: 700; letter-spacing: .12em; }
+.muted { color: var(--text-muted) !important; }
+.project-card__title { justify-content: space-between; align-items: flex-start; }
+.project-card h2, .task-row h2 { margin: 0; font-size: 17px; }
+.project-card__path { overflow: hidden; max-width: 38ch; text-overflow: ellipsis; white-space: nowrap; }
+.project-card__files { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3); }
+.project-card__files .ui-button { min-height: 30px; padding-inline: var(--space-2); font-size: 12px; }
+.search-bar { display: flex; align-items: end; gap: var(--space-3); }
+.search-bar label { display: grid; gap: var(--space-2); color: var(--text-secondary); font-size: 12px; font-weight: 600; }
+.search-bar select, .search-bar input { min-height: 38px; min-width: 220px; padding: 0 var(--space-3); border: 1px solid var(--border-default); border-radius: var(--radius-sm); background: var(--surface-0); }
+.search-bar__query { flex: 1; }
+.search-bar__query input { width: 100%; }
+.tag-list { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: var(--space-3) 0; }
+.warning-text { color: var(--status-warning); font-size: 12px; }
+.task-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
+.task-row .ui-cluster { justify-content: flex-end; }
+@media (max-width: 780px) { .search-bar, .task-row { align-items: stretch; flex-direction: column; } .search-bar select { width: 100%; } }
+
 @media (max-width: 1100px) {
   .app-shell {
     padding: var(--space-4);

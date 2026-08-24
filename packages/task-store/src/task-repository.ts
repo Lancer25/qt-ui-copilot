@@ -23,6 +23,16 @@ export interface StoredTask {
   targetUi: string;
   createdAt: number;
   updatedAt: number;
+  lastEvent?: TaskEvent;
+}
+
+export interface StoredProject {
+  id: string;
+  rootDir: string;
+  profilePath?: string;
+  profile?: unknown;
+  createdAt: number;
+  updatedAt: number;
 }
 
 export interface StoredArtifact {
@@ -102,7 +112,36 @@ export class TaskRepository {
     const row = this.database.prepare('SELECT id, project_id, target_ui, created_at, updated_at FROM tasks WHERE id = ?').get(id) as {
       id: string; project_id: string; target_ui: string; created_at: number; updated_at: number;
     } | undefined;
-    return row && { id: row.id, projectId: row.project_id, targetUi: row.target_ui, createdAt: row.created_at, updatedAt: row.updated_at };
+    if (!row) return undefined;
+    const task: StoredTask = { id: row.id, projectId: row.project_id, targetUi: row.target_ui, createdAt: row.created_at, updatedAt: row.updated_at };
+    const last = this.listEvents(id).at(-1);
+    return last ? { ...task, lastEvent: last } : task;
+  }
+
+  public listProjects(): StoredProject[] {
+    const rows = this.database.prepare('SELECT id, root_dir, profile_path, profile_json, created_at, updated_at FROM projects ORDER BY updated_at DESC, id DESC').all() as Array<{
+      id: string; root_dir: string; profile_path: string | null; profile_json: string | null; created_at: number; updated_at: number;
+    }>;
+    return rows.map((row) => ({
+      id: row.id,
+      rootDir: row.root_dir,
+      ...(row.profile_path ? { profilePath: row.profile_path } : {}),
+      ...(row.profile_json ? { profile: parseJson(row.profile_json) } : {}),
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }));
+  }
+
+  public listTasks(options: { projectId?: string; status?: TaskEvent['status'] } = {}): StoredTask[] {
+    const rows = options.projectId
+      ? this.database.prepare('SELECT id, project_id, target_ui, created_at, updated_at FROM tasks WHERE project_id = ? ORDER BY updated_at DESC, id DESC').all(options.projectId)
+      : this.database.prepare('SELECT id, project_id, target_ui, created_at, updated_at FROM tasks ORDER BY updated_at DESC, id DESC').all();
+    const tasks = (rows as Array<{ id: string; project_id: string; target_ui: string; created_at: number; updated_at: number }>).map((row) => {
+      const task = { id: row.id, projectId: row.project_id, targetUi: row.target_ui, createdAt: row.created_at, updatedAt: row.updated_at } as StoredTask;
+      const lastEvent = this.listEvents(row.id).at(-1);
+      return lastEvent ? { ...task, lastEvent } : task;
+    });
+    return options.status ? tasks.filter((task) => task.lastEvent?.status === options.status) : tasks;
   }
 
   public appendEvent(taskId: string, event: PersistedWorkflowEvent): void {

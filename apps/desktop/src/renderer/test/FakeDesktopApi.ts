@@ -1,6 +1,6 @@
 import type { ComponentCandidate } from '@qt-ui-copilot/component-library';
 import type { UiPlan } from '@qt-ui-copilot/contracts';
-import type { DesktopApi, ModelConnectionResult, ModelSettings, ReportRequest, UiProject, WorkflowUiState, QtKit, QtKitHealth } from '../lib/api';
+import type { DesktopApi, ModelConnectionResult, ModelSettings, ReportRequest, UiProject, WorkflowUiState, QtKit, QtKitHealth, ProjectSummary, TaskSummary } from '../lib/api';
 
 const project: UiProject = { id: 'demo', rootDir: 'D:/demo', uiFiles: ['src/Settings.ui'] };
 
@@ -31,8 +31,11 @@ export class FakeDesktopApi implements DesktopApi {
       this.importedDirectories.push(rootDir);
       return { ...project, rootDir };
     },
+    list: async (): Promise<ProjectSummary[]> => [{ ...project, health: 'ready', updatedAt: Date.now() }],
   };
   tasks = {
+    list: async (): Promise<TaskSummary[]> => [],
+    get: async (): Promise<WorkflowUiState | undefined> => this.state,
     start: async ({ targetUi }: { projectId: string; targetUi: string; requirement: string }) => ({ kind: 'started' as const, state: this.publish({
       taskId: 'task-1', targetUi,
       status: this.workflowFailure ? 'failed' : this.initialStatus,

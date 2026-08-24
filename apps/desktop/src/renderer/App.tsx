@@ -12,6 +12,11 @@ import './app.css';
 import { AppShell } from './app/AppShell';
 import { SettingsPage } from './pages/settings/SettingsPage';
 import type { PrimaryNavigationId } from './app/navigation';
+import type { AppTab } from './app/tabs/tab-model';
+import { ProjectsPage } from './pages/projects/ProjectsPage';
+import { ComponentsPage } from './pages/components/ComponentsPage';
+import { TasksPage } from './pages/tasks/TasksPage';
+import { ReportsPage } from './pages/reports/ReportsPage';
 
 const workflowNodeOrder = ['IMPORT_PROJECT', 'SELECT_UI', 'CAPTURE_BASELINE', 'RETRIEVE_COMPONENTS', 'UNDERSTAND_REQUIREMENT', 'GENERATE_UI_PLAN', 'USER_APPROVAL', 'APPLY_CANDIDATE_PATCH', 'XML_VALIDATE', 'UIC_VALIDATE', 'ENHANCED_PREVIEW', 'DETERMINISTIC_CHECKS', 'VISUAL_REVIEW', 'OPTIONAL_REPAIR', 'INCREMENTAL_BUILD', 'LAUNCH_ISOLATED_EXE', 'NAVIGATE_TO_TARGET', 'PROBE_VERIFY_PAGE', 'CAPTURE_REAL_RESULT', 'FINAL_CHECKS', 'REPORT', 'ACCEPT_OR_ROLLBACK'] as const;
 const workflowNodeIndex = (node: string): number => workflowNodeOrder.indexOf(node as typeof workflowNodeOrder[number]);
@@ -90,5 +95,15 @@ export function LegacyWorkbenchPage({ api = desktopApi() }: { api?: DesktopApi }
 
 export function App({ api = desktopApi() }: { api?: DesktopApi }) {
   const [activeNavigation, setActiveNavigation] = useState<PrimaryNavigationId>('workbench');
-  return <AppShell activeNavigation={activeNavigation} onNavigate={setActiveNavigation} activePage={activeNavigation === 'settings' ? <SettingsPage api={api} /> : <LegacyWorkbenchPage api={api} />} />;
+  const renderPage = (id: PrimaryNavigationId, openTab: (tab: AppTab) => void) => {
+    switch (id) {
+      case 'projects': return <ProjectsPage api={api} onOpenTab={openTab} />;
+      case 'components': return <ComponentsPage api={api} onOpenTab={openTab} />;
+      case 'tasks': return <TasksPage api={api} onOpenTab={openTab} />;
+      case 'reports': return <ReportsPage api={api} onOpenTab={openTab} />;
+      case 'settings': return <SettingsPage api={api} />;
+      default: return <LegacyWorkbenchPage api={api} />;
+    }
+  };
+  return <AppShell activeNavigation={activeNavigation} onNavigate={setActiveNavigation} renderPage={renderPage} />;
 }

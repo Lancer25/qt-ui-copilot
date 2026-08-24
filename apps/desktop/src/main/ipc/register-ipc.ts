@@ -21,6 +21,7 @@ const StartTaskSchema = z.object({ projectId: z.string().min(1), targetUi: z.str
 const TaskIdSchema = z.object({ taskId: z.string().min(1) }).strict();
 const ApprovalSchema = TaskIdSchema.extend({ approved: z.boolean() }).strict();
 const ComponentSearchSchema = z.object({ projectId: z.string().min(1), query: z.string().max(10_000) }).strict();
+const TaskListSchema = z.object({ projectId: z.string().min(1).optional(), status: z.enum(['started', 'completed', 'failed', 'cancelled']).optional() }).strict().optional();
 const ModelSettingsInputSchema = z.object({ baseUrl: z.string().url().max(2048), model: z.string().min(1).max(256), apiKey: z.string().min(1).max(4096).optional() }).strict();
 const TestModelInputSchema = z.undefined();
 const TestModelCapabilityInputSchema = z.object({ capability: ModelCapabilitySchema }).strict();
@@ -46,7 +47,10 @@ const ReportSchema = z.object({ task: z.object({ taskId: z.string().min(1), targ
 
 export interface DesktopBackend {
   importProject(input: z.infer<typeof ImportProjectSchema>): Promise<unknown>;
+  listProjects(): Promise<unknown>;
   startTask(input: z.infer<typeof StartTaskSchema>): Promise<unknown>;
+  listTasks(input?: z.infer<typeof TaskListSchema>): Promise<unknown>;
+  getTask(input: z.infer<typeof TaskIdSchema>): Promise<unknown>;
   approveTask(input: z.infer<typeof ApprovalSchema>): Promise<unknown>;
   cancelTask(input: z.infer<typeof TaskIdSchema>): Promise<unknown>;
   takeOverTask(input: z.infer<typeof TaskIdSchema>): Promise<void>;
@@ -79,7 +83,10 @@ export function registerIpc(window: BrowserWindow, backend: DesktopBackend): voi
     return result.canceled ? undefined : result.filePaths[0];
   });
   ipcMain.handle('projects:import', (_event, input: unknown) => backend.importProject(ImportProjectSchema.parse(input)));
+  ipcMain.handle('projects:list', () => backend.listProjects());
   ipcMain.handle('tasks:start', (_event, input: unknown) => backend.startTask(StartTaskSchema.parse(input)));
+  ipcMain.handle('tasks:list', (_event, input: unknown = undefined) => backend.listTasks(TaskListSchema.parse(input)));
+  ipcMain.handle('tasks:get', (_event, input: unknown) => backend.getTask(TaskIdSchema.parse(input)));
   ipcMain.handle('tasks:approve', (_event, input: unknown) => backend.approveTask(ApprovalSchema.parse(input)));
   ipcMain.handle('tasks:cancel', (_event, input: unknown) => backend.cancelTask(TaskIdSchema.parse(input)));
   ipcMain.handle('tasks:takeOver', (_event, input: unknown) => backend.takeOverTask(TaskIdSchema.parse(input)));
@@ -568,6 +575,21 @@ export function createLocalBackend(options: LocalBackendOptions = {}): DesktopBa
     }
   } });
   return {
+    async listProjects() {
+      return repository.listProjects().map((record) => {
+        let uiFiles: string[] = [];
+        try { uiFiles = scanProject(record.rootDir).uiFiles; } catch { /* keep persisted project visible even when its directory moved */ }
+        const project = projects.get(record.id);
+        return {
+          id: record.id,
+          rootDir: record.rootDir,
+          uiFiles: project?.uiFiles ?? uiFiles,
+          ...(record.profilePath ? { profilePath: record.profilePath } : {}),
+          updatedAt: record.updatedAt,
+          health: project?.config ? 'ready' as const : record.profile ? 'ready' as const : uiFiles.length ? 'needs_configuration' as const : 'missing' as const,
+        };
+      });
+    },
     async importProject({ rootDir }) {
       let inventory;
       try {
@@ -585,6 +607,19 @@ export function createLocalBackend(options: LocalBackendOptions = {}): DesktopBa
         repository.saveRoute(item.id, config.run.routeId, config.run.route);
       }
       return { id: item.id, rootDir: item.rootDir, uiFiles: item.uiFiles, ...(item.configRequired ? { configurationRequired: item.configRequired } : {}) };
+    },
+    async listTasks(input) {
+      return repository.listTasks(input).map((task) => ({
+        id: task.id,
+        projectId: task.projectId,
+        targetUi: task.targetUi,
+        createdAt: task.createdAt,
+        updatedAt: task.updatedAt,
+        ...(task.lastEvent ? { lastEvent: { node: task.lastEvent.node, status: task.lastEvent.status, at: task.lastEvent.at } } : {}),
+      }));
+    },
+    async getTask({ taskId }) {
+      return snapshots.get(taskId);
     },
     async startTask({ projectId, targetUi, requirement }) {
       if (!options.modelProvider && !configured) return { kind: 'configuration_required', message: '请先在“模型设置”中配置 OpenAI-compatible Base URL、模型和可选 API Key。' };
