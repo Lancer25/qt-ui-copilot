@@ -1,0 +1,52 @@
+{
+  "id": "qt59-fixture",
+  "qt": {
+    "version": "5.9.6",
+    "binDirectory": "D:/Qt5.9.6/5.9.6/msvc2017_64/bin",
+    "uic": "D:/Qt5.9.6/5.9.6/msvc2017_64/bin/uic.exe",
+    "rcc": "D:/Qt5.9.6/5.9.6/msvc2017_64/bin/rcc.exe",
+    "cmake": "C:/Program Files/CMake/bin/cmake.exe",
+    "cmakePrefixPath": "D:/Qt5.9.6/5.9.6/msvc2017_64",
+    "cmakeGenerator": "Visual Studio 18 2026",
+    "compilerAbi": "msvc2017_64",
+    "architecture": "x86_64"
+  },
+  "preview": {
+    "sourceDirectory": "${projectRoot}/../../native/qt-ui-preview-host",
+    "cacheDirectory": "${projectRoot}/.qt-ui-copilot/preview-cache",
+    "width": 900,
+    "height": 640,
+    "locale": "zh_CN",
+    "style": "Fusion",
+    "qrcFiles": ["${projectRoot}/resources/common.qrc"],
+    "stylesheets": ["${projectRoot}/resources/dark.qss"],
+    "fonts": [],
+    "pluginPaths": []
+  },
+  "build": {
+    "configure": {
+      "executable": "C:/Program Files/CMake/bin/cmake.exe",
+      "args": ["-S", "${projectRoot}", "-B", "${projectRoot}/.qt-ui-copilot/build", "-G", "Visual Studio 18 2026", "-DCMAKE_PREFIX_PATH=D:/Qt5.9.6/5.9.6/msvc2017_64"]
+    },
+    "command": {
+      "executable": "C:/Program Files/CMake/bin/cmake.exe",
+      "args": ["--build", "${projectRoot}/.qt-ui-copilot/build", "--config", "Debug"]
+    }
+  },
+  "run": {
+    "executable": "${projectRoot}/.qt-ui-copilot/build/Debug/qt-ui-copilot-qt59-fixture.exe",
+    "args": [],
+    "environment": {},
+    "routeId": "network-settings",
+    "route": {
+      "id": "network-settings",
+      "targetUi": "${projectRoot}/ui/NetworkSettings.ui",
+      "steps": [
+        { "kind": "invoke", "objectName": "settingsButton" },
+        { "kind": "invoke", "objectName": "networkButton" },
+        { "kind": "waitForWidget", "objectName": "networkSettingsDialog", "timeoutMs": 5000 },
+        { "kind": "waitForUi", "objectName": "networkSettingsDialog", "timeoutMs": 5000 }
+      ]
+    }
+  }
+}
