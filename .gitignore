@@ -15,3 +15,4 @@ fixtures/*/.qt-ui-copilot/tasks/
 !fixtures/qt59-app/.qt-ui-copilot/
 !fixtures/qt59-app/.qt-ui-copilot/project.json
 *.log
+.superpowers/
