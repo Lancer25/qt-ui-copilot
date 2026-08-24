@@ -100,6 +100,7 @@ export interface QtKit {
 
 export interface QtToolHealth { name: 'uic' | 'rcc' | 'qmake' | 'cmake'; ok: boolean; path: string; version?: string; message?: string; }
 export interface QtKitHealth { ok: boolean; checkedAt: number; tools: QtToolHealth[]; previewHost: { ok: boolean; cacheKey?: string; message?: string }; }
+export interface ProjectBinding { projectId: string; qtKitId: string; config: Record<string, unknown>; updatedAt?: number; }
 
 export type TaskStartResult =
   | { kind: 'started'; state: WorkflowUiState }
@@ -136,6 +137,9 @@ export interface DesktopApi {
       save(kit: QtKit): Promise<QtKit>;
       delete(id: string): Promise<void>;
     };
+    getProjectBinding(projectId: string): Promise<ProjectBinding | undefined>;
+    saveProjectBinding(input: ProjectBinding): Promise<ProjectBinding>;
+    checkProjectBinding(input: ProjectBinding): Promise<{ ok: boolean; blocking: string[] }>;
   };
   onWorkflowEvent(listener: (state: WorkflowUiState) => void): () => void;
 }

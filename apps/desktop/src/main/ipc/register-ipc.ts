@@ -27,6 +27,7 @@ const TestModelInputSchema = z.undefined();
 const TestModelCapabilityInputSchema = z.object({ capability: ModelCapabilitySchema }).strict();
 const QtKitSchema = z.object({ id: z.string().min(1), displayName: z.string().min(1), version: z.string().min(1), qtMajor: z.union([z.literal(5), z.literal(6)]), rootDir: z.string().min(1), binDirectory: z.string().min(1), uic: z.string().min(1), rcc: z.string().min(1), qmake: z.string().optional(), cmakePrefixPath: z.string().optional(), compilerAbi: z.string().optional(), architecture: z.string().optional() }).strict();
 const QtKitRootsSchema = z.array(z.string().min(1)).max(32);
+const ProjectBindingSchema = z.object({ projectId: z.string().min(1), qtKitId: z.string().min(1), config: z.record(z.string(), z.unknown()) }).strict();
 export const ModelSettingsSchema = z.object({
   baseUrl: z.string().url(),
   model: z.string().min(1),
@@ -66,6 +67,9 @@ export interface DesktopBackend {
   checkQtKit(kit: QtKit): Promise<QtKitHealth>;
   saveQtKit(kit: QtKit): Promise<QtKit>;
   deleteQtKit(id: string): Promise<void>;
+  getProjectBinding(projectId: string): Promise<unknown | undefined>;
+  saveProjectBinding(input: z.infer<typeof ProjectBindingSchema>): Promise<unknown>;
+  checkProjectBinding(input: z.infer<typeof ProjectBindingSchema>): Promise<{ ok: boolean; blocking: string[] }>;
   subscribeWorkflow?(listener: (state: unknown) => void): () => void;
   /** Releases the SQLite handle. Used by deterministic integration tests and app shutdown. */
   dispose?(): void;
@@ -102,6 +106,9 @@ export function registerIpc(window: BrowserWindow, backend: DesktopBackend): voi
   ipcMain.handle('settings:qtKits:check', (_event, input: unknown) => backend.checkQtKit(QtKitSchema.parse(input)));
   ipcMain.handle('settings:qtKits:save', (_event, input: unknown) => backend.saveQtKit(QtKitSchema.parse(input)));
   ipcMain.handle('settings:qtKits:delete', (_event, input: unknown) => backend.deleteQtKit(z.object({ id: z.string().min(1) }).strict().parse(input).id));
+  ipcMain.handle('settings:projectBinding:get', (_event, input: unknown) => backend.getProjectBinding(z.object({ projectId: z.string().min(1) }).strict().parse(input).projectId));
+  ipcMain.handle('settings:projectBinding:save', (_event, input: unknown) => backend.saveProjectBinding(ProjectBindingSchema.parse(input)));
+  ipcMain.handle('settings:projectBinding:check', (_event, input: unknown) => backend.checkProjectBinding(ProjectBindingSchema.parse(input)));
   ipcMain.handle('reports:export', async (_event, input: unknown) => {
     const request = ReportSchema.parse(input); const { task, selectedComponent } = request;
     const selected = selectedComponent?.component;
@@ -695,6 +702,17 @@ export function createLocalBackend(options: LocalBackendOptions = {}): DesktopBa
     async checkQtKit(kit) { return qtKitService.check(kit); },
     async saveQtKit(kit) { settingsRepository.saveQtKit({ id: kit.id, displayName: kit.displayName, config: kit as unknown as Record<string, unknown> }); return kit; },
     async deleteQtKit(id) { settingsRepository.deleteQtKit(id); },
+    async getProjectBinding(projectId) { return settingsRepository.getProjectBinding(projectId); },
+    async saveProjectBinding(input) { return settingsRepository.saveProjectBinding(input); },
+    async checkProjectBinding(input) {
+      const blocking: string[] = [];
+      if (!projects.has(input.projectId)) blocking.push('project_not_imported');
+      if (!settingsRepository.getQtKit(input.qtKitId)) blocking.push('qt_kit_not_found');
+      const config = input.config as Record<string, unknown>;
+      if (typeof config.buildDirectory !== 'string' || !config.buildDirectory) blocking.push('build_directory_required');
+      if (typeof config.executable !== 'string' || !config.executable) blocking.push('executable_required');
+      return { ok: blocking.length === 0, blocking };
+    },
     subscribeWorkflow(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     dispose() { database.close(); },
   };

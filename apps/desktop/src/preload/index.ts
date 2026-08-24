@@ -28,6 +28,9 @@ const desktopApi: DesktopApi = {
       save: (kit) => ipcRenderer.invoke('settings:qtKits:save', kit) as ReturnType<NonNullable<DesktopApi['settings']['qtKits']>['save']>,
       delete: (id) => ipcRenderer.invoke('settings:qtKits:delete', { id }) as ReturnType<NonNullable<DesktopApi['settings']['qtKits']>['delete']>,
     },
+    getProjectBinding: (projectId) => ipcRenderer.invoke('settings:projectBinding:get', { projectId }) as ReturnType<DesktopApi['settings']['getProjectBinding']>,
+    saveProjectBinding: (input) => ipcRenderer.invoke('settings:projectBinding:save', input) as ReturnType<DesktopApi['settings']['saveProjectBinding']>,
+    checkProjectBinding: (input) => ipcRenderer.invoke('settings:projectBinding:check', input) as ReturnType<DesktopApi['settings']['checkProjectBinding']>,
   },
   onWorkflowEvent: (listener) => { const handler = (_event: Electron.IpcRendererEvent, state: WorkflowUiState) => listener(state); ipcRenderer.on('workflow:event', handler); return () => ipcRenderer.removeListener('workflow:event', handler); },
 };
