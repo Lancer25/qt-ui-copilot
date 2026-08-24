@@ -111,6 +111,49 @@ export interface LocalBackendOptions {
 interface StoredProject { id: string; rootDir: string; uiFiles: string[]; profile?: ProjectProfile; config?: ProjectConfig; configRequired?: string; }
 interface UiState { taskId: string; revision?: number; targetUi: string; status: WorkflowState['status']; node: WorkflowNode; plan?: unknown; events: Array<{ node: string; status: string; detail?: string }>; deterministicFindings: string[]; visualFindings: string[]; routeEvidence: string[]; qtKit?: string; xmlBefore?: string; xmlAfter?: string; beforeImage?: string; quickImage?: string; afterImage?: string; failure?: { code: string; message: string }; }
 
+type UiWorkflowEvent = UiState['events'][number];
+
+/**
+ * Converts the durable workflow log into the renderer-safe event shape.  The
+ * workflow machine writes its transitions to SQLite, while some UI-only
+ * context (for example the original requirement) is kept in the snapshot.
+ * Keep that context, but let the durable log be authoritative for ordering and
+ * completion status so verification badges survive every state update.
+ */
+const syncWorkflowEvents = (
+  persisted: ReturnType<TaskRepository['listEvents']>,
+  snapshotEvents: UiWorkflowEvent[],
+  apiKey?: string,
+): UiWorkflowEvent[] => {
+  const events: UiWorkflowEvent[] = persisted.map((event) => {
+    let detail: string | undefined;
+    if (typeof event.payload === 'object' && event.payload !== null && !Array.isArray(event.payload)) {
+      const payload = event.payload as Record<string, unknown>;
+      const workflowState = payload.workflowState;
+      if (typeof workflowState === 'object' && workflowState !== null && !Array.isArray(workflowState)) {
+        const failure = (workflowState as Record<string, unknown>).failure;
+        if (typeof failure === 'object' && failure !== null && !Array.isArray(failure) && typeof (failure as Record<string, unknown>).message === 'string') {
+          detail = sanitizeDiagnosticMessage((failure as Record<string, string>).message, apiKey);
+        }
+      }
+      if (!detail && typeof payload.detail === 'string') detail = sanitizeDiagnosticMessage(payload.detail, apiKey);
+    }
+    return { node: event.node, status: event.status, ...(detail ? { detail } : {}) };
+  });
+
+  // Preserve renderer-only context and user takeover markers. If a persisted
+  // event has no detail, carry over a safe detail from the existing snapshot.
+  for (const snapshotEvent of snapshotEvents) {
+    const match = events.find((event) => event.node === snapshotEvent.node && event.status === snapshotEvent.status);
+    if (match) {
+      if (!match.detail && snapshotEvent.detail) match.detail = sanitizeDiagnosticMessage(snapshotEvent.detail, apiKey);
+      continue;
+    }
+    events.push({ ...snapshotEvent, ...(snapshotEvent.detail ? { detail: sanitizeDiagnosticMessage(snapshotEvent.detail, apiKey) } : {}) });
+  }
+  return events;
+};
+
 export interface ModelTraceEvent {
   phase: 'request' | 'response' | 'error';
   kind: string;
@@ -283,7 +326,19 @@ export function createLocalBackend(options: LocalBackendOptions = {}): DesktopBa
     hasPersistentApiKey: Boolean(configured?.apiKey && options.secureStorage?.isEncryptionAvailable()),
     ...(storageWarning ? { storageWarning } : {}),
   });
-  const update = (state: UiState): UiState => { const next = { ...state, revision: ++revision }; snapshots.set(next.taskId, next); const snapshot = structuredClone(next); listeners.forEach((listener) => listener(snapshot)); return snapshot; };
+  const update = (state: UiState): UiState => {
+    const next = {
+      ...state,
+      events: repository.getTask(state.taskId)
+        ? syncWorkflowEvents(repository.listEvents(state.taskId), state.events, configured?.apiKey)
+        : state.events,
+      revision: ++revision,
+    };
+    snapshots.set(next.taskId, next);
+    const snapshot = structuredClone(next);
+    listeners.forEach((listener) => listener(snapshot));
+    return snapshot;
+  };
   const mutate = (taskId: string, change: Partial<UiState>): UiState => {
     const current = snapshots.get(taskId); if (!current) throw new Error(`Unknown task: ${taskId}`);
     const failure = change.failure ? sanitizeWorkflowFailure(change.failure, configured?.apiKey) : undefined;
