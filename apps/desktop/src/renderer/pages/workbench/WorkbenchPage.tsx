@@ -1,5 +1,5 @@
 import type { DesktopApi, UiProject } from '../../lib/api';
-import { WorkbenchPage as LegacyWorkbenchPage } from '../../App';
+import { LegacyWorkbenchPage } from '../../App';
 
 /**
  * V2 page boundary for the existing workflow. The legacy controller remains
