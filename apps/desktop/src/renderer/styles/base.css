@@ -31,6 +31,9 @@ body {
   min-height: 100vh;
   background: var(--surface-0);
 }
+.workbench-toolbar { min-height: 46px; margin: 0 0 var(--space-4); padding: 0 0 var(--space-3); }
+.legacy-workbench-brand { display: none; }
+.workbench-toolbar .import-project { margin-left: auto; }
 
 .primary-nav {
   display: flex;

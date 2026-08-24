@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, safeStorage, utilityProcess, type UtilityProcess } from 'electron';
+import { app, BrowserWindow, ipcMain, Menu, safeStorage, utilityProcess, type UtilityProcess } from 'electron';
 import { join, resolve } from 'node:path';
 import { resolveMainWindowLoadTarget, resolvePreloadEntryPath } from './window-loading';
 import { createLocalBackend, registerIpc } from './ipc/register-ipc';
@@ -68,6 +68,9 @@ const createWindow = (): BrowserWindow => new BrowserWindow({
 });
 
 app.whenReady().then(async () => {
+  // The product shell owns navigation; the default Electron menu duplicates
+  // those actions and breaks the compact workbench layout.
+  Menu.setApplicationMenu(null);
   // A packaged application must never silently use incomplete/tampered native
   // helper sources. Development builds intentionally build these per Qt kit.
   if (app.isPackaged) await verifyRuntimeAssets(join(process.resourcesPath, 'qt-ui-copilot-assets'));
