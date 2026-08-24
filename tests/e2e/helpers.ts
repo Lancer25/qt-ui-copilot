@@ -41,6 +41,20 @@ export async function chooseComponent(window: Page, componentId: string): Promis
 
 export async function approvePlan(window: Page, timeoutMs = 120_000): Promise<void> {
   const button = window.getByRole('button', { name: '批准并应用候选修改' });
-  await expect(button).toBeEnabled({ timeout: timeoutMs });
+  try {
+    await expect(button).toBeEnabled({ timeout: timeoutMs });
+  } catch (error) {
+    const redact = (value: string): string => value
+      .replace(/https?:\/\/[^\s'"<>]+/g, '<url>')
+      .replace(/(?:api[_-]?key|authorization|bearer)\s*[:=]\s*[^\s,;]+/gi, '$1=<redacted>')
+      .replace(/sk-[A-Za-z0-9_-]+/g, '<redacted>');
+    const textOf = async (locator: ReturnType<typeof window.locator>): Promise<string> => {
+      try { return redact(await locator.innerText()); } catch { return '<unavailable>'; }
+    };
+    const timeline = await textOf(window.locator('section[aria-label="任务执行"]'));
+    const alert = await textOf(window.getByRole('alert'));
+    const body = (await textOf(window.locator('body'))).replace(/\s+/g, ' ').slice(0, 1600);
+    throw new Error(`${error instanceof Error ? error.message : String(error)}\nApproval diagnostics: timeline=${timeline}; alert=${alert}; body=${body}`);
+  }
   await button.click();
 }
