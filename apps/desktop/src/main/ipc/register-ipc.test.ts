@@ -83,6 +83,24 @@ describe('local workflow backend', () => {
     expect(body.response_format).toEqual({ type: 'json_object' });
   });
 
+  it('sends visual review screenshots as multimodal image_url content for Qwen', async () => {
+    const requests: Array<{ init?: RequestInit }> = [];
+    const provider = new OpenAiCompatibleProvider({ baseUrl: 'https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1', model: 'qwen3.7-plus' }, async (_input, init) => {
+      requests.push({ init });
+      return new Response(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: '{"requirementSatisfied":true,"score":100,"blockingIssues":[],"suggestions":[]}' } }] }), { status: 200 });
+    });
+    const before = 'data:image/png;base64,AAAA';
+    const after = 'data:image/png;base64,BBBB';
+    await provider.generate({ kind: 'visual_review', systemPrompt: 'Review images.', input: { beforeImage: before, afterImage: after, expectedResults: ['button visible'] }, responseSchema: '{}' });
+    const body = JSON.parse(String(requests[0]?.init?.body)) as { enable_thinking?: boolean; messages: Array<{ role: string; content: unknown }> };
+    expect(body.enable_thinking).toBe(false);
+    const content = body.messages[1]?.content as Array<{ type: string; image_url?: { url: string } }>;
+    expect(content).toEqual(expect.arrayContaining([
+      { type: 'image_url', image_url: { url: before } },
+      { type: 'image_url', image_url: { url: after } },
+    ]));
+  });
+
   it('emits redacted request/response trace metadata with elapsed timing', async () => {
     const events: ModelTraceEvent[] = [];
     const provider = new OpenAiCompatibleProvider(
@@ -128,6 +146,31 @@ describe('local workflow backend', () => {
     expect(String(requests[0]?.init?.body)).toContain('gpt-test');
     expect(String(requests[0]?.init?.body)).not.toContain('sk-secret');
     expect((requests[0]?.init?.headers as Record<string, string>).authorization).toBe('Bearer sk-secret');
+    backend.dispose?.();
+  });
+
+  it('persists and checks Qt Kits through the local backend', async () => {
+    const backend = createLocalBackend({ qtKitRoots: [] });
+    const kit = { id: 'qt-test', displayName: 'Qt Test', version: '6.10.2', qtMajor: 6 as const, rootDir: 'D:/Qt', binDirectory: 'D:/Qt/bin', uic: 'uic', rcc: 'rcc' };
+    await expect(backend.saveQtKit(kit)).resolves.toEqual(kit);
+    await expect(backend.listQtKits()).resolves.toEqual([kit]);
+    await expect(backend.checkQtKit(kit)).resolves.toMatchObject({ ok: false, previewHost: { ok: false } });
+    await backend.deleteQtKit(kit.id);
+    await expect(backend.listQtKits()).resolves.toEqual([]);
+    backend.dispose?.();
+  });
+
+  it('uses Qwen-compatible connection-test parameters for Token Plan', async () => {
+    const requests: Array<{ url: string; init?: RequestInit }> = [];
+    const backend = createLocalBackend({ fetchImpl: async (input, init) => {
+      requests.push({ url: String(input), init });
+      return new Response(JSON.stringify({ choices: [{ message: { content: 'OK' } }] }), { status: 200 });
+    }, secureStorage: encryptedStorage() });
+    await backend.configureModelSettings({ baseUrl: 'https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1', model: 'qwen3.7-plus', apiKey: 'sk-sp-secret' });
+    await expect(backend.testModelConnection()).resolves.toMatchObject({ ok: true, status: 200, model: 'qwen3.7-plus' });
+    const body = JSON.parse(String(requests[0]?.init?.body)) as { enable_thinking?: boolean; max_tokens?: number };
+    expect(body.enable_thinking).toBe(false);
+    expect(body.max_tokens).toBe(16);
     backend.dispose?.();
   });
 

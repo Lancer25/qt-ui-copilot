@@ -3,7 +3,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { basename, relative, resolve } from 'node:path';
 import { z } from 'zod';
 import { ArtifactStore, loadProjectConfig, prepareBuild, profileFromConfig, runProcess, RuntimeSession, scanProject, validateUiWithUic } from '@qt-ui-copilot/project-core';
-import { openDatabase, TaskRepository } from '@qt-ui-copilot/task-store';
+import { openDatabase, SettingsRepository, TaskRepository } from '@qt-ui-copilot/task-store';
 import { ComponentCatalog } from '@qt-ui-copilot/component-library';
 import { classifyVisualReviewUnavailable, TaskRepositoryWorkflowStore, UiPlanner, VisualCritic, WorkflowMachine, type ModelProvider, type ModelRequest, type WorkflowNode, type WorkflowState } from '@qt-ui-copilot/agent-workflow';
 import type { ProjectConfig, ProjectProfile, UiPlan } from '@qt-ui-copilot/contracts';
@@ -13,6 +13,7 @@ import { ProbeClient, RouteRunner, type SemanticRoute } from '@qt-ui-copilot/pro
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { ModelCapabilitySchema, ModelCapabilityResultSchema, testModelCapability } from '../settings/model-capabilities';
+import { QtKitService, type QtKit, type QtKitHealth } from '../settings/qt-kit-service';
 
 const ImportProjectSchema = z.object({ rootDir: z.string().min(1).max(4096) }).strict();
 const ChooseDirectorySchema = z.undefined();
@@ -23,6 +24,8 @@ const ComponentSearchSchema = z.object({ projectId: z.string().min(1), query: z.
 const ModelSettingsInputSchema = z.object({ baseUrl: z.string().url().max(2048), model: z.string().min(1).max(256), apiKey: z.string().min(1).max(4096).optional() }).strict();
 const TestModelInputSchema = z.undefined();
 const TestModelCapabilityInputSchema = z.object({ capability: ModelCapabilitySchema }).strict();
+const QtKitSchema = z.object({ id: z.string().min(1), displayName: z.string().min(1), version: z.string().min(1), qtMajor: z.union([z.literal(5), z.literal(6)]), rootDir: z.string().min(1), binDirectory: z.string().min(1), uic: z.string().min(1), rcc: z.string().min(1), qmake: z.string().optional(), cmakePrefixPath: z.string().optional(), compilerAbi: z.string().optional(), architecture: z.string().optional() }).strict();
+const QtKitRootsSchema = z.array(z.string().min(1)).max(32);
 export const ModelSettingsSchema = z.object({
   baseUrl: z.string().url(),
   model: z.string().min(1),
@@ -54,6 +57,11 @@ export interface DesktopBackend {
   configureModelSettings(input: z.infer<typeof ModelSettingsInputSchema>): Promise<z.infer<typeof ModelSettingsSchema>>;
   testModelConnection(): Promise<z.infer<typeof ModelConnectionResultSchema>>;
   testModelCapability(input: { capability: z.infer<typeof ModelCapabilitySchema> }): Promise<z.infer<typeof ModelCapabilityResultSchema>>;
+  listQtKits(): Promise<QtKit[]>;
+  scanQtKits(): Promise<QtKit[]>;
+  checkQtKit(kit: QtKit): Promise<QtKitHealth>;
+  saveQtKit(kit: QtKit): Promise<QtKit>;
+  deleteQtKit(id: string): Promise<void>;
   subscribeWorkflow?(listener: (state: unknown) => void): () => void;
   /** Releases the SQLite handle. Used by deterministic integration tests and app shutdown. */
   dispose?(): void;
@@ -82,6 +90,11 @@ export function registerIpc(window: BrowserWindow, backend: DesktopBackend): voi
   ipcMain.handle('settings:configureModel', (_event, input: unknown) => backend.configureModelSettings(ModelSettingsInputSchema.parse(input)));
   ipcMain.handle('settings:testModel', (_event, input: unknown = undefined) => { TestModelInputSchema.parse(input); return backend.testModelConnection(); });
   ipcMain.handle('settings:testModelCapability', (_event, input: unknown) => backend.testModelCapability(TestModelCapabilityInputSchema.parse(input)));
+  ipcMain.handle('settings:qtKits:list', () => backend.listQtKits());
+  ipcMain.handle('settings:qtKits:scan', () => backend.scanQtKits());
+  ipcMain.handle('settings:qtKits:check', (_event, input: unknown) => backend.checkQtKit(QtKitSchema.parse(input)));
+  ipcMain.handle('settings:qtKits:save', (_event, input: unknown) => backend.saveQtKit(QtKitSchema.parse(input)));
+  ipcMain.handle('settings:qtKits:delete', (_event, input: unknown) => backend.deleteQtKit(z.object({ id: z.string().min(1) }).strict().parse(input).id));
   ipcMain.handle('reports:export', async (_event, input: unknown) => {
     const request = ReportSchema.parse(input); const { task, selectedComponent } = request;
     const selected = selectedComponent?.component;
@@ -109,6 +122,8 @@ export interface LocalBackendOptions {
   secureStorage?: SecureStorage;
   /** Injectable for deterministic connection diagnostics; production uses global fetch. */
   fetchImpl?: typeof fetch;
+  /** Optional roots used by Qt Kit discovery; production supplies platform defaults. */
+  qtKitRoots?: string[];
   /** Main-process model trace sink. The default writes redacted metadata to Electron stdio. */
   modelTraceLogger?: ModelTraceLogger;
 }
@@ -313,6 +328,8 @@ async function testOpenAiCompatibleConnection(settings: { baseUrl: string; model
 export function createLocalBackend(options: LocalBackendOptions = {}): DesktopBackend {
   const database = openDatabase(options.databasePath ?? ':memory:');
   const repository = new TaskRepository(database);
+  const settingsRepository = new SettingsRepository(database);
+  const qtKitService = new QtKitService({ roots: options.qtKitRoots ?? [process.env.QT_ROOT, 'D:/Qt5.9.6', 'D:/Qt6.10.2', 'C:/Qt', '/opt/Qt'].filter((value): value is string => Boolean(value)) });
   const catalog = new ComponentCatalog({ databasePath: ':memory:' });
   const projects = new Map<string, StoredProject>();
   const snapshots = new Map<string, UiState>();
@@ -632,6 +649,17 @@ export function createLocalBackend(options: LocalBackendOptions = {}): DesktopBa
       if (!configured) return { capability: input.capability, ok: false, code: 'configuration_required', message: '请先保存 Base URL、模型和 API Key。', elapsedMs: 0, model: modelSettings().model };
       return testModelCapability(configured, input.capability, fetchImpl);
     },
+    async listQtKits() {
+      return settingsRepository.listQtKits().map((record) => ({ ...(record.config as unknown as QtKit), id: record.id, displayName: record.displayName }));
+    },
+    async scanQtKits() {
+      const kits = await qtKitService.scan();
+      kits.forEach((kit) => settingsRepository.saveQtKit({ id: kit.id, displayName: kit.displayName, config: kit as unknown as Record<string, unknown> }));
+      return kits;
+    },
+    async checkQtKit(kit) { return qtKitService.check(kit); },
+    async saveQtKit(kit) { settingsRepository.saveQtKit({ id: kit.id, displayName: kit.displayName, config: kit as unknown as Record<string, unknown> }); return kit; },
+    async deleteQtKit(id) { settingsRepository.deleteQtKit(id); },
     subscribeWorkflow(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     dispose() { database.close(); },
   };

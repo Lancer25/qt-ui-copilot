@@ -18,6 +18,13 @@ const desktopApi: DesktopApi = {
     configureModel: (input) => ipcRenderer.invoke('settings:configureModel', input) as Promise<ModelSettings>,
     testModel: () => ipcRenderer.invoke('settings:testModel', undefined) as Promise<import('../renderer/lib/api').ModelConnectionResult>,
     testModelCapability: (input) => ipcRenderer.invoke('settings:testModelCapability', input) as Promise<import('../renderer/lib/api').ModelCapabilityResult>,
+    qtKits: {
+      list: () => ipcRenderer.invoke('settings:qtKits:list') as ReturnType<NonNullable<DesktopApi['settings']['qtKits']>['list']>,
+      scan: () => ipcRenderer.invoke('settings:qtKits:scan') as ReturnType<NonNullable<DesktopApi['settings']['qtKits']>['scan']>,
+      check: (kit) => ipcRenderer.invoke('settings:qtKits:check', kit) as ReturnType<NonNullable<DesktopApi['settings']['qtKits']>['check']>,
+      save: (kit) => ipcRenderer.invoke('settings:qtKits:save', kit) as ReturnType<NonNullable<DesktopApi['settings']['qtKits']>['save']>,
+      delete: (id) => ipcRenderer.invoke('settings:qtKits:delete', { id }) as ReturnType<NonNullable<DesktopApi['settings']['qtKits']>['delete']>,
+    },
   },
   onWorkflowEvent: (listener) => { const handler = (_event: Electron.IpcRendererEvent, state: WorkflowUiState) => listener(state); ipcRenderer.on('workflow:event', handler); return () => ipcRenderer.removeListener('workflow:event', handler); },
 };
