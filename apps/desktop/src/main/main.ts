@@ -57,7 +57,7 @@ export function defaultUiTarsWorkerEntrypoint(appRoot: string): string {
 const createWindow = (): BrowserWindow => new BrowserWindow({
   width: 1280,
   height: 800,
-  minWidth: 960,
+  minWidth: 1100,
   minHeight: 640,
   webPreferences: {
     preload: resolvePreloadEntryPath(__dirname),
