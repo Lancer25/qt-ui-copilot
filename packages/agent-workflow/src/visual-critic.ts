@@ -50,15 +50,29 @@ export class VisualCritic {
       beforeImage: context.beforeImage, afterImage: context.afterImage, referenceImage: context.referenceImage,
       expectedResults: context.expectedResults, deterministicFindings: context.deterministicFindings,
     };
-    const raw = await this.model.generate({
+    const request: ModelRequest = {
       kind: 'visual_review',
       systemPrompt: 'Independently review the before/after UI images against expected results. Return JSON only. Do not infer planner intent beyond the supplied expected results.',
       input,
       responseSchema: schema,
-    });
+    };
+    const raw = await this.model.generate(request);
     let review: VisualReview;
     try { review = VisualReviewSchema.parse(asJsonValue(raw)); }
-    catch (error) { throw new ModelOutputInvalidError('VisualReview', errorText(error)); }
+    catch (firstError) {
+      // Vision-capable models sometimes return a valid assessment wrapped in
+      // markdown or with finding fields slightly out of contract. Give the
+      // provider one bounded JSON-only repair chance without silently treating
+      // an invalid model as a passed visual review.
+      const repaired = await this.model.generate({
+        kind: 'format_repair',
+        systemPrompt: 'Repair the supplied visual review into exactly one valid JSON object. Return JSON only; do not add commentary.',
+        input: { candidate: asJsonValue(raw), originalRequest: input },
+        responseSchema: schema,
+      });
+      try { review = VisualReviewSchema.parse(asJsonValue(repaired)); }
+      catch (secondError) { throw new ModelOutputInvalidError('VisualReview', `${errorText(firstError)}; ${errorText(secondError)}`); }
+    }
 
     const deterministicFailures = context.deterministicFindings.filter((finding) => finding.severity === 'error');
     if (deterministicFailures.length === 0) return review;

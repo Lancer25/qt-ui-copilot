@@ -111,6 +111,13 @@ describe('VisualCritic', () => {
     expect(classifyVisualReviewUnavailable(new ModelOutputInvalidError('VisualReview', 'invalid'))).toBeUndefined();
   });
 
+  it('repairs one malformed visual review before failing the workflow', async () => {
+    const model = new FakeModel().replyWith({ score: '100' }).replyWith({ requirementSatisfied: true, score: 100, blockingIssues: [], suggestions: [] });
+    await expect(new VisualCritic(model).review({ beforeImage: 'before.png', afterImage: 'after.png', expectedResults: ['按钮可见'], deterministicFindings: [] })).resolves.toMatchObject({ score: 100 });
+    expect(model.requests).toHaveLength(2);
+    expect(model.requests[1].kind).toBe('format_repair');
+  });
+
   it('makes deterministic failures override a positive visual answer', async () => {
     const model = new FakeModel().replyWith({ requirementSatisfied: true, score: 95, blockingIssues: [], suggestions: [] });
     const review = await new VisualCritic(model).review({
