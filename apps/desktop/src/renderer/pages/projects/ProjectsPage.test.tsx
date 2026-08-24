@@ -9,8 +9,8 @@ describe('ProjectsPage', () => {
   it('loads persisted projects and opens a UI tab for a resource', async () => {
     const opened: unknown[] = [];
     render(<ProjectsPage api={new FakeDesktopApi()} onOpenTab={(tab) => opened.push(tab)} />);
-    await waitFor(() => expect(screen.getByText('src/Settings.ui')).not.toBeNull());
-    expect(screen.getByText('环境就绪')).not.toBeNull();
+    await waitFor(() => expect(screen.getByText('src/Settings.ui')).toBeTruthy());
+    expect(screen.getByText('环境就绪')).toBeTruthy();
     screen.getByRole('button', { name: 'src/Settings.ui' }).click();
     expect(opened[0]).toMatchObject({ kind: 'ui', uiFile: 'src/Settings.ui', projectId: 'demo' });
   });

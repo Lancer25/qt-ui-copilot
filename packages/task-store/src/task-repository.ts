@@ -134,8 +134,8 @@ export class TaskRepository {
 
   public listTasks(options: { projectId?: string; status?: TaskEvent['status'] } = {}): StoredTask[] {
     const rows = options.projectId
-      ? this.database.prepare('SELECT id, project_id, target_ui, created_at, updated_at FROM tasks WHERE project_id = ? ORDER BY updated_at DESC, id DESC').all(options.projectId)
-      : this.database.prepare('SELECT id, project_id, target_ui, created_at, updated_at FROM tasks ORDER BY updated_at DESC, id DESC').all();
+      ? this.database.prepare('SELECT id, project_id, target_ui, created_at, updated_at FROM tasks WHERE project_id = ? ORDER BY updated_at DESC, rowid DESC').all(options.projectId)
+      : this.database.prepare('SELECT id, project_id, target_ui, created_at, updated_at FROM tasks ORDER BY updated_at DESC, rowid DESC').all();
     const tasks = (rows as Array<{ id: string; project_id: string; target_ui: string; created_at: number; updated_at: number }>).map((row) => {
       const task = { id: row.id, projectId: row.project_id, targetUi: row.target_ui, createdAt: row.created_at, updatedAt: row.updated_at } as StoredTask;
       const lastEvent = this.listEvents(row.id).at(-1);
