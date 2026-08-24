@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { UiPlanner, VisualCritic } from '../src/index.js';
+import { UiPlanner, VisualCritic, unwrapPlanJson } from '../src/index.js';
 import { FakeModel } from './FakeModel.js';
 
 const context = {
@@ -16,6 +16,15 @@ const validPlan = {
 };
 
 describe('UiPlanner', () => {
+  it.each(['plan', 'uiPlan', 'ui_plan', 'result', 'data', 'output'] as const)('unwraps a fenced JSON plan from the %s provider wrapper', (wrapper) => {
+    const response = `\`\`\`json\n${JSON.stringify({ [wrapper]: validPlan })}\n\`\`\``;
+    expect(unwrapPlanJson(response)).toEqual(validPlan);
+  });
+
+  it('accepts a direct JSON plan without weakening the contract', () => {
+    expect(unwrapPlanJson(JSON.stringify(validPlan))).toEqual(validPlan);
+  });
+
   it('sends bounded safe context and validates a structured plan', async () => {
     const model = new FakeModel().replyWith(validPlan);
     const plan = await new UiPlanner(model).plan(context);
@@ -72,6 +81,19 @@ describe('UiPlanner', () => {
   it('rejects raw xml from the planner', async () => {
     const model = new FakeModel().replyWith({ xml: '<ui version="4.0"><class>Injected</class></ui>' }).replyWith({ xml: '<ui/>' });
     await expect(new UiPlanner(model).plan(context)).rejects.toThrow('UiPlan schema');
+  });
+
+  it('does not unwrap unknown provider keys', async () => {
+    const model = new FakeModel().replyWith({ payload: validPlan }).replyWith({ payload: validPlan });
+    await expect(new UiPlanner(model).plan(context)).rejects.toThrow('UiPlan schema');
+    expect(model.requests).toHaveLength(2);
+  });
+
+  it('does not accept an invalid operation inside a known wrapper', async () => {
+    const invalid = { plan: { ...validPlan, operations: [{ op: 'executeShell', command: 'whoami' }] } };
+    const model = new FakeModel().replyWith(invalid).replyWith(invalid);
+    await expect(new UiPlanner(model).plan(context)).rejects.toThrow('UiPlan schema');
+    expect(model.requests).toHaveLength(2);
   });
 });
 

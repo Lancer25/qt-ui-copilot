@@ -22,6 +22,45 @@ function schemaError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+const planWrapperKeys = ['plan', 'uiPlan', 'ui_plan', 'result', 'data', 'output'] as const;
+
+/**
+ * Accept the small amount of presentation wrapping commonly added by
+ * OpenAI-compatible providers, while keeping the actual plan contract
+ * strict. Only a complete UiPlan at the top level or under one of the
+ * explicitly documented wrapper keys is accepted; no fields are renamed or
+ * otherwise coerced.
+ */
+export function unwrapPlanJson(value: unknown): unknown {
+  const parsed = parseJsonResponse(value);
+  const direct = UiPlanSchema.safeParse(parsed);
+  if (direct.success) return direct.data;
+
+  if (isRecord(parsed)) {
+    for (const key of planWrapperKeys) {
+      const nested = parsed[key];
+      if (!isRecord(nested)) continue;
+      const candidate = UiPlanSchema.safeParse(nested);
+      if (candidate.success) return candidate.data;
+    }
+  }
+
+  return parsed;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function parseJsonResponse(value: unknown): unknown {
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  const fence = /^```(?:json)?\s*([\s\S]*?)\s*```$/i.exec(trimmed);
+  const candidate = fence?.[1] ?? trimmed;
+  try { return JSON.parse(candidate); }
+  catch { return value; }
+}
+
 /**
  * This is deliberately more explicit than a JSON Schema summary.  Several
  * OpenAI-compatible models (notably Qwen variants) will otherwise invent
@@ -91,7 +130,7 @@ export class UiPlanner {
       previousFindings: context.previousFindings ?? [],
     };
     const initial = await this.model.generate(this.request('ui_plan', input));
-    try { return UiPlanSchema.parse(asJsonValue(initial)); }
+    try { return UiPlanSchema.parse(unwrapPlanJson(initial)); }
     catch (firstError) {
       const repaired = await this.model.generate(this.request('format_repair', {
         invalidResponse: asJsonValue(initial),
@@ -105,7 +144,7 @@ export class UiPlanner {
         },
         allowedOperationSchema: uiPlanSchemaDescription,
       }));
-      try { return UiPlanSchema.parse(asJsonValue(repaired)); }
+      try { return UiPlanSchema.parse(unwrapPlanJson(repaired)); }
       catch (secondError) { throw new ModelOutputInvalidError('UiPlan', schemaError(secondError)); }
     }
   }
