@@ -1,12 +1,14 @@
 import { test, expect, _electron as electron } from '@playwright/test';
-import { approvePlan, desktopAppPath, electronExecutablePath, fixturePath, importProject, requestChange } from './helpers.js';
+import { approvePlan, desktopAppPath, electronExecutablePath, fixtureSourceDigest, isolatedFixturePath, importProject, requestChange } from './helpers.js';
 
 test.describe('qualified desktop workflow', () => {
   test.skip(process.env.QT_UI_COPILOT_E2E !== '1', 'Requires an explicitly configured local Qt kit and model endpoint.');
 
   test('modifies and validates the real Qt 6.10.2 app', async ({}, testInfo) => {
+    test.setTimeout(300_000);
     const executablePath = electronExecutablePath();
     expect(executablePath).toMatch(/electron(?:\.exe)?$/i);
+    const liveFixtureDigest = await fixtureSourceDigest('qt6-app');
     const logStep = (name: string): void => console.log(`[E2E] ${name}`);
     logStep('launch Electron process');
     const electronApp = await test.step('launch Electron process', () => electron.launch({ executablePath, args: [desktopAppPath] }));
@@ -18,8 +20,10 @@ test.describe('qualified desktop workflow', () => {
       window.on('console', (message) => { if (message.type() === 'error' || message.type() === 'warning') diagnostics.push(`console.${message.type()}: ${redact(message.text())}`); });
       window.on('pageerror', (error) => diagnostics.push(`pageerror: ${redact(error.message)}`));
       try {
+        logStep('prepare isolated Qt 6.10.2 fixture');
+        const isolatedQt6 = await test.step('prepare isolated Qt 6.10.2 fixture', () => isolatedFixturePath('qt6-app'));
         logStep('import Qt 6.10.2 fixture');
-        await test.step('import Qt 6.10.2 fixture', () => importProject(window, fixturePath('qt6-app')));
+        await test.step('import Qt 6.10.2 fixture', () => importProject(window, isolatedQt6));
         logStep('request structured UI change');
         await test.step('request structured UI change', () => requestChange(window, '增加测试连接按钮，并确保英文小窗口不截断'));
         logStep('choose reusable component');
@@ -36,9 +40,13 @@ test.describe('qualified desktop workflow', () => {
         await test.step('approve candidate plan', () => approvePlan(window));
         logStep('verify runtime evidence');
         await test.step('verify runtime evidence', async () => {
-          await expect(window.getByText('uic 校验通过')).toBeVisible();
-          await expect(window.getByText('真实应用验证通过')).toBeVisible();
-          await expect(window.getByRole('img', { name: '修改后真实截图' })).toBeVisible();
+          // Approval only starts the workflow. Building and launching the
+          // isolated Qt executable can take substantially longer than the
+          // planner response, so wait for durable evidence rather than
+          // treating a transient timeline state as a failure.
+          await expect(window.getByText('uic 校验通过')).toBeVisible({ timeout: 120_000 });
+          await expect(window.getByText('真实应用验证通过')).toBeVisible({ timeout: 120_000 });
+          await expect(window.getByRole('img', { name: '修改后真实截图' })).toBeVisible({ timeout: 120_000 });
         });
       } catch (error) {
         try {
@@ -51,22 +59,31 @@ test.describe('qualified desktop workflow', () => {
         if (diagnostics.length) await testInfo.attach('qt6-console-errors.txt', { body: diagnostics.join('\n'), contentType: 'text/plain' });
         throw error;
       }
-    } finally { await electronApp.close(); }
+    } finally {
+      await electronApp.close();
+      await expect.poll(() => fixtureSourceDigest('qt6-app')).toBe(liveFixtureDigest);
+    }
   });
 
   test('modifies and validates the real Qt 5.9.6 app', async () => {
+    test.setTimeout(300_000);
     test.skip(!process.env.QT59_CMAKE_PREFIX_PATH, 'Qt 5.9.6 scenario is enabled only when QT59_CMAKE_PREFIX_PATH is configured.');
+    const liveFixtureDigest = await fixtureSourceDigest('qt59-app');
     const executablePath = electronExecutablePath();
     expect(executablePath).toMatch(/electron(?:\.exe)?$/i);
     const electronApp = await electron.launch({ executablePath, args: [desktopAppPath] });
     try {
       const window = await electronApp.firstWindow();
-      await importProject(window, fixturePath('qt59-app'));
+      const isolatedQt59 = await isolatedFixturePath('qt59-app');
+      await importProject(window, isolatedQt59);
       await requestChange(window, '增加测试连接按钮，并确保英文小窗口不截断');
       await approvePlan(window);
       await expect(window.getByText('uic 校验通过')).toBeVisible();
       await expect(window.getByText('真实应用验证通过')).toBeVisible();
       await expect(window.getByRole('img', { name: '修改后真实截图' })).toBeVisible();
-    } finally { await electronApp.close(); }
+    } finally {
+      await electronApp.close();
+      await expect.poll(() => fixtureSourceDigest('qt59-app')).toBe(liveFixtureDigest);
+    }
   });
 });

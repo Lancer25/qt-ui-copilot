@@ -1,5 +1,7 @@
 import { expect, type Page } from '@playwright/test';
+import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
+import { cp, readFile, readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 const workspaceRoot = path.resolve(import.meta.dirname, '..', '..');
@@ -17,6 +19,71 @@ export function electronExecutablePath(): string {
 export const desktopAppPath = path.join(workspaceRoot, 'apps', 'desktop');
 
 export const fixturePath = (name: string): string => path.join(workspaceRoot, 'fixtures', name);
+
+export async function fixtureSourceDigest(name: string): Promise<string> {
+  const hash = createHash('sha256');
+  const visit = async (directory: string): Promise<void> => {
+    const entries = (await readdir(directory, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name));
+    for (const entry of entries) {
+      if (entry.name === 'build' || entry.name === 'preview-cache' || entry.name === 'tasks') continue;
+      const absolute = path.join(directory, entry.name);
+      if (entry.isDirectory()) await visit(absolute);
+      else {
+        hash.update(path.relative(fixturePath(name), absolute).replaceAll('\\', '/'));
+        hash.update(await readFile(absolute));
+      }
+    }
+  };
+  await visit(fixturePath(name));
+  return hash.digest('hex');
+}
+
+/**
+ * Make a disposable copy of a fixture before running a workflow that can
+ * accept a candidate patch. The desktop app intentionally writes accepted
+ * changes into the imported project, so E2E must never point at the checked
+ * in fixture. The generated directory is ignored by git and is safe to
+ * remove between runs.
+ */
+export async function isolatedFixturePath(name: string): Promise<string> {
+  const generatedRoot = path.join(workspaceRoot, 'test-results', 'generated-fixtures');
+  const targetRoot = path.join(generatedRoot, name);
+  await cp(fixturePath(name), targetRoot, { recursive: true, force: true });
+
+  // The Qt6 fixture reuses the Qt5 fixture's sources and resources. Copy its
+  // sibling beside the generated Qt6 project so relative CMake paths remain
+  // valid without reaching into the live fixture tree.
+  if (name === 'qt6-app') {
+    await cp(fixturePath('qt59-app'), path.join(generatedRoot, 'qt59-app'), { recursive: true, force: true });
+  }
+
+  const profilePath = path.join(targetRoot, '.qt-ui-copilot', 'project.json');
+  const nativeProbe = path.join(workspaceRoot, 'native', 'qt-ui-probe').replaceAll('\\', '/');
+  if (existsSync(profilePath)) {
+    const profile = JSON.parse(await readFile(profilePath, 'utf8')) as {
+      preview?: { sourceDirectory?: string; qrcFiles?: string[]; stylesheets?: string[] };
+    };
+    const nativePreview = path.join(workspaceRoot, 'native', 'qt-ui-preview-host').replaceAll('\\', '/');
+    if (profile.preview) {
+      profile.preview.sourceDirectory = nativePreview;
+      if (name === 'qt6-app') {
+        const copiedResources = path.join(generatedRoot, 'qt59-app', 'resources').replaceAll('\\', '/');
+        profile.preview.qrcFiles = [`${copiedResources}/common.qrc`];
+        profile.preview.stylesheets = [`${copiedResources}/dark.qss`];
+      }
+    }
+    await writeFile(profilePath, `${JSON.stringify(profile, null, 2)}\n`, 'utf8');
+    // The fixture CMake files refer to ../../native from the checked-in
+    // layout. In test-results that path points inside test-results, so make
+    // the probe source explicit in the disposable copy.
+  }
+  const cmakePath = path.join(targetRoot, 'CMakeLists.txt');
+  if (existsSync(cmakePath)) {
+    const cmake = await readFile(cmakePath, 'utf8');
+    await writeFile(cmakePath, cmake.replaceAll('${CMAKE_CURRENT_LIST_DIR}/../../native/qt-ui-probe', nativeProbe), 'utf8');
+  }
+  return targetRoot;
+}
 
 export async function importProject(window: Page, root: string): Promise<void> {
   const projectDirectory = window.locator('#project-directory');
