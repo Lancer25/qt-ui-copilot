@@ -7,6 +7,9 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
+# Qt 5.9's older AUTOUIC integration does not always search a sibling ui/
+# directory when the generated header is included from src/*.cpp.
+set(CMAKE_AUTOUIC_SEARCH_PATHS "${CMAKE_CURRENT_LIST_DIR}/ui")
 enable_testing()
 
 find_package(Qt5 5.9 REQUIRED COMPONENTS Core Gui Widgets Network)

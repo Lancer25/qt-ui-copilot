@@ -2,6 +2,7 @@
 
 #include <QApplication>
 #include <QCryptographicHash>
+#include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -41,12 +42,57 @@ QStringList uiReferencedQrcFiles(const QString &uiFile)
     }
     return result;
 }
+
+QByteArray fileSha256(const QString &path)
+{
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) return QByteArray();
+    QCryptographicHash hash(QCryptographicHash::Sha256);
+    if (!hash.addData(&file)) return QByteArray();
+    return hash.result().toHex();
+}
+
+QByteArray rccIdentity(const QString &rccExecutable, int qtMajor)
+{
+    const QFileInfo info(rccExecutable);
+    const QString absolutePath = info.absoluteFilePath();
+    const QByteArray contentHash = fileSha256(absolutePath);
+    if (contentHash.isEmpty()) return QByteArray();
+
+    // Include both stable path/metadata and the executable bytes.  The
+    // metadata makes the identity useful in diagnostics, while the content
+    // hash invalidates a cache when a kit is replaced in-place.
+    const QByteArray identity = QString("qt-major=%1\npath=%2\nsize=%3\nmodified=%4\nsha256=%5")
+        .arg(qtMajor)
+        .arg(QDir::toNativeSeparators(absolutePath))
+        .arg(info.size())
+        .arg(info.lastModified().toUTC().toString(Qt::ISODate))
+        .arg(QString::fromLatin1(contentHash))
+        .toUtf8();
+    QCryptographicHash hash(QCryptographicHash::Sha256);
+    hash.addData(identity);
+    return hash.result().toHex();
+}
 }
 
 ResourceLoader::ResourceLoader() {}
 ResourceLoader::~ResourceLoader()
 {
     foreach (const QString &path, registeredResources_) QResource::unregisterResource(path);
+}
+
+QString ResourceLoader::resourceCacheKeyForTesting(const QString &qrcFile,
+                                                   const QString &rccExecutable,
+                                                   int qtMajor)
+{
+    if (qtMajor <= 0) qtMajor = QT_VERSION_MAJOR;
+    const QByteArray digest = qrcDigest(qrcFile);
+    const QByteArray identity = rccIdentity(rccExecutable, qtMajor);
+    if (digest.isEmpty() || identity.isEmpty()) return QString();
+    QCryptographicHash hash(QCryptographicHash::Sha256);
+    hash.addData(digest);
+    hash.addData(identity);
+    return QString::fromLatin1(hash.result().toHex());
 }
 
 bool ResourceLoader::load(const PreviewRequest &request, PreviewResult *result, QString *error)
@@ -60,9 +106,13 @@ bool ResourceLoader::load(const PreviewRequest &request, PreviewResult *result, 
     foreach (const QString &qrcFile, uiReferencedQrcFiles(request.uiFile)) if (!qrcFiles.contains(qrcFile)) qrcFiles.append(qrcFile);
     if (!qrcFiles.isEmpty() && request.rccExecutable.isEmpty()) { *error = "rccExecutable is required when the UI references QRC resources"; return false; }
     foreach (const QString &qrcFile, qrcFiles) {
-        const QByteArray digest = qrcDigest(qrcFile);
-        if (digest.isEmpty()) { *error = QString("Unable to read QRC: %1").arg(qrcFile); return false; }
-        const QString compiled = QDir(cacheRoot).filePath(QString::fromLatin1(digest) + ".rcc");
+        const QString cacheKey = resourceCacheKeyForTesting(qrcFile, request.rccExecutable);
+        if (cacheKey.isEmpty()) {
+            if (!QFileInfo(qrcFile).exists()) *error = QString("Unable to read QRC: %1").arg(qrcFile);
+            else *error = QString("Unable to read rcc executable: %1").arg(request.rccExecutable);
+            return false;
+        }
+        const QString compiled = QDir(cacheRoot).filePath(cacheKey + ".rcc");
         if (!QFileInfo(compiled).exists()) {
             QProcess rcc;
             rcc.start(request.rccExecutable, QStringList() << "-binary" << qrcFile << "-o" << compiled);

@@ -1,4 +1,5 @@
 #include "FormLoader.h"
+#include "ResourceLoader.h"
 
 #include <QDir>
 #include <QFileInfo>
@@ -8,6 +9,7 @@ class PreviewHostTest : public QObject {
     Q_OBJECT
 private slots:
     void loadsResourceAndStyleSheet();
+    void isolatesResourceCacheAcrossQtMajors();
 };
 
 void PreviewHostTest::loadsResourceAndStyleSheet()
@@ -25,6 +27,17 @@ void PreviewHostTest::loadsResourceAndStyleSheet()
     QVERIFY(save != 0);
     QVERIFY(save->styleSheetMatched);
     QVERIFY(QFileInfo(result.imagePath).size() > 1000);
+}
+
+void PreviewHostTest::isolatesResourceCacheAcrossQtMajors()
+{
+    const QString qrc = QFINDTESTDATA("fixtures/common.qrc");
+    const QString rcc = QString::fromLocal8Bit(PREVIEW_TEST_RCC_PATH);
+    const QString qt5Key = ResourceLoader::resourceCacheKeyForTesting(qrc, rcc, 5);
+    const QString qt6Key = ResourceLoader::resourceCacheKeyForTesting(qrc, rcc, 6);
+    QVERIFY(!qt5Key.isEmpty());
+    QVERIFY(!qt6Key.isEmpty());
+    QVERIFY2(qt5Key != qt6Key, "Qt 5 and Qt 6 must never share a binary resource cache entry");
 }
 
 QTEST_MAIN(PreviewHostTest)
