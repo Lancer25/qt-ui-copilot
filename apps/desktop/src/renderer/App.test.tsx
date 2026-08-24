@@ -59,4 +59,20 @@ describe('Qt UI Copilot product UI', () => {
     await user.click(screen.getByRole('button', { name: '测试连接' }));
     await waitFor(() => expect(screen.getByRole('status').textContent).toContain('连接成功'));
   });
+
+  it('shows a failed planner node and a bounded alert when the workflow cannot create a plan', async () => {
+    const user = userEvent.setup();
+    const fakeApi = new FakeDesktopApi().withFailure({ code: 'model_output_invalid', message: `planner failed ${'x'.repeat(800)}` });
+    render(<App api={fakeApi} />);
+    await user.click(screen.getByRole('button', { name: '选择项目目录' }));
+    await user.click(screen.getByRole('button', { name: 'src/Settings.ui' }));
+    await user.type(screen.getByLabelText('界面需求'), '增加测试按钮');
+    await user.click(screen.getByRole('button', { name: '生成修改计划' }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain('model_output_invalid');
+    expect(alert.textContent).toContain('planner failed');
+    expect(alert.textContent?.length ?? 0).toBeLessThan(600);
+    expect(screen.getByRole('listitem', { name: /GENERATE_UI_PLAN failed/ })).not.toBeNull();
+  });
 });

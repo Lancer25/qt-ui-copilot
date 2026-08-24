@@ -191,8 +191,32 @@ describe('local workflow backend', () => {
     expect(started.kind).toBe('started'); expect(started.state.status).toBe('waiting_approval'); expect(started.state.plan?.summary).toBe('增加测试按钮');
     const progressed = await backend.approveTask({ taskId: started.state.taskId, approved: true }) as { status: string; node: string; failure?: { code: string } };
     expect(progressed.status).toBe('failed'); expect(progressed.failure?.code).toBe('uic_validate_failed'); expect(events.length).toBeGreaterThan(1);
+    expect(events.some((event) => JSON.stringify(event).includes('uic_validate_failed'))).toBe(true);
     await expect(backend.rollbackTask({ taskId: started.state.taskId })).resolves.toMatchObject({ status: 'cancelled' });
     expect(readFileSync(ui, 'utf8')).not.toContain('testButton');
+  });
+
+  it('returns and publishes a bounded sanitized failure when plan generation fails', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'qt-ui-copilot-planner-failure-'));
+    const ui = join(root, 'Settings.ui');
+    writeFileSync(ui, '<ui version="4.0"><class>Settings</class><widget class="QWidget" name="Settings"><layout class="QVBoxLayout" name="buttonLayout"></layout></widget><resources/><connections/></ui>');
+    writeExecutionConfig(root);
+    const backend = createLocalBackend({
+      modelProvider: { generate: async () => { throw new Error(`Bearer secret-token ${'x'.repeat(800)}`); } },
+    });
+    try {
+      const project = await backend.importProject({ rootDir: root }) as { id: string; uiFiles: string[] };
+      const events: unknown[] = []; backend.subscribeWorkflow?.((state) => events.push(state));
+      const started = await backend.startTask({ projectId: project.id, targetUi: project.uiFiles[0], requirement: '增加测试按钮' }) as { state: { status: string; node: string; failure?: { code: string; message: string }; events: Array<{ node: string; status: string; detail?: string }> } };
+      expect(started.state.status).toBe('failed');
+      expect(started.state.node).toBe('GENERATE_UI_PLAN');
+      expect(started.state.failure?.code).toBe('generate_ui_plan_failed');
+      expect(started.state.failure?.message).not.toContain('secret-token');
+      expect(started.state.failure?.message).toContain('Bearer [REDACTED]');
+      expect(started.state.failure?.message.length ?? 0).toBeLessThanOrEqual(512);
+      expect(started.state.events.at(-1)).toMatchObject({ node: 'GENERATE_UI_PLAN', status: 'failed' });
+      expect(events.some((event) => JSON.stringify(event).includes('GENERATE_UI_PLAN'))).toBe(true);
+    } finally { backend.dispose?.(); rmSync(root, { recursive: true, force: true }); }
   });
 
   it.skipIf(!existsSync('D:/Qt6.10.2/6.10.2/msvc2022_64/bin/uic.exe'))('stages a UiOperation and runs target-kit uic plus PreviewHost with the Qt6 profile', async () => {

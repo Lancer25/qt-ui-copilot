@@ -200,6 +200,13 @@ const sanitizeDiagnosticMessage = (value: string, apiKey?: string): string => va
   .replace(/(api[_-]?key|authorization)\s*[:=]\s*[^,\s}]+/gi, '$1: [REDACTED]')
   .slice(0, 1024);
 
+const sanitizeWorkflowFailure = (failure: WorkflowState['failure'], apiKey?: string): UiState['failure'] | undefined => {
+  if (!failure) return undefined;
+  const code = failure.code.replace(/[^A-Za-z0-9_.-]/g, '_').slice(0, 96) || 'workflow_failed';
+  const message = sanitizeDiagnosticMessage(String(failure.message), apiKey).replace(/\s+/g, ' ').trim().slice(0, 512);
+  return { code, message: message || '工作流执行失败。' };
+};
+
 const diagnosticCode = (status: number): string => status === 401 || status === 403 ? 'authentication_failed'
   : status === 404 ? 'model_or_endpoint_not_found'
     : status === 429 ? 'rate_limited'
@@ -276,7 +283,20 @@ export function createLocalBackend(options: LocalBackendOptions = {}): DesktopBa
     ...(storageWarning ? { storageWarning } : {}),
   });
   const update = (state: UiState): UiState => { snapshots.set(state.taskId, state); const snapshot = structuredClone(state); listeners.forEach((listener) => listener(snapshot)); return snapshot; };
-  const mutate = (taskId: string, change: Partial<UiState>): UiState => { const current = snapshots.get(taskId); if (!current) throw new Error(`Unknown task: ${taskId}`); return update({ ...current, ...change, events: [...current.events, { node: String(change.node ?? current.node), status: String(change.status ?? current.status) }] }); };
+  const mutate = (taskId: string, change: Partial<UiState>): UiState => {
+    const current = snapshots.get(taskId); if (!current) throw new Error(`Unknown task: ${taskId}`);
+    const failure = change.failure ? sanitizeWorkflowFailure(change.failure, configured?.apiKey) : undefined;
+    return update({
+      ...current,
+      ...change,
+      ...(failure ? { failure } : {}),
+      events: [...current.events, {
+        node: String(change.node ?? current.node),
+        status: String(change.status ?? current.status),
+        ...(failure ? { detail: failure.message } : {}),
+      }],
+    });
+  };
   const persistArtifact = (taskId: string, store: ArtifactStore, kind: string, name: string, content: string | Uint8Array, metadata: unknown = {}): string => {
     const path = store.write(name, content);
     repository.addArtifact(taskId, { kind, relativePath: relative(store.root, path), metadata });
@@ -461,12 +481,19 @@ export function createLocalBackend(options: LocalBackendOptions = {}): DesktopBa
       const taskId = repository.createTask(projectId, targetUi);
       update({ taskId, targetUi, status: 'running', node: 'IMPORT_PROJECT', events: [{ node: 'UNDERSTAND_REQUIREMENT', status: 'completed', detail: requirement }], deterministicFindings: [], visualFindings: [], routeEvidence: [] });
       const state = await workflowFor(taskId).start({ taskId }); const snapshot = snapshots.get(taskId)!;
-      return { kind: 'started', state: update({ ...snapshot, status: state.status, node: state.node, events: [...snapshot.events, { node: state.node, status: state.status }] }) };
+      const failure = sanitizeWorkflowFailure(state.failure, configured?.apiKey);
+      return { kind: 'started', state: update({
+        ...snapshot,
+        status: state.status,
+        node: state.node,
+        ...(failure ? { failure } : {}),
+        events: [...snapshot.events, { node: state.node, status: state.status, ...(failure ? { detail: failure.message } : {}) }],
+      }) };
     },
     async approveTask({ taskId, approved }) { const state = await workflowFor(taskId).approve(taskId, { approved }); return mutate(taskId, { status: state.status, node: state.node, failure: state.failure }); },
     async cancelTask({ taskId }) { const state = await workflowFor(taskId).cancel(taskId); return mutate(taskId, { status: state.status, node: state.node, failure: state.failure }); },
     async takeOverTask({ taskId }) { mutate(taskId, { events: [...(snapshots.get(taskId)?.events ?? []), { node: 'MANUAL_TAKEOVER', status: 'requested' }] }); },
-    async acceptTask({ taskId }) { const state = await workflowFor(taskId).approve(taskId, { approved: true }); return mutate(taskId, { status: state.status, node: state.node }); },
+    async acceptTask({ taskId }) { const state = await workflowFor(taskId).approve(taskId, { approved: true }); return mutate(taskId, { status: state.status, node: state.node, failure: state.failure }); },
     async rollbackTask({ taskId }) {
       const candidate = candidates.get(taskId);
       if (candidate) { await candidate.rollback(); candidates.delete(taskId); }

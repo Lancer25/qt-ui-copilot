@@ -1,4 +1,5 @@
 import type { WorkflowUiState } from '../../lib/api';
+import { sanitizeFailureMessage } from '../../lib/failure-display';
 
 export function WorkflowTimeline({ task, onTakeOver, onCancel, onAccept, onRollback }: {
   task?: WorkflowUiState;
@@ -7,7 +8,10 @@ export function WorkflowTimeline({ task, onTakeOver, onCancel, onAccept, onRollb
   const waiting = task?.status === 'waiting_approval';
   return <aside aria-label="任务执行" className="timeline"><h2>任务执行</h2>
     <p>{task ? `${task.node} · ${task.status}` : '等待创建任务'}</p>
-    <ol>{task?.events.map((event, index) => <li key={`${event.node}-${index}`}><strong>{event.node}</strong><span>{event.status}{event.detail ? ` · ${event.detail}` : ''}</span></li>)}</ol>
+    <ol>{task?.events.map((event, index) => {
+      const detail = event.detail ? ` · ${sanitizeFailureMessage(event.detail)}` : '';
+      return <li key={`${event.node}-${index}`} aria-label={`${event.node} ${event.status}${detail}`}><strong>{event.node}</strong><span>{event.status}{detail}</span></li>;
+    })}</ol>
     <div className="actions">
       <button onClick={onTakeOver} disabled={!task || task.status === 'completed'}>人工接管导航</button>
       <button onClick={onCancel} disabled={!task || task.status === 'completed'}>取消任务</button>
