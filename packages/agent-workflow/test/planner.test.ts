@@ -33,6 +33,42 @@ describe('UiPlanner', () => {
     expect(model.requests[1].kind).toBe('format_repair');
   });
 
+  it('repairs Qwen-style snake_case operations using the exact operation contract', async () => {
+    const qwenStylePlan = {
+      summary: '添加测试连接按钮并调整按钮布局',
+      riskLevel: 'medium',
+      operations: [
+        { op: 'add_widget', parent_layout: 'buttonLayout', widget_class: 'QPushButton', object_name: 'testConnectionButton' },
+        { op: 'setProperty', target: 'testConnectionButton', property: 'text', value: { value: '测试连接' } },
+        { op: 'set_size_policy', target: 'testConnectionButton', horizontal_policy: 'Preferred', vertical_policy: 'Fixed' },
+      ],
+      expectedResults: ['按钮可见'],
+      componentIds: [],
+    };
+    const repairedPlan = {
+      summary: '添加测试连接按钮并调整按钮布局',
+      riskLevel: 'medium',
+      operations: [
+        { op: 'addWidget', parentLayout: 'buttonLayout', widgetClass: 'QPushButton', objectName: 'testConnectionButton', properties: { text: '测试连接' } },
+        { op: 'setSizePolicy', target: 'testConnectionButton', horizontal: 'Preferred', vertical: 'Fixed' },
+      ],
+      expectedResults: ['按钮可见'],
+      componentIds: [],
+    };
+    const model = new FakeModel().replyWith(qwenStylePlan).replyWith(repairedPlan);
+    await expect(new UiPlanner(model).plan(context)).resolves.toEqual(repairedPlan);
+    expect(model.requests).toHaveLength(2);
+    const repair = model.requests[1];
+    expect(repair.kind).toBe('format_repair');
+    expect(repair.input).toMatchObject({
+      originalRequirement: context.requirement,
+      originalContext: expect.objectContaining({ runtimeFacts: context.runtimeFacts }),
+    });
+    expect(String(repair.input.allowedOperationSchema)).toContain('parentLayout');
+    expect(repair.systemPrompt).toContain('Do not translate operation names or fields to snake_case');
+    expect(repair.responseSchema).toContain('setSizePolicy');
+  });
+
   it('rejects raw xml from the planner', async () => {
     const model = new FakeModel().replyWith({ xml: '<ui version="4.0"><class>Injected</class></ui>' }).replyWith({ xml: '<ui/>' });
     await expect(new UiPlanner(model).plan(context)).rejects.toThrow('UiPlan schema');
