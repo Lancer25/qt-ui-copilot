@@ -7,11 +7,11 @@ import { AppShell } from './AppShell';
 afterEach(() => cleanup());
 
 describe('V2 shell accessibility', () => {
-  it('exposes an accessible close action for closable tabs', async () => {
+  it('exposes accessible primary navigation and tab controls', async () => {
     const user = userEvent.setup();
     render(<AppShell activePage={<div />} />);
     await user.click(screen.getByRole('button', { name: /设置/ }));
-    expect(screen.getByRole('tab', { name: '设置' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: '关闭设置' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /设置/ }).getAttribute('aria-current')).toBe('page');
+    expect(screen.getByRole('tab', { name: 'AI 工作台' }).getAttribute('aria-selected')).toBe('true');
   });
 });
