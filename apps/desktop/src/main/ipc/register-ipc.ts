@@ -109,7 +109,7 @@ export interface LocalBackendOptions {
   modelTraceLogger?: ModelTraceLogger;
 }
 interface StoredProject { id: string; rootDir: string; uiFiles: string[]; profile?: ProjectProfile; config?: ProjectConfig; configRequired?: string; }
-interface UiState { taskId: string; targetUi: string; status: WorkflowState['status']; node: WorkflowNode; plan?: unknown; events: Array<{ node: string; status: string; detail?: string }>; deterministicFindings: string[]; visualFindings: string[]; routeEvidence: string[]; qtKit?: string; xmlBefore?: string; xmlAfter?: string; beforeImage?: string; quickImage?: string; afterImage?: string; failure?: { code: string; message: string }; }
+interface UiState { taskId: string; revision?: number; targetUi: string; status: WorkflowState['status']; node: WorkflowNode; plan?: unknown; events: Array<{ node: string; status: string; detail?: string }>; deterministicFindings: string[]; visualFindings: string[]; routeEvidence: string[]; qtKit?: string; xmlBefore?: string; xmlAfter?: string; beforeImage?: string; quickImage?: string; afterImage?: string; failure?: { code: string; message: string }; }
 
 export interface ModelTraceEvent {
   phase: 'request' | 'response' | 'error';
@@ -255,6 +255,7 @@ export function createLocalBackend(options: LocalBackendOptions = {}): DesktopBa
   const candidates = new Map<string, CandidateFile>();
   const runtimeSessions = new Map<string, { session: RuntimeSession; probe: ProbeClient }>();
   const listeners = new Set<(state: unknown) => void>();
+  let revision = 0;
   const workflowStore = new TaskRepositoryWorkflowStore(repository);
   const storedModel = repository.getModelSettings();
   let storageWarning: string | undefined;
@@ -282,7 +283,7 @@ export function createLocalBackend(options: LocalBackendOptions = {}): DesktopBa
     hasPersistentApiKey: Boolean(configured?.apiKey && options.secureStorage?.isEncryptionAvailable()),
     ...(storageWarning ? { storageWarning } : {}),
   });
-  const update = (state: UiState): UiState => { snapshots.set(state.taskId, state); const snapshot = structuredClone(state); listeners.forEach((listener) => listener(snapshot)); return snapshot; };
+  const update = (state: UiState): UiState => { const next = { ...state, revision: ++revision }; snapshots.set(next.taskId, next); const snapshot = structuredClone(next); listeners.forEach((listener) => listener(snapshot)); return snapshot; };
   const mutate = (taskId: string, change: Partial<UiState>): UiState => {
     const current = snapshots.get(taskId); if (!current) throw new Error(`Unknown task: ${taskId}`);
     const failure = change.failure ? sanitizeWorkflowFailure(change.failure, configured?.apiKey) : undefined;

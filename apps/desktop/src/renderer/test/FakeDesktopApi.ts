@@ -14,9 +14,11 @@ export class FakeDesktopApi implements DesktopApi {
   public exported?: ReportRequest;
   public selectedDirectory: string | undefined = 'D:/demo';
   public importedDirectories: string[] = [];
+  private revision = 0;
   withPlan(plan: UiPlan): this { this.plan = plan; return this; }
   withWorkflowState(state: Pick<WorkflowUiState, 'status' | 'node'>): this { this.initialStatus = state.status; this.initialNode = state.node; return this; }
   withFailure(failure: { code: string; message: string }): this { this.workflowFailure = failure; return this; }
+  emitWorkflowState(state: WorkflowUiState): void { this.listeners.forEach((listener) => listener(state)); }
   private initialStatus: WorkflowUiState['status'] = 'waiting_approval';
   private initialNode: WorkflowUiState['node'] = 'USER_APPROVAL';
   projects = {
@@ -50,5 +52,5 @@ export class FakeDesktopApi implements DesktopApi {
   settings = { getModel: async (): Promise<ModelSettings> => ({ baseUrl: 'http://localhost:11434/v1', model: 'fake', hasApiKey: false }), configureModel: async ({ baseUrl, model, apiKey }: { baseUrl: string; model: string; apiKey?: string }): Promise<ModelSettings> => ({ baseUrl, model, hasApiKey: Boolean(apiKey) }), testModel: async (): Promise<ModelConnectionResult> => ({ ok: true, status: 200, elapsedMs: 1, model: 'fake' }) };
   onWorkflowEvent(listener: (state: WorkflowUiState) => void): () => void { this.listeners.add(listener); return () => this.listeners.delete(listener); }
   private requireState(change: Partial<WorkflowUiState>): WorkflowUiState { if (!this.state) throw new Error('No task'); return { ...this.state, ...change }; }
-  private publish(state: WorkflowUiState): WorkflowUiState { this.state = state; this.listeners.forEach((listener) => listener(state)); return state; }
+  private publish(state: WorkflowUiState): WorkflowUiState { this.state = { ...state, revision: ++this.revision }; this.listeners.forEach((listener) => listener(this.state!)); return this.state; }
 }

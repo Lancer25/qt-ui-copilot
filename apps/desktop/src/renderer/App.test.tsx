@@ -15,6 +15,10 @@ describe('Qt UI Copilot product UI', () => {
 
     expect((applyCandidate as HTMLButtonElement).disabled).toBe(false);
     expect(applyCandidate.getAttribute('aria-disabled')).toBe('true');
+    expect(applyCandidate.getAttribute('data-workflow-status')).toBe('none');
+    expect(applyCandidate.getAttribute('data-workflow-node')).toBe('none');
+    expect(applyCandidate.getAttribute('data-has-plan')).toBe('false');
+    expect(applyCandidate.getAttribute('data-can-apply')).toBe('false');
     await user.click(applyCandidate);
 
     expect(screen.getByRole('alert').textContent).toContain('当前没有可批准的候选修改计划');
@@ -30,6 +34,8 @@ describe('Qt UI Copilot product UI', () => {
     await user.click(screen.getByRole('button', { name: '生成修改计划' }));
     const applyCandidate = screen.getByRole('button', { name: '批准并应用候选修改' });
     expect(applyCandidate.getAttribute('aria-disabled')).toBe('false');
+    expect(applyCandidate.getAttribute('data-has-plan')).toBe('true');
+    expect(applyCandidate.getAttribute('data-can-apply')).toBe('true');
     expect(screen.queryByRole('button', { name: '批准计划' })).toBeNull();
 
     await user.click(applyCandidate);
@@ -51,6 +57,20 @@ describe('Qt UI Copilot product UI', () => {
     await user.click(screen.getByRole('button', { name: '生成修改计划' }));
 
     expect(screen.getByRole('button', { name: '批准并应用候选修改' }).getAttribute('aria-disabled')).toBe('false');
+  });
+
+  it('does not rewind an approval candidate when an older workflow event arrives late', async () => {
+    const user = userEvent.setup();
+    const fakeApi = new FakeDesktopApi().withPlan({ summary: '增加测试按钮', riskLevel: 'medium', expectedResults: [], componentIds: [], operations: [{ op: 'addWidget', parentLayout: 'buttonLayout', widgetClass: 'QPushButton', objectName: 'testButton' }] });
+    render(<App api={fakeApi} />);
+    await user.click(screen.getByRole('button', { name: '选择项目目录' }));
+    await user.click(screen.getByRole('button', { name: 'src/Settings.ui' }));
+    await user.type(screen.getByLabelText('界面需求'), '增加测试按钮');
+    await user.click(screen.getByRole('button', { name: '生成修改计划' }));
+
+    fakeApi.emitWorkflowState({ taskId: 'task-1', targetUi: 'src/Settings.ui', status: 'running', node: 'IMPORT_PROJECT', events: [{ node: 'GENERATE_UI_PLAN', status: 'completed' }, { node: 'USER_APPROVAL', status: 'waiting_approval' }], deterministicFindings: [], visualFindings: [], routeEvidence: [] });
+    expect(screen.getByRole('button', { name: '批准并应用候选修改' }).getAttribute('data-workflow-status')).toBe('waiting_approval');
+    expect(screen.getByRole('button', { name: '批准并应用候选修改' }).getAttribute('data-can-apply')).toBe('true');
   });
 
   it('keeps approval disabled for a failed planner node even when a plan is present', async () => {

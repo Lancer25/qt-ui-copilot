@@ -56,8 +56,17 @@ export async function approvePlan(window: Page, timeoutMs = 120_000): Promise<vo
     };
     const timeline = await textOf(window.locator('section[aria-label="任务执行"]'));
     const alert = await textOf(window.getByRole('alert'));
+    const approvalState = await window.getByRole('button', { name: '批准并应用候选修改' }).evaluate((element) => ({
+      workflowStatus: element.getAttribute('data-workflow-status'),
+      workflowNode: element.getAttribute('data-workflow-node'),
+      hasPlan: element.getAttribute('data-has-plan'),
+      canApply: element.getAttribute('data-can-apply'),
+      revision: element.getAttribute('data-workflow-revision'),
+      ariaDisabled: element.getAttribute('aria-disabled'),
+      disabled: (element as HTMLButtonElement).disabled,
+    })).catch(() => ({ workflowStatus: '<unavailable>', workflowNode: '<unavailable>', hasPlan: '<unavailable>', canApply: '<unavailable>', revision: '<unavailable>', ariaDisabled: '<unavailable>', disabled: '<unavailable>' }));
     const body = (await textOf(window.locator('body'))).replace(/\s+/g, ' ').slice(0, 1600);
-    throw new Error(`${error instanceof Error ? error.message : String(error)}\nApproval diagnostics: timeline=${timeline}; alert=${alert}; body=${body}`);
+    throw new Error(`${error instanceof Error ? error.message : String(error)}\nApproval diagnostics: state=${JSON.stringify(approvalState)}; timeline=${timeline}; alert=${alert}; body=${body}`);
   }
   await button.click();
 }

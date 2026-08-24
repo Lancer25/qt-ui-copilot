@@ -10,6 +10,9 @@ import { desktopApi, type DesktopApi, type ModelSettings, type UiProject, type W
 import { formatWorkflowFailure, sanitizeFailureMessage } from './lib/failure-display';
 import './app.css';
 
+const workflowNodeOrder = ['IMPORT_PROJECT', 'SELECT_UI', 'CAPTURE_BASELINE', 'RETRIEVE_COMPONENTS', 'UNDERSTAND_REQUIREMENT', 'GENERATE_UI_PLAN', 'USER_APPROVAL', 'APPLY_CANDIDATE_PATCH', 'XML_VALIDATE', 'UIC_VALIDATE', 'ENHANCED_PREVIEW', 'DETERMINISTIC_CHECKS', 'VISUAL_REVIEW', 'OPTIONAL_REPAIR', 'INCREMENTAL_BUILD', 'LAUNCH_ISOLATED_EXE', 'NAVIGATE_TO_TARGET', 'PROBE_VERIFY_PAGE', 'CAPTURE_REAL_RESULT', 'FINAL_CHECKS', 'REPORT', 'ACCEPT_OR_ROLLBACK'] as const;
+const workflowNodeIndex = (node: string): number => workflowNodeOrder.indexOf(node as typeof workflowNodeOrder[number]);
+
 export function App({ api = desktopApi() }: { api?: DesktopApi }) {
   const [project, setProject] = useState<UiProject>();
   const [targetUi, setTargetUi] = useState<string>();
@@ -24,7 +27,19 @@ export function App({ api = desktopApi() }: { api?: DesktopApi }) {
   const [apiKey, setApiKey] = useState('');
   const [modelTest, setModelTest] = useState<{ ok: boolean; message?: string; warning?: string; elapsedMs: number }>();
 
-  useEffect(() => { void api.settings.getModel().then(setModelSettings); return api.onWorkflowEvent(setTask); }, [api]);
+  const acceptWorkflowState = (next: WorkflowUiState): void => {
+    setTask((current) => {
+      // The Main process publishes every durable transition and the start IPC
+      // also returns the final snapshot. Chromium may deliver an older event
+      // after that IPC promise resolves; never let a shorter event log rewind
+      // the approval gate back to IMPORT_PROJECT/running.
+      if (current && current.taskId === next.taskId && current.revision !== undefined && next.revision !== undefined && next.revision < current.revision) return current;
+      if (current && current.taskId === next.taskId && next.events.length < current.events.length) return current;
+      if (current && current.taskId === next.taskId && current.status === 'waiting_approval' && next.status === 'running' && workflowNodeIndex(next.node) < workflowNodeIndex(current.node)) return current;
+      return next;
+    });
+  };
+  useEffect(() => { void api.settings.getModel().then(setModelSettings); return api.onWorkflowEvent(acceptWorkflowState); }, [api]);
   const canStart = Boolean(project && targetUi && requirement.trim());
   // The workflow machine remains the authority on whether approval is valid.
   // The renderer only needs a complete candidate and the approval node.  In
@@ -66,6 +81,6 @@ export function App({ api = desktopApi() }: { api?: DesktopApi }) {
   return <main className="app-shell"><header><div><h1>Qt UI Copilot</h1><p>真实 Qt 运行验证驱动的界面开发助手</p></div><div className="import-project"><button onClick={() => setShowSettings((value) => !value)}>模型设置</button><label htmlFor="project-directory">项目目录</label><input id="project-directory" value={projectDirectory} onChange={(event) => setProjectDirectory(event.target.value)} placeholder="D:\\projects\\qt-app" /><button onClick={importProject}>{projectDirectory.trim() ? '导入项目' : '选择项目目录'}</button></div></header>
     {showSettings && <section aria-label="模型设置" className="model-settings"><label>Base URL<input value={modelSettings?.baseUrl ?? ''} onChange={(event) => setModelSettings((old) => ({ baseUrl: event.target.value, model: old?.model ?? '', hasApiKey: old?.hasApiKey ?? false, hasPersistentApiKey: old?.hasPersistentApiKey }))} placeholder="https://api.example.com/v1" /></label><label>模型<input value={modelSettings?.model ?? ''} onChange={(event) => setModelSettings((old) => ({ baseUrl: old?.baseUrl ?? '', model: event.target.value, hasApiKey: old?.hasApiKey ?? false, hasPersistentApiKey: old?.hasPersistentApiKey }))} /></label><label>API Key（仅 Main 进程安全存储）<input type="password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} placeholder={modelSettings?.hasApiKey ? '已配置，留空不修改' : '可选'} /></label>{modelSettings?.storageWarning && <p role="status">{modelSettings.storageWarning}</p>}<button onClick={saveModel}>保存模型设置</button><button type="button" onClick={testModel}>测试连接</button>{modelTest && <p role="status">{modelTest.ok ? `连接成功（${modelTest.elapsedMs} ms）` : `连接失败：${modelTest.message ?? '未知错误'}`}{modelTest.warning ? ` ${modelTest.warning}` : ''}</p>}</section>}
     {alertMessage && <p role="alert" className="message" aria-live="assertive">{alertMessage}</p>}<div className="workbench"><div className="left-pane"><ProjectSidebar project={project} selectedUi={targetUi} onSelect={selectUi} /><ComponentCandidates candidates={candidates} selectedId={selectedComponent?.componentId} onSelect={setSelectedComponent} /></div>
-      <section className="center-pane"><div className="request"><label htmlFor="requirement">界面需求</label><textarea id="requirement" value={requirement} onChange={(event) => setRequirement(event.target.value)} placeholder="例如：新增测试连接按钮，并保证英文小窗口不截断" /><button onClick={start} disabled={!canStart}>生成修改计划</button><button type="button" className="primary-action" onClick={approve} aria-disabled={!canApply} aria-describedby="apply-candidate-help">批准并应用候选修改</button><span id="apply-candidate-help" className="sr-only">批准当前结构化修改计划，并开始应用候选修改。</span></div>{planSummary && <section aria-label="结构化修改计划" className="plan"><h2>结构化修改计划</h2><p>{planSummary}</p><ul>{task?.plan?.operations.map((operation, index) => <li key={index}>{operation.op}</li>)}</ul></section>}<PreviewComparison beforeImage={task?.beforeImage} afterImage={task?.afterImage} quickImage={task?.quickImage} /></section>
+      <section className="center-pane"><div className="request"><label htmlFor="requirement">界面需求</label><textarea id="requirement" value={requirement} onChange={(event) => setRequirement(event.target.value)} placeholder="例如：新增测试连接按钮，并保证英文小窗口不截断" /><button onClick={start} disabled={!canStart}>生成修改计划</button><button type="button" className="primary-action" onClick={approve} aria-disabled={!canApply} aria-describedby="apply-candidate-help" data-workflow-status={task?.status ?? 'none'} data-workflow-node={task?.node ?? 'none'} data-has-plan={String(Boolean(task?.plan))} data-can-apply={String(canApply)} data-workflow-revision={task?.revision ?? 'none'}>批准并应用候选修改</button><span id="apply-candidate-help" className="sr-only">批准当前结构化修改计划，并开始应用候选修改。</span></div>{planSummary && <section aria-label="结构化修改计划" className="plan"><h2>结构化修改计划</h2><p>{planSummary}</p><ul>{task?.plan?.operations.map((operation, index) => <li key={index}>{operation.op}</li>)}</ul></section>}<PreviewComparison beforeImage={task?.beforeImage} afterImage={task?.afterImage} quickImage={task?.quickImage} /></section>
       <WorkflowTimeline task={task} onTakeOver={takeOver} onCancel={cancel} onAccept={accept} onRollback={rollback} /></div><section className="bottom-pane"><UiDiffPanel before={task?.xmlBefore} after={task?.xmlAfter} findings={task?.deterministicFindings ?? []} visualFindings={task?.visualFindings ?? []} routeEvidence={task?.routeEvidence ?? []} /><EvidenceReport task={task} selectedComponent={selectedComponent} onExport={exportReport} /></section></main>;
 }

@@ -30,7 +30,10 @@ test.describe('qualified desktop workflow', () => {
           if (await candidate.count()) await chooseComponent(window, 'network-connection-panel');
         });
         logStep('approve candidate plan');
-        await test.step('approve candidate plan', () => approvePlan(window, 15_000));
+        // Planner latency is provider-dependent; the test-level timeout is
+        // already bounded at 120s. Do not mistake a still-running planner
+        // snapshot for an approval-state mismatch.
+        await test.step('approve candidate plan', () => approvePlan(window));
         logStep('verify runtime evidence');
         await test.step('verify runtime evidence', async () => {
           await expect(window.getByText('uic 校验通过')).toBeVisible();
@@ -38,7 +41,13 @@ test.describe('qualified desktop workflow', () => {
           await expect(window.getByRole('img', { name: '修改后真实截图' })).toBeVisible();
         });
       } catch (error) {
-        await testInfo.attach('qt6-window-on-failure.png', { body: await window.screenshot(), contentType: 'image/png' });
+        try {
+          await testInfo.attach('qt6-window-on-failure.png', { body: await window.screenshot(), contentType: 'image/png' });
+        } catch {
+          // Electron may have exited after a native Qt/helper failure. Keep the
+          // original workflow error and its sanitized DOM diagnostics instead
+          // of masking it with a screenshot transport error.
+        }
         if (diagnostics.length) await testInfo.attach('qt6-console-errors.txt', { body: diagnostics.join('\n'), contentType: 'text/plain' });
         throw error;
       }

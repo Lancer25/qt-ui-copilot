@@ -7,6 +7,10 @@ const testPort = 5189;
 
 /** Starts the same Vite/main/preload pipeline as the interactive dev launcher. */
 export default async function globalSetup(): Promise<() => Promise<void>> {
+  // The renderer config intentionally uses paths relative to apps/desktop,
+  // matching the interactive launcher. Playwright invokes global setup from
+  // the repository root, so align cwd before creating the Vite server.
+  process.chdir(desktopRoot);
   const plan = createDevLauncherPlan(desktopRoot, testPort);
   const renderer: ViteDevServer = await createServer(plan.rendererServer);
   await renderer.listen();

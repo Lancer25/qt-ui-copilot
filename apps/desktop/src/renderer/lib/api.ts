@@ -11,6 +11,8 @@ export interface UiProject {
 
 export interface WorkflowUiState {
   taskId: string;
+  /** Main-process monotonic snapshot sequence used to discard late IPC events. */
+  revision?: number;
   targetUi: string;
   status: WorkflowUiStatus;
   node: string;
