@@ -9,11 +9,13 @@ import { WorkflowTimeline } from './features/workflow/WorkflowTimeline';
 import { desktopApi, type DesktopApi, type ModelSettings, type UiProject, type WorkflowUiState } from './lib/api';
 import { formatWorkflowFailure, sanitizeFailureMessage } from './lib/failure-display';
 import './app.css';
+import { AppShell } from './app/AppShell';
+import { WorkbenchPage as V2WorkbenchPage } from './pages/workbench/WorkbenchPage';
 
 const workflowNodeOrder = ['IMPORT_PROJECT', 'SELECT_UI', 'CAPTURE_BASELINE', 'RETRIEVE_COMPONENTS', 'UNDERSTAND_REQUIREMENT', 'GENERATE_UI_PLAN', 'USER_APPROVAL', 'APPLY_CANDIDATE_PATCH', 'XML_VALIDATE', 'UIC_VALIDATE', 'ENHANCED_PREVIEW', 'DETERMINISTIC_CHECKS', 'VISUAL_REVIEW', 'OPTIONAL_REPAIR', 'INCREMENTAL_BUILD', 'LAUNCH_ISOLATED_EXE', 'NAVIGATE_TO_TARGET', 'PROBE_VERIFY_PAGE', 'CAPTURE_REAL_RESULT', 'FINAL_CHECKS', 'REPORT', 'ACCEPT_OR_ROLLBACK'] as const;
 const workflowNodeIndex = (node: string): number => workflowNodeOrder.indexOf(node as typeof workflowNodeOrder[number]);
 
-export function App({ api = desktopApi() }: { api?: DesktopApi }) {
+export function WorkbenchPage({ api = desktopApi() }: { api?: DesktopApi }) {
   const [project, setProject] = useState<UiProject>();
   const [targetUi, setTargetUi] = useState<string>();
   const [requirement, setRequirement] = useState('');
@@ -83,4 +85,8 @@ export function App({ api = desktopApi() }: { api?: DesktopApi }) {
     {alertMessage && <p role="alert" className="message" aria-live="assertive">{alertMessage}</p>}<div className="workbench"><div className="left-pane"><ProjectSidebar project={project} selectedUi={targetUi} onSelect={selectUi} /><ComponentCandidates candidates={candidates} selectedId={selectedComponent?.componentId} onSelect={setSelectedComponent} /></div>
       <section className="center-pane"><div className="request"><label htmlFor="requirement">界面需求</label><textarea id="requirement" value={requirement} onChange={(event) => setRequirement(event.target.value)} placeholder="例如：新增测试连接按钮，并保证英文小窗口不截断" /><button onClick={start} disabled={!canStart}>生成修改计划</button><button type="button" className="primary-action" onClick={approve} aria-disabled={!canApply} aria-describedby="apply-candidate-help" data-workflow-status={task?.status ?? 'none'} data-workflow-node={task?.node ?? 'none'} data-has-plan={String(Boolean(task?.plan))} data-can-apply={String(canApply)} data-workflow-revision={task?.revision ?? 'none'}>批准并应用候选修改</button><span id="apply-candidate-help" className="sr-only">批准当前结构化修改计划，并开始应用候选修改。</span></div>{planSummary && <section aria-label="结构化修改计划" className="plan"><h2>结构化修改计划</h2><p>{planSummary}</p><ul>{task?.plan?.operations.map((operation, index) => <li key={index}>{operation.op}</li>)}</ul></section>}<PreviewComparison beforeImage={task?.beforeImage} afterImage={task?.afterImage} quickImage={task?.quickImage} /></section>
       <WorkflowTimeline task={task} onTakeOver={takeOver} onCancel={cancel} onAccept={accept} onRollback={rollback} /></div><section className="bottom-pane"><UiDiffPanel before={task?.xmlBefore} after={task?.xmlAfter} findings={task?.deterministicFindings ?? []} visualFindings={task?.visualFindings ?? []} visualReviewStatus={task?.visualReviewStatus} evidence={task?.evidence ?? []} routeEvidence={task?.routeEvidence ?? []} /><EvidenceReport task={task} selectedComponent={selectedComponent} onExport={exportReport} /></section></main>;
+}
+
+export function App({ api = desktopApi() }: { api?: DesktopApi }) {
+  return <AppShell activePage={<V2WorkbenchPage api={api} />} />;
 }
