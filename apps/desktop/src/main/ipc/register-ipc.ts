@@ -14,6 +14,7 @@ import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { ModelCapabilitySchema, ModelCapabilityResultSchema, testModelCapability } from '../settings/model-capabilities';
 import { QtKitService, type QtKit, type QtKitHealth } from '../settings/qt-kit-service';
+import { checkProjectBinding } from '../settings/project-binding-service';
 
 const ImportProjectSchema = z.object({ rootDir: z.string().min(1).max(4096) }).strict();
 const ChooseDirectorySchema = z.undefined();
@@ -705,13 +706,7 @@ export function createLocalBackend(options: LocalBackendOptions = {}): DesktopBa
     async getProjectBinding(projectId) { return settingsRepository.getProjectBinding(projectId); },
     async saveProjectBinding(input) { return settingsRepository.saveProjectBinding(input); },
     async checkProjectBinding(input) {
-      const blocking: string[] = [];
-      if (!projects.has(input.projectId)) blocking.push('project_not_imported');
-      if (!settingsRepository.getQtKit(input.qtKitId)) blocking.push('qt_kit_not_found');
-      const config = input.config as Record<string, unknown>;
-      if (typeof config.buildDirectory !== 'string' || !config.buildDirectory) blocking.push('build_directory_required');
-      if (typeof config.executable !== 'string' || !config.executable) blocking.push('executable_required');
-      return { ok: blocking.length === 0, blocking };
+      return checkProjectBinding(input, { hasProject: (projectId) => projects.has(projectId), hasQtKit: (qtKitId) => Boolean(settingsRepository.getQtKit(qtKitId)) });
     },
     subscribeWorkflow(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     dispose() { database.close(); },

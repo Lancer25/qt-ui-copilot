@@ -64,3 +64,10 @@ node scripts/verify-qt-matrix.mjs --required
 - [实施计划](docs/superpowers/plans/2026-08-21-qt-ui-copilot-implementation.md)
 - [兼容性与资格门槛](docs/compatibility.md)
 - [比赛演示脚本](docs/demo-script.md)
+# Qt UI Copilot
+
+Qt Widgets UI development assistant for Qt 5.9.6 and Qt 6.x projects.
+
+## V2
+
+V2 provides a product-style Electron shell with multi-tab navigation, an AI workbench, project/component/task/report pages, unified model and Qt Kit settings, project binding, and real Qt runtime verification. See [the V2 user guide](docs/v2-user-guide.md) and [the implementation plan](docs/superpowers/plans/2026-08-24-qt-ui-copilot-v2-implementation.md).
