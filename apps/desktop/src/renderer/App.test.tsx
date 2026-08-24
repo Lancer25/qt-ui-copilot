@@ -73,6 +73,31 @@ describe('Qt UI Copilot product UI', () => {
     expect(screen.getByRole('button', { name: '批准并应用候选修改' }).getAttribute('data-can-apply')).toBe('true');
   });
 
+  it('surfaces completed and failed runtime verification badges from workflow events', async () => {
+    const fakeApi = new FakeDesktopApi();
+    render(<App api={fakeApi} />);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    fakeApi.emitWorkflowState({
+      taskId: 'task-verify', targetUi: 'src/Settings.ui', status: 'completed', node: 'REPORT',
+      events: [
+        { node: 'UIC_VALIDATE', status: 'completed' },
+        { node: 'CAPTURE_REAL_RESULT', status: 'completed' },
+      ], deterministicFindings: [], visualFindings: [], routeEvidence: [],
+    });
+    await waitFor(() => expect(screen.getByText('uic 校验通过')).not.toBeNull());
+    expect(screen.getByText('真实应用验证通过')).not.toBeNull();
+
+    fakeApi.emitWorkflowState({
+      taskId: 'task-verify', targetUi: 'src/Settings.ui', status: 'failed', node: 'CAPTURE_REAL_RESULT',
+      events: [
+        { node: 'UIC_VALIDATE', status: 'failed' },
+        { node: 'CAPTURE_REAL_RESULT', status: 'failed' },
+      ], deterministicFindings: [], visualFindings: [], routeEvidence: [],
+    });
+    await waitFor(() => expect(screen.getByText('uic 校验失败')).not.toBeNull());
+    expect(screen.getByText('真实应用验证失败')).not.toBeNull();
+  });
+
   it('keeps approval disabled for a failed planner node even when a plan is present', async () => {
     const user = userEvent.setup();
     const fakeApi = new FakeDesktopApi().withPlan({ summary: '增加测试按钮', riskLevel: 'medium', expectedResults: [], componentIds: [], operations: [{ op: 'addWidget', parentLayout: 'buttonLayout', widgetClass: 'QPushButton', objectName: 'testButton' }] }).withFailure({ code: 'model_output_invalid', message: 'planner failed' });
