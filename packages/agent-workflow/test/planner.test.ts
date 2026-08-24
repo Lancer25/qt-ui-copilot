@@ -107,8 +107,8 @@ describe('VisualCritic', () => {
     expect(classifyVisualReviewUnavailable(new Error(message))).toBe(expected);
   });
 
-  it('does not degrade invalid model JSON', () => {
-    expect(classifyVisualReviewUnavailable(new ModelOutputInvalidError('VisualReview', 'invalid'))).toBeUndefined();
+  it('classifies invalid visual model JSON as unavailable without passing it', () => {
+    expect(classifyVisualReviewUnavailable(new ModelOutputInvalidError('VisualReview', 'invalid'))).toBe('provider_unavailable');
   });
 
   it('repairs one malformed visual review before failing the workflow', async () => {

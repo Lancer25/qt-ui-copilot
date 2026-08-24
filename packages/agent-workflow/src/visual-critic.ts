@@ -23,11 +23,12 @@ const schema = JSON.stringify({ requirementSatisfied: 'boolean', score: '0..100'
 /**
  * Returns a bounded category for provider failures that make visual review
  * unavailable. Schema/format errors intentionally return undefined: those
- * indicate a broken model response and must still fail the workflow rather
- * than silently degrading the review.
+ * indicate an unusable visual provider response. The workflow must continue
+ * with visual review marked unavailable, never as an implicit pass; deterministic
+ * and real-runtime checks remain authoritative.
  */
 export function classifyVisualReviewUnavailable(error: unknown): 'timeout' | 'network_error' | 'model_unavailable' | 'provider_unavailable' | undefined {
-  if (error instanceof ModelOutputInvalidError) return undefined;
+  if (error instanceof ModelOutputInvalidError) return 'provider_unavailable';
   const message = error instanceof Error ? `${error.name} ${error.message}` : String(error);
   if (/aborterror|timed?\s*out|timeout/i.test(message)) return 'timeout';
   if (/\bHTTP\s+(404)\b|model\s+(?:not\s+found|unavailable)|endpoint\s+(?:not\s+found|unavailable)/i.test(message)) return 'model_unavailable';
