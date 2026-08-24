@@ -26,7 +26,12 @@ export function App({ api = desktopApi() }: { api?: DesktopApi }) {
 
   useEffect(() => { void api.settings.getModel().then(setModelSettings); return api.onWorkflowEvent(setTask); }, [api]);
   const canStart = Boolean(project && targetUi && requirement.trim());
-  const canApply = task?.status === 'waiting_approval' && task.node === 'USER_APPROVAL';
+  // The workflow machine remains the authority on whether approval is valid.
+  // The renderer only needs a complete candidate and the approval node.  In
+  // particular, status can briefly lag behind the node while an event is
+  // being published; gating on it made a valid candidate look permanently
+  // disabled in that window.
+  const canApply = task?.node === 'USER_APPROVAL' && Boolean(task?.plan);
   const planSummary = useMemo(() => task?.plan && `${task.plan.summary}（${task.plan.operations.length} 项受控修改）`, [task?.plan]);
   const workflowFailure = formatWorkflowFailure(task?.failure);
   const alertMessage = [message, workflowFailure].filter(Boolean).map((item) => sanitizeFailureMessage(item!)).join(' · ');

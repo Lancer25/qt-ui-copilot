@@ -27,6 +27,30 @@ describe('Qt UI Copilot product UI', () => {
     expect((screen.getByRole('button', { name: '批准并应用候选修改' }) as HTMLButtonElement).disabled).toBe(true);
   });
 
+  it.each(['waiting_approval', 'running'] as const)('enables approval for a complete USER_APPROVAL candidate when status is %s', async (status) => {
+    const user = userEvent.setup();
+    const fakeApi = new FakeDesktopApi().withPlan({ summary: '增加测试按钮', riskLevel: 'medium', expectedResults: [], componentIds: [], operations: [{ op: 'addWidget', parentLayout: 'buttonLayout', widgetClass: 'QPushButton', objectName: 'testButton' }] }).withWorkflowState({ status, node: 'USER_APPROVAL' });
+    render(<App api={fakeApi} />);
+    await user.click(screen.getByRole('button', { name: '选择项目目录' }));
+    await user.click(screen.getByRole('button', { name: 'src/Settings.ui' }));
+    await user.type(screen.getByLabelText('界面需求'), '增加测试按钮');
+    await user.click(screen.getByRole('button', { name: '生成修改计划' }));
+
+    expect((screen.getByRole('button', { name: '批准并应用候选修改' }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('keeps approval disabled for a failed planner node even when a plan is present', async () => {
+    const user = userEvent.setup();
+    const fakeApi = new FakeDesktopApi().withPlan({ summary: '增加测试按钮', riskLevel: 'medium', expectedResults: [], componentIds: [], operations: [{ op: 'addWidget', parentLayout: 'buttonLayout', widgetClass: 'QPushButton', objectName: 'testButton' }] }).withFailure({ code: 'model_output_invalid', message: 'planner failed' });
+    render(<App api={fakeApi} />);
+    await user.click(screen.getByRole('button', { name: '选择项目目录' }));
+    await user.click(screen.getByRole('button', { name: 'src/Settings.ui' }));
+    await user.type(screen.getByLabelText('界面需求'), '增加测试按钮');
+    await user.click(screen.getByRole('button', { name: '生成修改计划' }));
+
+    expect((screen.getByRole('button', { name: '批准并应用候选修改' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
   it('chooses a directory on first use, imports it, and leaves the workbench unchanged when cancelled', async () => {
     const user = userEvent.setup();
     const fakeApi = new FakeDesktopApi();

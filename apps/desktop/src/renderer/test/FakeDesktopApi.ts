@@ -15,7 +15,10 @@ export class FakeDesktopApi implements DesktopApi {
   public selectedDirectory: string | undefined = 'D:/demo';
   public importedDirectories: string[] = [];
   withPlan(plan: UiPlan): this { this.plan = plan; return this; }
+  withWorkflowState(state: Pick<WorkflowUiState, 'status' | 'node'>): this { this.initialStatus = state.status; this.initialNode = state.node; return this; }
   withFailure(failure: { code: string; message: string }): this { this.workflowFailure = failure; return this; }
+  private initialStatus: WorkflowUiState['status'] = 'waiting_approval';
+  private initialNode: WorkflowUiState['node'] = 'USER_APPROVAL';
   projects = {
     chooseDirectory: async (): Promise<string | undefined> => this.selectedDirectory,
     import: async ({ rootDir }: { rootDir: string }): Promise<UiProject> => {
@@ -26,8 +29,8 @@ export class FakeDesktopApi implements DesktopApi {
   tasks = {
     start: async ({ targetUi }: { projectId: string; targetUi: string; requirement: string }) => ({ kind: 'started' as const, state: this.publish({
       taskId: 'task-1', targetUi,
-      status: this.workflowFailure ? 'failed' : 'waiting_approval',
-      node: this.workflowFailure ? 'GENERATE_UI_PLAN' : 'USER_APPROVAL',
+      status: this.workflowFailure ? 'failed' : this.initialStatus,
+      node: this.workflowFailure ? 'GENERATE_UI_PLAN' : this.initialNode,
       plan: this.plan,
       events: [{ node: 'GENERATE_UI_PLAN', status: this.workflowFailure ? 'failed' : 'completed', ...(this.workflowFailure ? { detail: this.workflowFailure.message } : {}) }],
       deterministicFindings: [], visualFindings: [], routeEvidence: [],
