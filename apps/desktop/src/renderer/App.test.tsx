@@ -98,6 +98,16 @@ describe('Qt UI Copilot product UI', () => {
     expect(screen.getByText('真实应用验证失败')).not.toBeNull();
   });
 
+  it('shows visual review unavailability as a warning and never as a pass', async () => {
+    const fakeApi = new FakeDesktopApi();
+    render(<App api={fakeApi} />);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    fakeApi.emitWorkflowState({ taskId: 'task-visual-warning', targetUi: 'src/Settings.ui', status: 'failed', node: 'LAUNCH_ISOLATED_EXE', events: [], deterministicFindings: [], visualFindings: ['visual_review_unavailable:timeout'], visualReviewStatus: 'unavailable', evidence: ['visual_review_unavailable'], routeEvidence: [] });
+    await waitFor(() => expect(screen.getByText(/视觉评审：不可用（未判定通过）/)).not.toBeNull());
+    expect(screen.getByText('视觉评审不可用：未将其标记为通过；确定性检查和真实运行验证仍会继续。')).not.toBeNull();
+    expect(screen.queryByText('视觉评审：已完成')).toBeNull();
+  });
+
   it('keeps approval disabled for a failed planner node even when a plan is present', async () => {
     const user = userEvent.setup();
     const fakeApi = new FakeDesktopApi().withPlan({ summary: '增加测试按钮', riskLevel: 'medium', expectedResults: [], componentIds: [], operations: [{ op: 'addWidget', parentLayout: 'buttonLayout', widgetClass: 'QPushButton', objectName: 'testButton' }] }).withFailure({ code: 'model_output_invalid', message: 'planner failed' });

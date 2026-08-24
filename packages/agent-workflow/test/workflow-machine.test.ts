@@ -8,12 +8,13 @@ const automaticNodes = new Set<WorkflowNode>([
   'INCREMENTAL_BUILD', 'LAUNCH_ISOLATED_EXE', 'NAVIGATE_TO_TARGET', 'PROBE_VERIFY_PAGE', 'CAPTURE_REAL_RESULT', 'FINAL_CHECKS', 'REPORT', 'ACCEPT_OR_ROLLBACK',
 ]);
 
-function machine(store = new InMemoryWorkflowStore(), results: Partial<Record<WorkflowNode, 'passed' | 'repair' | 'failed'>> = {}, omitEvidence = false) {
+function machine(store = new InMemoryWorkflowStore(), results: Partial<Record<WorkflowNode, 'passed' | 'degraded' | 'repair' | 'failed'>> = {}, omitEvidence = false) {
   return new WorkflowMachine({ store, execute: async (node) => {
     if (!automaticNodes.has(node)) throw new Error(`unexpected ${node}`);
     const outcome = results[node] ?? 'passed';
     if (outcome === 'failed') return { kind: 'failed', code: `${node}_failed`, message: 'simulated failure' };
     if (outcome === 'repair') return { kind: 'repair', reason: 'simulated issue' };
+    if (outcome === 'degraded') return { kind: 'degraded', evidence: node === 'VISUAL_REVIEW' ? ['visual_review_unavailable'] : [] };
     return { kind: 'passed', evidence: omitEvidence ? [] : [
       ...(node === 'CAPTURE_BASELINE' ? ['baseline_capture'] : []),
       ...(node === 'ENHANCED_PREVIEW' ? ['preview_capture'] : []),
@@ -64,6 +65,16 @@ describe('WorkflowMachine', () => {
     const final = await subject.approve('repair', { approved: true });
     expect(final.status).toBe('failed');
     expect(final.failure?.code).toBe('repair_attempts_exhausted');
+  });
+
+  it('continues after a degraded visual review without recording a visual pass', async () => {
+    const subject = machine(undefined, { VISUAL_REVIEW: 'degraded' });
+    await subject.start({ taskId: 'degraded-visual', riskLevel: 'low' });
+    const state = await subject.approve('degraded-visual', { approved: true });
+    expect(state.node).toBe('ACCEPT_OR_ROLLBACK');
+    expect(state.status).toBe('waiting_approval');
+    expect(state.evidence).toContain('visual_review_unavailable');
+    expect(state.evidence).not.toContain('visual_review_passed');
   });
 
   it('persists cancellation from a user approval gate', async () => {

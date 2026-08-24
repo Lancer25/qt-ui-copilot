@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { ArtifactStore, loadProjectConfig, profileFromConfig, runProcess, RuntimeSession, scanProject, validateUiWithUic } from '@qt-ui-copilot/project-core';
 import { openDatabase, TaskRepository } from '@qt-ui-copilot/task-store';
 import { ComponentCatalog } from '@qt-ui-copilot/component-library';
-import { TaskRepositoryWorkflowStore, UiPlanner, VisualCritic, WorkflowMachine, type ModelProvider, type ModelRequest, type WorkflowNode, type WorkflowState } from '@qt-ui-copilot/agent-workflow';
+import { classifyVisualReviewUnavailable, TaskRepositoryWorkflowStore, UiPlanner, VisualCritic, WorkflowMachine, type ModelProvider, type ModelRequest, type WorkflowNode, type WorkflowState } from '@qt-ui-copilot/agent-workflow';
 import type { ProjectConfig, ProjectProfile, UiPlan } from '@qt-ui-copilot/contracts';
 import { applyOperations, CandidateFile, parseUi } from '@qt-ui-copilot/ui-document';
 import { PreviewClient, PreviewHostBuilder } from '@qt-ui-copilot/preview-client';
@@ -37,7 +37,7 @@ export const ModelConnectionResultSchema = z.object({
   elapsedMs: z.number().int().nonnegative(),
   model: z.string().max(256),
 }).strict();
-const ReportSchema = z.object({ task: z.object({ taskId: z.string().min(1), targetUi: z.string().min(1), status: z.string().min(1), node: z.string().min(1), plan: z.object({ summary: z.string(), operations: z.array(z.unknown()), expectedResults: z.array(z.string()) }).passthrough().optional(), xmlBefore: z.string().max(2_000_000).optional(), xmlAfter: z.string().max(2_000_000).optional(), beforeImage: z.string().max(4_000_000).optional(), afterImage: z.string().max(4_000_000).optional(), deterministicFindings: z.array(z.string()), visualFindings: z.array(z.string()), routeEvidence: z.array(z.string()), qtKit: z.string().optional(), build: z.object({ executable: z.string(), args: z.array(z.string()), exitCode: z.number().optional() }).optional() }).passthrough(), selectedComponent: z.object({ component: z.object({ id: z.string(), name: z.string(), sourceUiFile: z.string() }).passthrough() }).passthrough().optional() }).strict();
+const ReportSchema = z.object({ task: z.object({ taskId: z.string().min(1), targetUi: z.string().min(1), status: z.string().min(1), node: z.string().min(1), plan: z.object({ summary: z.string(), operations: z.array(z.unknown()), expectedResults: z.array(z.string()) }).passthrough().optional(), xmlBefore: z.string().max(2_000_000).optional(), xmlAfter: z.string().max(2_000_000).optional(), beforeImage: z.string().max(4_000_000).optional(), afterImage: z.string().max(4_000_000).optional(), deterministicFindings: z.array(z.string()), visualFindings: z.array(z.string()), visualReviewStatus: z.enum(['not_run', 'passed', 'unavailable', 'failed']).optional(), evidence: z.array(z.string()).optional(), routeEvidence: z.array(z.string()), qtKit: z.string().optional(), build: z.object({ executable: z.string(), args: z.array(z.string()), exitCode: z.number().optional() }).optional() }).passthrough(), selectedComponent: z.object({ component: z.object({ id: z.string(), name: z.string(), sourceUiFile: z.string() }).passthrough() }).passthrough().optional() }).strict();
 
 export interface DesktopBackend {
   importProject(input: z.infer<typeof ImportProjectSchema>): Promise<unknown>;
@@ -81,7 +81,7 @@ export function registerIpc(window: BrowserWindow, backend: DesktopBackend): voi
   ipcMain.handle('reports:export', async (_event, input: unknown) => {
     const request = ReportSchema.parse(input); const { task, selectedComponent } = request;
     const selected = selectedComponent?.component;
-    const html = `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>Qt UI Copilot 证据报告</title><style>body{font:14px sans-serif;max-width:1100px;margin:24px auto}pre{white-space:pre-wrap;background:#f4f4f5;padding:12px}img{max-width:48%;border:1px solid #ccc}section{margin:18px 0}</style><h1>Qt UI Copilot 证据报告</h1><section><h2>任务</h2><p>目标：${escapeHtml(task.targetUi)}<br>最终状态：${escapeHtml(task.status)} / ${escapeHtml(task.node)}<br>Qt Kit：${escapeHtml(task.qtKit ?? '未记录')}</p></section><section><h2>需求与计划</h2><p>${escapeHtml(task.plan?.summary ?? '未记录')}</p><pre>${escapeHtml(JSON.stringify(task.plan?.operations ?? [], null, 2))}</pre></section><section><h2>复用组件</h2><p>${selected ? `${escapeHtml(selected.name)}（${escapeHtml(selected.sourceUiFile)}）` : '未选择'}</p></section><section><h2>XML Diff</h2><h3>修改前</h3><pre>${escapeHtml(task.xmlBefore ?? '')}</pre><h3>修改后</h3><pre>${escapeHtml(task.xmlAfter ?? '')}</pre></section><section><h2>运行截图</h2>${image(task.beforeImage, '修改前真实截图')}${image(task.afterImage, '修改后真实截图')}</section><section><h2>检查结果</h2><pre>${escapeHtml(JSON.stringify({ deterministic: task.deterministicFindings, visual: task.visualFindings, route: task.routeEvidence, build: task.build }, null, 2))}</pre></section></html>`;
+    const html = `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>Qt UI Copilot 证据报告</title><style>body{font:14px sans-serif;max-width:1100px;margin:24px auto}pre{white-space:pre-wrap;background:#f4f4f5;padding:12px}img{max-width:48%;border:1px solid #ccc}section{margin:18px 0}.warning{color:#9a6700;background:#fff8c5;padding:8px;border-left:4px solid #d29922}</style><h1>Qt UI Copilot 证据报告</h1><section><h2>任务</h2><p>目标：${escapeHtml(task.targetUi)}<br>最终状态：${escapeHtml(task.status)} / ${escapeHtml(task.node)}<br>Qt Kit：${escapeHtml(task.qtKit ?? '未记录')}</p></section><section><h2>需求与计划</h2><p>${escapeHtml(task.plan?.summary ?? '未记录')}</p><pre>${escapeHtml(JSON.stringify(task.plan?.operations ?? [], null, 2))}</pre></section><section><h2>复用组件</h2><p>${selected ? `${escapeHtml(selected.name)}（${escapeHtml(selected.sourceUiFile)}）` : '未选择'}</p></section><section><h2>XML Diff</h2><h3>修改前</h3><pre>${escapeHtml(task.xmlBefore ?? '')}</pre><h3>修改后</h3><pre>${escapeHtml(task.xmlAfter ?? '')}</pre></section><section><h2>运行截图</h2>${image(task.beforeImage, '修改前真实截图')}${image(task.afterImage, '修改后真实截图')}</section><section><h2>检查结果</h2>${task.visualReviewStatus === 'unavailable' ? '<p class="warning">视觉评审不可用：未执行通过判定，后续确定性检查与真实运行验证仍然有效。</p>' : ''}<pre>${escapeHtml(JSON.stringify({ deterministic: task.deterministicFindings, visualReviewStatus: task.visualReviewStatus ?? 'not_run', visual: task.visualFindings, evidence: task.evidence ?? [], route: task.routeEvidence, build: task.build }, null, 2))}</pre></section></html>`;
     const result = await dialog.showSaveDialog(window, { title: '导出证据报告', defaultPath: `qt-ui-copilot-${basename(task.targetUi)}.html`, filters: [{ name: 'HTML', extensions: ['html'] }] });
     if (result.canceled || !result.filePath) return { cancelled: true };
     await writeFile(resolve(result.filePath), html, 'utf8'); return { cancelled: false, path: result.filePath };
@@ -109,7 +109,7 @@ export interface LocalBackendOptions {
   modelTraceLogger?: ModelTraceLogger;
 }
 interface StoredProject { id: string; rootDir: string; uiFiles: string[]; profile?: ProjectProfile; config?: ProjectConfig; configRequired?: string; }
-interface UiState { taskId: string; revision?: number; targetUi: string; status: WorkflowState['status']; node: WorkflowNode; plan?: unknown; events: Array<{ node: string; status: string; detail?: string }>; deterministicFindings: string[]; visualFindings: string[]; routeEvidence: string[]; qtKit?: string; xmlBefore?: string; xmlAfter?: string; beforeImage?: string; quickImage?: string; afterImage?: string; failure?: { code: string; message: string }; }
+interface UiState { taskId: string; revision?: number; targetUi: string; status: WorkflowState['status']; node: WorkflowNode; plan?: unknown; events: Array<{ node: string; status: string; detail?: string }>; deterministicFindings: string[]; visualFindings: string[]; visualReviewStatus?: 'not_run' | 'passed' | 'unavailable' | 'failed'; evidence?: string[]; routeEvidence: string[]; qtKit?: string; xmlBefore?: string; xmlAfter?: string; beforeImage?: string; quickImage?: string; afterImage?: string; failure?: { code: string; message: string }; }
 
 type UiWorkflowEvent = UiState['events'][number];
 
@@ -433,9 +433,18 @@ export function createLocalBackend(options: LocalBackendOptions = {}): DesktopBa
         case 'VISUAL_REVIEW': {
           const plan = snapshot.plan as UiPlan | undefined;
           if (!snapshot.quickImage || !plan) return { kind: 'failed' as const, code: 'preview_or_plan_missing', message: '视觉检查需要预览截图和修改计划。' };
-          const review = await new VisualCritic(provider()).review({ beforeImage: snapshot.beforeImage ?? snapshot.quickImage, afterImage: snapshot.quickImage, expectedResults: plan.expectedResults, deterministicFindings: [], });
+          let review;
+          try {
+            review = await new VisualCritic(provider()).review({ beforeImage: snapshot.beforeImage ?? snapshot.quickImage, afterImage: snapshot.quickImage, expectedResults: plan.expectedResults, deterministicFindings: [], });
+          } catch (error) {
+            const reason = classifyVisualReviewUnavailable(error);
+            if (!reason) throw error;
+            const warning = `visual_review_unavailable:${reason}`;
+            update({ ...snapshot, visualFindings: [warning], visualReviewStatus: 'unavailable', evidence: [...new Set([...(snapshot.evidence ?? []), 'visual_review_unavailable'])], node, status: state.status });
+            return { kind: 'degraded' as const, evidence: ['visual_review_unavailable'] };
+          }
           const visualFindings = [...review.blockingIssues, ...review.suggestions].map((finding) => `${finding.type}:${finding.description}`);
-          update({ ...snapshot, visualFindings, node, status: state.status });
+          update({ ...snapshot, visualFindings, visualReviewStatus: review.requirementSatisfied && review.blockingIssues.length === 0 ? 'passed' : 'failed', node, status: state.status });
           if (!review.requirementSatisfied || review.blockingIssues.length) return { kind: 'repair' as const, reason: visualFindings.join('\n') || 'Visual review did not satisfy the requirement' };
           return { kind: 'passed' as const };
         }
@@ -535,7 +544,7 @@ export function createLocalBackend(options: LocalBackendOptions = {}): DesktopBa
       if (!project || !project.uiFiles.includes(targetUi)) throw new Error('Target .ui file does not belong to the imported project');
       if (!project.config || !project.profile) return { kind: 'configuration_required', message: project.configRequired ?? '项目缺少有效的 .qt-ui-copilot/project.json。' };
       const taskId = repository.createTask(projectId, targetUi);
-      update({ taskId, targetUi, status: 'running', node: 'IMPORT_PROJECT', events: [{ node: 'UNDERSTAND_REQUIREMENT', status: 'completed', detail: requirement }], deterministicFindings: [], visualFindings: [], routeEvidence: [] });
+      update({ taskId, targetUi, status: 'running', node: 'IMPORT_PROJECT', events: [{ node: 'UNDERSTAND_REQUIREMENT', status: 'completed', detail: requirement }], deterministicFindings: [], visualFindings: [], visualReviewStatus: 'not_run', evidence: [], routeEvidence: [] });
       const state = await workflowFor(taskId).start({ taskId }); const snapshot = snapshots.get(taskId)!;
       const failure = sanitizeWorkflowFailure(state.failure, configured?.apiKey);
       return { kind: 'started', state: update({

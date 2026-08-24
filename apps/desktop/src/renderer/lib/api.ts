@@ -25,6 +25,8 @@ export interface WorkflowUiState {
   xmlAfter?: string;
   deterministicFindings: string[];
   visualFindings: string[];
+  visualReviewStatus?: 'not_run' | 'passed' | 'unavailable' | 'failed';
+  evidence?: string[];
   routeEvidence: string[];
   qtKit?: string;
   build?: { executable: string; args: string[]; exitCode?: number };

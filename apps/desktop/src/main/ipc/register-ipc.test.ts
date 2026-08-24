@@ -236,6 +236,30 @@ describe('local workflow backend', () => {
     } finally { backend.dispose?.(); writeFileSync(ui, original); rmSync(root, { recursive: true, force: true }); }
   }, 120_000);
 
+  it.skipIf(!existsSync('D:/Qt6.10.2/6.10.2/msvc2022_64/bin/uic.exe'))('continues to real verification when visual review provider is unavailable', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'qt-ui-copilot-visual-degraded-'));
+    const ui = join(root, 'Settings.ui');
+    const original = '<ui version="4.0"><class>Settings</class><widget class="QWidget" name="Settings"><layout class="QVBoxLayout" name="buttonLayout"></layout></widget><resources/><connections/></ui>';
+    writeFileSync(ui, original); writeQt6IntegrationConfig(root);
+    const backend = createLocalBackend({ databasePath: join(root, 'tasks.sqlite'), modelProvider: {
+      generate: async (request) => {
+        if (request.kind === 'visual_review') throw new Error('Model request timed out after 60 seconds');
+        return fakeProvider.generate(request);
+      },
+    } });
+    try {
+      const project = await backend.importProject({ rootDir: root }) as { id: string; uiFiles: string[] };
+      const started = await backend.startTask({ projectId: project.id, targetUi: project.uiFiles[0], requirement: '增加测试按钮' }) as { state: { taskId: string } };
+      const result = await backend.approveTask({ taskId: started.state.taskId, approved: true }) as { status: string; failure?: { code: string }; visualFindings: string[]; visualReviewStatus?: string; evidence?: string[] };
+      expect(result.status).toBe('failed');
+      expect(result.failure?.code).toBe('runtime_route_required');
+      expect(result.visualFindings).toEqual(['visual_review_unavailable:timeout']);
+      expect(result.visualReviewStatus).toBe('unavailable');
+      expect(result.evidence).toContain('visual_review_unavailable');
+      expect(result.evidence).not.toContain('visual_review_passed');
+    } finally { backend.dispose?.(); writeFileSync(ui, original); rmSync(root, { recursive: true, force: true }); }
+  }, 120_000);
+
   it('reopens persisted model metadata and decrypts only safeStorage ciphertext', async () => {
     const root = mkdtempSync(join(tmpdir(), 'qt-ui-copilot-model-backend-'));
     const databasePath = join(root, 'tasks.sqlite');

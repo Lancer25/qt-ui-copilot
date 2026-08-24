@@ -20,6 +20,22 @@ export interface VisualReviewContext {
 
 const schema = JSON.stringify({ requirementSatisfied: 'boolean', score: '0..100', blockingIssues: 'VisualFinding[]', suggestions: 'VisualFinding[]' });
 
+/**
+ * Returns a bounded category for provider failures that make visual review
+ * unavailable. Schema/format errors intentionally return undefined: those
+ * indicate a broken model response and must still fail the workflow rather
+ * than silently degrading the review.
+ */
+export function classifyVisualReviewUnavailable(error: unknown): 'timeout' | 'network_error' | 'model_unavailable' | 'provider_unavailable' | undefined {
+  if (error instanceof ModelOutputInvalidError) return undefined;
+  const message = error instanceof Error ? `${error.name} ${error.message}` : String(error);
+  if (/aborterror|timed?\s*out|timeout/i.test(message)) return 'timeout';
+  if (/\bHTTP\s+(404)\b|model\s+(?:not\s+found|unavailable)|endpoint\s+(?:not\s+found|unavailable)/i.test(message)) return 'model_unavailable';
+  if (/\bHTTP\s+(?:408|429|5\d\d)\b|service\s+unavailable|provider\s+unavailable/i.test(message)) return 'provider_unavailable';
+  if (/fetch\s+failed|network|econn(?:refused|reset)|enotfound|socket|connect(?:ion)?\s+(?:refused|reset|timed?\s*out)/i.test(message)) return 'network_error';
+  return undefined;
+}
+
 function errorText(error: unknown): string {
   if (error instanceof ZodError) return error.issues.map((issue) => issue.message).join('; ');
   return error instanceof Error ? error.message : String(error);

@@ -6,6 +6,7 @@ export const makeReportRequest = (task: WorkflowUiState, selectedComponent?: Com
 export function EvidenceReport({ task, selectedComponent, onExport }: { task?: WorkflowUiState; selectedComponent?: ComponentCandidate; onExport: () => void }) {
   return <section aria-label="证据报告" className="report"><h2>证据报告</h2>
     <p>{task ? `Qt Kit：${task.qtKit ?? '未记录'}；最终状态：${task.status}` : '完成任务后可导出自包含 HTML 报告。'}</p>
+    {task?.visualReviewStatus === 'unavailable' && <p role="status">视觉评审不可用：未将其标记为通过；确定性检查和真实运行验证仍会继续。</p>}
     {selectedComponent && <p>已选择组件：{selectedComponent.component.name}</p>}
     <button onClick={onExport} disabled={!task}>导出证据报告</button>
   </section>;

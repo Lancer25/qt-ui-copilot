@@ -26,6 +26,10 @@ export interface WorkflowState {
 export interface WorkflowRequest { taskId: string; riskLevel?: RiskLevel; }
 export type WorkflowResult =
   | { kind: 'passed'; evidence?: readonly string[] }
+  /** A completed node whose evidence is explicitly degraded (for example, a
+   * visual provider was unavailable). It must never be treated as a pass by
+   * consumers, but it may continue to deterministic/runtime verification. */
+  | { kind: 'degraded'; evidence?: readonly string[] }
   | { kind: 'repair'; reason: string }
   | { kind: 'failed'; code: string; message: string };
 

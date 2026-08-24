@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { UiPlanner, VisualCritic, unwrapPlanJson } from '../src/index.js';
+import { classifyVisualReviewUnavailable, ModelOutputInvalidError, UiPlanner, VisualCritic, unwrapPlanJson } from '../src/index.js';
 import { FakeModel } from './FakeModel.js';
 
 const context = {
@@ -98,6 +98,19 @@ describe('UiPlanner', () => {
 });
 
 describe('VisualCritic', () => {
+  it.each([
+    ['Model request timed out after 60 seconds', 'timeout'],
+    ['fetch failed: connect ECONNRESET', 'network_error'],
+    ['Model request failed: HTTP 404', 'model_unavailable'],
+    ['Model request failed: HTTP 503', 'provider_unavailable'],
+  ] as const)('classifies provider unavailability safely (%s)', (message, expected) => {
+    expect(classifyVisualReviewUnavailable(new Error(message))).toBe(expected);
+  });
+
+  it('does not degrade invalid model JSON', () => {
+    expect(classifyVisualReviewUnavailable(new ModelOutputInvalidError('VisualReview', 'invalid'))).toBeUndefined();
+  });
+
   it('makes deterministic failures override a positive visual answer', async () => {
     const model = new FakeModel().replyWith({ requirementSatisfied: true, score: 95, blockingIssues: [], suggestions: [] });
     const review = await new VisualCritic(model).review({
