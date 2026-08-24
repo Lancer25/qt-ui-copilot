@@ -66,4 +66,26 @@ export const DATABASE_SCHEMA = `
     encrypted_api_key BLOB,
     updated_at INTEGER NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS qt_kits (
+    id TEXT PRIMARY KEY,
+    display_name TEXT NOT NULL,
+    config_json TEXT NOT NULL,
+    health_json TEXT,
+    checked_at INTEGER,
+    updated_at INTEGER NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS project_bindings (
+    project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+    qt_kit_id TEXT NOT NULL REFERENCES qt_kits(id) ON DELETE RESTRICT,
+    config_json TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS ui_preferences (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    preferences_json TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
 `;
