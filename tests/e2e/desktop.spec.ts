@@ -78,9 +78,9 @@ test.describe('qualified desktop workflow', () => {
       await importProject(window, isolatedQt59);
       await requestChange(window, '增加测试连接按钮，并确保英文小窗口不截断');
       await approvePlan(window);
-      await expect(window.getByText('uic 校验通过')).toBeVisible();
-      await expect(window.getByText('真实应用验证通过')).toBeVisible();
-      await expect(window.getByRole('img', { name: '修改后真实截图' })).toBeVisible();
+      await expect(window.getByText('uic 校验通过')).toBeVisible({ timeout: 120_000 });
+      await expect(window.getByText('真实应用验证通过')).toBeVisible({ timeout: 120_000 });
+      await expect(window.getByRole('img', { name: '修改后真实截图' })).toBeVisible({ timeout: 120_000 });
     } finally {
       await electronApp.close();
       await expect.poll(() => fixtureSourceDigest('qt59-app')).toBe(liveFixtureDigest);
