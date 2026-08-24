@@ -94,14 +94,15 @@ export function LegacyWorkbenchPage({ api = desktopApi() }: { api?: DesktopApi }
 
 export function App({ api = desktopApi() }: { api?: DesktopApi }) {
   const [activeNavigation, setActiveNavigation] = useState<PrimaryNavigationId>('workbench');
+  const [projectRevision, setProjectRevision] = useState(0);
   const renderPage = (id: PrimaryNavigationId, openTab: (tab: AppTab) => void) => {
     switch (id) {
       case 'projects': return <ProjectsPage api={api} onOpenTab={openTab} />;
       case 'components': return <ComponentsPage api={api} onOpenTab={openTab} />;
       case 'tasks': return <TasksPage api={api} onOpenTab={openTab} />;
       case 'reports': return <ReportsPage api={api} onOpenTab={openTab} />;
-      case 'settings': return <SettingsPage api={api} />;
-      default: return <LegacyWorkbenchPage api={api} />;
+      case 'settings': return <SettingsPage api={api} onProjectImported={() => setProjectRevision((value) => value + 1)} />;
+      default: return <LegacyWorkbenchPage key={`workbench-${projectRevision}`} api={api} />;
     }
   };
   return <AppShell activeNavigation={activeNavigation} onNavigate={setActiveNavigation} renderPage={renderPage} />;

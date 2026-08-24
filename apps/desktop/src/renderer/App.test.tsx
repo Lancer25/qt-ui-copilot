@@ -171,7 +171,7 @@ describe('Qt UI Copilot product UI', () => {
     await user.click(screen.getByRole('button', { name: /设置/ }));
     await user.click(screen.getByRole('button', { name: /模型服务/ }));
     await user.click(screen.getByRole('button', { name: /测试文本能力/ }));
-    await waitFor(() => expect(screen.getByRole('status').textContent).toContain('连接成功'));
+    await waitFor(() => expect(screen.getByText(/文本生成可用/)).not.toBeNull());
   });
 
   it('shows a failed planner node and a bounded alert when the workflow cannot create a plan', async () => {
