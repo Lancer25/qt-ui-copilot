@@ -12,6 +12,7 @@ import { PreviewClient, PreviewHostBuilder } from '@qt-ui-copilot/preview-client
 import { ProbeClient, RouteRunner, type SemanticRoute } from '@qt-ui-copilot/probe-client';
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { ModelCapabilitySchema, ModelCapabilityResultSchema, testModelCapability } from '../settings/model-capabilities';
 
 const ImportProjectSchema = z.object({ rootDir: z.string().min(1).max(4096) }).strict();
 const ChooseDirectorySchema = z.undefined();
@@ -21,6 +22,7 @@ const ApprovalSchema = TaskIdSchema.extend({ approved: z.boolean() }).strict();
 const ComponentSearchSchema = z.object({ projectId: z.string().min(1), query: z.string().max(10_000) }).strict();
 const ModelSettingsInputSchema = z.object({ baseUrl: z.string().url().max(2048), model: z.string().min(1).max(256), apiKey: z.string().min(1).max(4096).optional() }).strict();
 const TestModelInputSchema = z.undefined();
+const TestModelCapabilityInputSchema = z.object({ capability: ModelCapabilitySchema }).strict();
 export const ModelSettingsSchema = z.object({
   baseUrl: z.string().url(),
   model: z.string().min(1),
@@ -51,6 +53,7 @@ export interface DesktopBackend {
   getModelSettings(): Promise<z.infer<typeof ModelSettingsSchema>>;
   configureModelSettings(input: z.infer<typeof ModelSettingsInputSchema>): Promise<z.infer<typeof ModelSettingsSchema>>;
   testModelConnection(): Promise<z.infer<typeof ModelConnectionResultSchema>>;
+  testModelCapability(input: { capability: z.infer<typeof ModelCapabilitySchema> }): Promise<z.infer<typeof ModelCapabilityResultSchema>>;
   subscribeWorkflow?(listener: (state: unknown) => void): () => void;
   /** Releases the SQLite handle. Used by deterministic integration tests and app shutdown. */
   dispose?(): void;
@@ -78,6 +81,7 @@ export function registerIpc(window: BrowserWindow, backend: DesktopBackend): voi
   ipcMain.handle('settings:getModel', () => backend.getModelSettings());
   ipcMain.handle('settings:configureModel', (_event, input: unknown) => backend.configureModelSettings(ModelSettingsInputSchema.parse(input)));
   ipcMain.handle('settings:testModel', (_event, input: unknown = undefined) => { TestModelInputSchema.parse(input); return backend.testModelConnection(); });
+  ipcMain.handle('settings:testModelCapability', (_event, input: unknown) => backend.testModelCapability(TestModelCapabilityInputSchema.parse(input)));
   ipcMain.handle('reports:export', async (_event, input: unknown) => {
     const request = ReportSchema.parse(input); const { task, selectedComponent } = request;
     const selected = selectedComponent?.component;
@@ -195,9 +199,21 @@ export class OpenAiCompatibleProvider implements ModelProvider {
     const inputJsonBytes = Buffer.byteLength(inputJson, 'utf8');
     this.trace({ phase: 'request', kind: request.kind, model: this.settings.model, inputJsonBytes, elapsedMs: 0 });
     let isDeepSeek = false;
+    let isQwen = false;
     try {
-      isDeepSeek = new URL(this.settings.baseUrl).hostname.toLowerCase() === 'api.deepseek.com';
+      const hostname = new URL(this.settings.baseUrl).hostname.toLowerCase();
+      isDeepSeek = hostname === 'api.deepseek.com';
+      isQwen = hostname.includes('dashscope') || hostname.includes('maas.aliyuncs.com') || /^qwen/i.test(this.settings.model);
     } catch { /* URL validation happens at the IPC boundary; keep provider behavior safe for direct callers. */ }
+    const visualImages = request.kind === 'visual_review'
+      ? ['beforeImage', 'afterImage', 'referenceImage']
+        .map((key) => ({ key, value: request.input[key] }))
+        .filter((item): item is { key: string; value: string } => typeof item.value === 'string' && item.value.startsWith('data:image/'))
+      : [];
+    const textInput = Object.fromEntries(Object.entries(request.input).filter(([key]) => !['beforeImage', 'afterImage', 'referenceImage'].includes(key)));
+    const userContent = visualImages.length > 0
+      ? [{ type: 'text', text: JSON.stringify(textInput) }, ...visualImages.map((image) => ({ type: 'image_url', image_url: { url: image.value } }))]
+      : JSON.stringify(request.input);
     try {
       const response = await this.fetchImpl(`${this.settings.baseUrl.replace(/\/$/, '')}/chat/completions`, {
         method: 'POST',
@@ -205,9 +221,9 @@ export class OpenAiCompatibleProvider implements ModelProvider {
         body: JSON.stringify({
           model: this.settings.model,
           response_format: { type: 'json_object' },
-          ...(isDeepSeek ? { thinking: { type: 'disabled' }, max_tokens: 2048 } : { max_tokens: 4096 }),
+          ...(isDeepSeek ? { thinking: { type: 'disabled' }, max_tokens: 2048 } : isQwen ? { enable_thinking: false, max_tokens: 4096 } : { max_tokens: 4096 }),
           stream: false,
-          messages: [{ role: 'system', content: `${request.systemPrompt}\n${schemaInstruction}` }, { role: 'user', content: inputJson }],
+          messages: [{ role: 'system', content: `${request.systemPrompt}\n${schemaInstruction}` }, { role: 'user', content: userContent }],
         }),
         signal: controller.signal,
       });
@@ -267,11 +283,16 @@ async function testOpenAiCompatibleConnection(settings: { baseUrl: string; model
   const startedAt = Date.now();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15_000);
+  let isQwen = false;
+  try {
+    const hostname = new URL(settings.baseUrl).hostname.toLowerCase();
+    isQwen = hostname.includes('dashscope') || hostname.includes('maas.aliyuncs.com') || /^qwen/i.test(settings.model);
+  } catch { /* validated at the IPC boundary */ }
   try {
     const response = await fetchImpl(`${settings.baseUrl.replace(/\/$/, '')}/chat/completions`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', ...(settings.apiKey ? { authorization: `Bearer ${settings.apiKey}` } : {}) },
-      body: JSON.stringify({ model: settings.model, messages: [{ role: 'user', content: 'Reply with OK.' }], max_tokens: 1, stream: false }),
+      body: JSON.stringify({ model: settings.model, messages: [{ role: 'user', content: 'Reply with OK in plain text.' }], ...(isQwen ? { enable_thinking: false } : {}), max_tokens: 16, stream: false }),
       signal: controller.signal,
     });
     const raw = await response.text();
@@ -606,6 +627,10 @@ export function createLocalBackend(options: LocalBackendOptions = {}): DesktopBa
     async testModelConnection() {
       if (!configured) return { ok: false, code: 'configuration_required', message: '请先保存 Base URL、模型和 API Key。', elapsedMs: 0, model: modelSettings().model };
       return testOpenAiCompatibleConnection(configured, fetchImpl);
+    },
+    async testModelCapability(input) {
+      if (!configured) return { capability: input.capability, ok: false, code: 'configuration_required', message: '请先保存 Base URL、模型和 API Key。', elapsedMs: 0, model: modelSettings().model };
+      return testModelCapability(configured, input.capability, fetchImpl);
     },
     subscribeWorkflow(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     dispose() { database.close(); },

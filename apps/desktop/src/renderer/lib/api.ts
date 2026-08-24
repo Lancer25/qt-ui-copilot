@@ -56,6 +56,17 @@ export interface ModelConnectionResult {
   model: string;
 }
 
+export type ModelCapability = 'text' | 'json' | 'vision';
+export interface ModelCapabilityResult {
+  capability: ModelCapability;
+  ok: boolean;
+  status?: number;
+  code?: string;
+  message?: string;
+  elapsedMs: number;
+  model: string;
+}
+
 export type TaskStartResult =
   | { kind: 'started'; state: WorkflowUiState }
   | { kind: 'configuration_required'; message: string };
@@ -80,6 +91,7 @@ export interface DesktopApi {
     getModel(): Promise<ModelSettings>;
     configureModel(input: { baseUrl: string; model: string; apiKey?: string }): Promise<ModelSettings>;
     testModel(): Promise<ModelConnectionResult>;
+    testModelCapability(input: { capability: ModelCapability }): Promise<ModelCapabilityResult>;
   };
   onWorkflowEvent(listener: (state: WorkflowUiState) => void): () => void;
 }
