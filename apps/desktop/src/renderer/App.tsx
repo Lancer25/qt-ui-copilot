@@ -31,7 +31,7 @@ export function App({ api = desktopApi() }: { api?: DesktopApi }) {
   // particular, status can briefly lag behind the node while an event is
   // being published; gating on it made a valid candidate look permanently
   // disabled in that window.
-  const canApply = task?.node === 'USER_APPROVAL' && Boolean(task?.plan);
+  const canApply = Boolean(task?.plan) && task?.status !== 'failed' && task?.status !== 'cancelled';
   const planSummary = useMemo(() => task?.plan && `${task.plan.summary}（${task.plan.operations.length} 项受控修改）`, [task?.plan]);
   const workflowFailure = formatWorkflowFailure(task?.failure);
   const alertMessage = [message, workflowFailure].filter(Boolean).map((item) => sanitizeFailureMessage(item!)).join(' · ');

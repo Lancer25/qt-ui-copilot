@@ -24,7 +24,9 @@ describe('Qt UI Copilot product UI', () => {
 
     expect(fakeApi.approveRequests).toEqual([{ taskId: 'task-1', approved: true }]);
     await waitFor(() => expect(screen.getByText('UIC_VALIDATE · running')).not.toBeNull());
-    expect((screen.getByRole('button', { name: '批准并应用候选修改' }) as HTMLButtonElement).disabled).toBe(true);
+    // A complete plan remains actionable while the workflow is running; the
+    // main-process workflow machine remains authoritative for repeat/illegal approvals.
+    expect((screen.getByRole('button', { name: '批准并应用候选修改' }) as HTMLButtonElement).disabled).toBe(false);
   });
 
   it.each(['waiting_approval', 'running'] as const)('enables approval for a complete USER_APPROVAL candidate when status is %s', async (status) => {
@@ -42,6 +44,18 @@ describe('Qt UI Copilot product UI', () => {
   it('keeps approval disabled for a failed planner node even when a plan is present', async () => {
     const user = userEvent.setup();
     const fakeApi = new FakeDesktopApi().withPlan({ summary: '增加测试按钮', riskLevel: 'medium', expectedResults: [], componentIds: [], operations: [{ op: 'addWidget', parentLayout: 'buttonLayout', widgetClass: 'QPushButton', objectName: 'testButton' }] }).withFailure({ code: 'model_output_invalid', message: 'planner failed' });
+    render(<App api={fakeApi} />);
+    await user.click(screen.getByRole('button', { name: '选择项目目录' }));
+    await user.click(screen.getByRole('button', { name: 'src/Settings.ui' }));
+    await user.type(screen.getByLabelText('界面需求'), '增加测试按钮');
+    await user.click(screen.getByRole('button', { name: '生成修改计划' }));
+
+    expect((screen.getByRole('button', { name: '批准并应用候选修改' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('keeps approval disabled for a cancelled task even when a plan is present', async () => {
+    const user = userEvent.setup();
+    const fakeApi = new FakeDesktopApi().withPlan({ summary: '增加测试按钮', riskLevel: 'medium', expectedResults: [], componentIds: [], operations: [{ op: 'addWidget', parentLayout: 'buttonLayout', widgetClass: 'QPushButton', objectName: 'testButton' }] }).withWorkflowState({ status: 'cancelled', node: 'USER_APPROVAL' });
     render(<App api={fakeApi} />);
     await user.click(screen.getByRole('button', { name: '选择项目目录' }));
     await user.click(screen.getByRole('button', { name: 'src/Settings.ui' }));
