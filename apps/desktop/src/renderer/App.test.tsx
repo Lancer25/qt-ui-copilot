@@ -6,6 +6,15 @@ import { App } from './App';
 import { FakeDesktopApi } from './test/FakeDesktopApi';
 import { makeReportRequest } from './features/report/EvidenceReport';
 
+async function importWorkflowProject(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+  await user.click(screen.getByRole('button', { name: /设置/ }));
+  await user.click(screen.getByRole('button', { name: /项目绑定/ }));
+  await user.click(screen.getByRole('button', { name: '导入项目' }));
+  await user.click(screen.getByRole('button', { name: /工作台/ }));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'src/Settings.ui' })).not.toBeNull());
+  await user.click(screen.getByRole('button', { name: 'src/Settings.ui' }));
+}
+
 describe('Qt UI Copilot product UI', () => {
   afterEach(cleanup);
   it('keeps the primary action focusable and explains why approval is unavailable', async () => {
@@ -28,8 +37,7 @@ describe('Qt UI Copilot product UI', () => {
     const user = userEvent.setup();
     const fakeApi = new FakeDesktopApi().withPlan({ summary: '增加测试按钮', riskLevel: 'medium', expectedResults: [], componentIds: [], operations: [{ op: 'addWidget', parentLayout: 'buttonLayout', widgetClass: 'QPushButton', objectName: 'testButton' }] });
     render(<App api={fakeApi} />);
-    await user.click(screen.getByRole('button', { name: '选择项目目录' }));
-    await user.click(screen.getByRole('button', { name: 'src/Settings.ui' }));
+    await importWorkflowProject(user);
     await user.type(screen.getByLabelText('界面需求'), '增加测试按钮');
     await user.click(screen.getByRole('button', { name: '生成修改计划' }));
     const applyCandidate = screen.getByRole('button', { name: '批准并应用候选修改' });
@@ -51,8 +59,7 @@ describe('Qt UI Copilot product UI', () => {
     const user = userEvent.setup();
     const fakeApi = new FakeDesktopApi().withPlan({ summary: '增加测试按钮', riskLevel: 'medium', expectedResults: [], componentIds: [], operations: [{ op: 'addWidget', parentLayout: 'buttonLayout', widgetClass: 'QPushButton', objectName: 'testButton' }] }).withWorkflowState({ status, node: 'USER_APPROVAL' });
     render(<App api={fakeApi} />);
-    await user.click(screen.getByRole('button', { name: '选择项目目录' }));
-    await user.click(screen.getByRole('button', { name: 'src/Settings.ui' }));
+    await importWorkflowProject(user);
     await user.type(screen.getByLabelText('界面需求'), '增加测试按钮');
     await user.click(screen.getByRole('button', { name: '生成修改计划' }));
 
@@ -63,8 +70,7 @@ describe('Qt UI Copilot product UI', () => {
     const user = userEvent.setup();
     const fakeApi = new FakeDesktopApi().withPlan({ summary: '增加测试按钮', riskLevel: 'medium', expectedResults: [], componentIds: [], operations: [{ op: 'addWidget', parentLayout: 'buttonLayout', widgetClass: 'QPushButton', objectName: 'testButton' }] });
     render(<App api={fakeApi} />);
-    await user.click(screen.getByRole('button', { name: '选择项目目录' }));
-    await user.click(screen.getByRole('button', { name: 'src/Settings.ui' }));
+    await importWorkflowProject(user);
     await user.type(screen.getByLabelText('界面需求'), '增加测试按钮');
     await user.click(screen.getByRole('button', { name: '生成修改计划' }));
 
@@ -112,8 +118,7 @@ describe('Qt UI Copilot product UI', () => {
     const user = userEvent.setup();
     const fakeApi = new FakeDesktopApi().withPlan({ summary: '增加测试按钮', riskLevel: 'medium', expectedResults: [], componentIds: [], operations: [{ op: 'addWidget', parentLayout: 'buttonLayout', widgetClass: 'QPushButton', objectName: 'testButton' }] }).withFailure({ code: 'model_output_invalid', message: 'planner failed' });
     render(<App api={fakeApi} />);
-    await user.click(screen.getByRole('button', { name: '选择项目目录' }));
-    await user.click(screen.getByRole('button', { name: 'src/Settings.ui' }));
+    await importWorkflowProject(user);
     await user.type(screen.getByLabelText('界面需求'), '增加测试按钮');
     await user.click(screen.getByRole('button', { name: '生成修改计划' }));
 
@@ -124,8 +129,7 @@ describe('Qt UI Copilot product UI', () => {
     const user = userEvent.setup();
     const fakeApi = new FakeDesktopApi().withPlan({ summary: '增加测试按钮', riskLevel: 'medium', expectedResults: [], componentIds: [], operations: [{ op: 'addWidget', parentLayout: 'buttonLayout', widgetClass: 'QPushButton', objectName: 'testButton' }] }).withWorkflowState({ status: 'cancelled', node: 'USER_APPROVAL' });
     render(<App api={fakeApi} />);
-    await user.click(screen.getByRole('button', { name: '选择项目目录' }));
-    await user.click(screen.getByRole('button', { name: 'src/Settings.ui' }));
+    await importWorkflowProject(user);
     await user.type(screen.getByLabelText('界面需求'), '增加测试按钮');
     await user.click(screen.getByRole('button', { name: '生成修改计划' }));
 
@@ -137,14 +141,18 @@ describe('Qt UI Copilot product UI', () => {
     const fakeApi = new FakeDesktopApi();
     render(<App api={fakeApi} />);
 
-    await user.click(screen.getByRole('button', { name: '选择项目目录' }));
+    await user.click(screen.getAllByRole('button', { name: /设置/ })[0]);
+    await user.click(screen.getByRole('button', { name: /项目绑定/ }));
+    await user.click(screen.getByRole('button', { name: '导入项目' }));
     expect(fakeApi.importedDirectories).toEqual(['D:/demo']);
     expect(screen.getByDisplayValue('D:/demo')).not.toBeNull();
 
     const cancelledApi = new FakeDesktopApi();
     cancelledApi.selectedDirectory = undefined;
     render(<App api={cancelledApi} />);
-    await user.click(screen.getByRole('button', { name: '选择项目目录' }));
+    await user.click(screen.getAllByRole('button', { name: /设置/ })[0]);
+    await user.click(screen.getByRole('button', { name: /项目绑定/ }));
+    await user.click(screen.getByRole('button', { name: '导入项目' }));
     expect(cancelledApi.importedDirectories).toEqual([]);
   });
 
@@ -160,8 +168,9 @@ describe('Qt UI Copilot product UI', () => {
     const user = userEvent.setup();
     const fakeApi = new FakeDesktopApi();
     render(<App api={fakeApi} />);
-    await user.click(screen.getByRole('button', { name: '模型设置' }));
-    await user.click(screen.getByRole('button', { name: '测试连接' }));
+    await user.click(screen.getByRole('button', { name: /设置/ }));
+    await user.click(screen.getByRole('button', { name: /模型服务/ }));
+    await user.click(screen.getByRole('button', { name: /测试文本能力/ }));
     await waitFor(() => expect(screen.getByRole('status').textContent).toContain('连接成功'));
   });
 
@@ -169,8 +178,7 @@ describe('Qt UI Copilot product UI', () => {
     const user = userEvent.setup();
     const fakeApi = new FakeDesktopApi().withFailure({ code: 'model_output_invalid', message: `planner failed ${'x'.repeat(800)}` });
     render(<App api={fakeApi} />);
-    await user.click(screen.getByRole('button', { name: '选择项目目录' }));
-    await user.click(screen.getByRole('button', { name: 'src/Settings.ui' }));
+    await importWorkflowProject(user);
     await user.type(screen.getByLabelText('界面需求'), '增加测试按钮');
     await user.click(screen.getByRole('button', { name: '生成修改计划' }));
 
