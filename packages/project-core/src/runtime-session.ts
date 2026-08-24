@@ -1,7 +1,7 @@
 import { spawn as nodeSpawn, type ChildProcess } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
-import { resolve, sep } from 'node:path';
+import { delimiter, resolve, sep } from 'node:path';
 import type { ProjectProfile } from '@qt-ui-copilot/contracts';
 
 export interface SpawnedRuntimeProcess extends Pick<ChildProcess, 'pid' | 'kill' | 'once'> {}
@@ -60,6 +60,10 @@ export class RuntimeSession {
       QT_UI_COPILOT_ENABLE_ACTIONS: '1',
       APP_CONFIG_DIR: this.configDirectory,
     };
+    if (this.profile.qt.binDirectory) {
+      const pathKey = process.platform === 'win32' ? 'Path' : 'PATH';
+      environment[pathKey] = [this.profile.qt.binDirectory, environment[pathKey] ?? environment.PATH].filter(Boolean).join(delimiter);
+    }
     const spawn = this.dependencies.spawn ?? ((executable, args, options) => nodeSpawn(executable, [...args], options));
     const child = spawn(this.profile.run.executable, this.profile.run.args, {
       cwd: this.profile.rootDir, env: environment, shell: false, windowsHide: true, stdio: 'ignore',

@@ -38,11 +38,18 @@ export const loadProjectConfig = (rootDir: string): ProjectConfig | undefined =>
       qrcFiles: config.preview.qrcFiles.map(resolveConfiguredPath), stylesheets: config.preview.stylesheets.map(resolveConfiguredPath),
       fonts: config.preview.fonts.map(resolveConfiguredPath), pluginPaths: config.preview.pluginPaths.map(resolveConfiguredPath),
     },
-    build: { command: {
-      ...config.build.command,
-      executable: resolveConfiguredPath(config.build.command.executable),
-      args: config.build.command.args.map((arg) => expandProjectRoot(arg, rootDir)),
-    } },
+    build: {
+      command: {
+        ...config.build.command,
+        executable: resolveConfiguredPath(config.build.command.executable),
+        args: config.build.command.args.map((arg) => expandProjectRoot(arg, rootDir)),
+      },
+      ...(config.build.configure ? { configure: {
+        ...config.build.configure,
+        executable: resolveConfiguredPath(config.build.configure.executable),
+        args: config.build.configure.args.map((arg) => expandProjectRoot(arg, rootDir)),
+      } } : {}),
+    },
     run: { ...config.run, executable: resolveConfiguredPath(config.run.executable) },
   };
 };
@@ -50,7 +57,7 @@ export const loadProjectConfig = (rootDir: string): ProjectConfig | undefined =>
 export function profileFromConfig(rootDir: string, config: ProjectConfig): ProjectProfile {
   return ProjectProfileSchema.parse({
     id: config.id, rootDir,
-    qt: { version: config.qt.version, uic: config.qt.uic, rcc: config.qt.rcc },
+    qt: { version: config.qt.version, uic: config.qt.uic, rcc: config.qt.rcc, binDirectory: config.qt.binDirectory },
     build: config.build,
     // `routeId` belongs to the execution config and is resolved by the
     // runtime workflow. ProjectProfile is the legacy launch profile and has

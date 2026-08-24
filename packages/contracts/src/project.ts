@@ -39,7 +39,7 @@ export const ProjectConfigSchema = z.object({
     fonts: z.array(z.string()).default([]),
     pluginPaths: z.array(z.string()).default([]),
   }).strict(),
-  build: z.object({ command: CommandSchema }).strict(),
+  build: z.object({ command: CommandSchema, configure: CommandSchema.optional() }).strict(),
   run: z.object({
     executable: z.string().min(1),
     args: z.array(z.string()).default([]),
@@ -52,8 +52,8 @@ export const ProjectConfigSchema = z.object({
 export const ProjectProfileSchema = z.object({
   id: z.string().min(1),
   rootDir: z.string().min(1),
-  qt: QtToolchainSchema,
-  build: z.object({ command: CommandSchema }).strict(),
+  qt: QtToolchainSchema.extend({ binDirectory: z.string().min(1).optional() }).strict(),
+  build: z.object({ command: CommandSchema, configure: CommandSchema.optional() }).strict(),
   run: z.object({
     executable: z.string().min(1),
     args: z.array(z.string()).default([]),

@@ -24,13 +24,25 @@
     "pluginPaths": []
   },
   "build": {
+    "configure": {
+      "executable": "C:/Program Files/CMake/bin/cmake.exe",
+      "args": [
+        "-S",
+        "${projectRoot}",
+        "-B",
+        "${projectRoot}/.qt-ui-copilot/build",
+        "-G",
+        "Visual Studio 18 2026",
+        "-DCMAKE_PREFIX_PATH=D:/Qt6.10.2/6.10.2/msvc2022_64"
+      ]
+    },
     "command": {
       "executable": "C:/Program Files/CMake/bin/cmake.exe",
       "args": ["--build", "${projectRoot}/.qt-ui-copilot/build", "--config", "Debug"]
     }
   },
   "run": {
-    "executable": "${projectRoot}/.qt-ui-copilot/build/qt-ui-copilot-qt6-fixture.exe",
+    "executable": "${projectRoot}/.qt-ui-copilot/build/Debug/qt-ui-copilot-qt6-fixture.exe",
     "args": [],
     "environment": {},
     "routeId": "network-settings"

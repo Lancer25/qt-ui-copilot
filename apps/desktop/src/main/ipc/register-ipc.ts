@@ -2,7 +2,7 @@ import { ipcMain, type BrowserWindow, dialog } from 'electron';
 import { readFile, writeFile } from 'node:fs/promises';
 import { basename, relative, resolve } from 'node:path';
 import { z } from 'zod';
-import { ArtifactStore, loadProjectConfig, profileFromConfig, runProcess, RuntimeSession, scanProject, validateUiWithUic } from '@qt-ui-copilot/project-core';
+import { ArtifactStore, loadProjectConfig, prepareBuild, profileFromConfig, runProcess, RuntimeSession, scanProject, validateUiWithUic } from '@qt-ui-copilot/project-core';
 import { openDatabase, TaskRepository } from '@qt-ui-copilot/task-store';
 import { ComponentCatalog } from '@qt-ui-copilot/component-library';
 import { classifyVisualReviewUnavailable, TaskRepositoryWorkflowStore, UiPlanner, VisualCritic, WorkflowMachine, type ModelProvider, type ModelRequest, type WorkflowNode, type WorkflowState } from '@qt-ui-copilot/agent-workflow';
@@ -449,6 +449,13 @@ export function createLocalBackend(options: LocalBackendOptions = {}): DesktopBa
           return { kind: 'passed' as const };
         }
         case 'INCREMENTAL_BUILD': {
+          const preparation = await prepareBuild(profile);
+          if (preparation.configured && preparation.configureResult) {
+            persistArtifact(taskId, artifacts, 'configure-build', 'configure.json', JSON.stringify(preparation.configureResult, null, 2));
+            if (preparation.configureResult.exitCode !== 0 || preparation.configureResult.timedOut) {
+              return { kind: 'failed' as const, code: 'incremental_build_configure_failed', message: preparation.configureResult.stderr || preparation.configureResult.stdout || 'Project configure failed' };
+            }
+          }
           const result = await runProcess({ executable: profile.build.command.executable, args: profile.build.command.args, cwd: profile.rootDir, timeoutMs: 120_000 });
           persistArtifact(taskId, artifacts, 'incremental-build', 'build.json', JSON.stringify(result, null, 2));
           if (result.exitCode !== 0 || result.timedOut) return { kind: 'failed' as const, code: 'incremental_build_failed', message: result.stderr || result.stdout || 'Incremental build failed' };
