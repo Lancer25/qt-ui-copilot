@@ -78,7 +78,9 @@ export function restoreTabs(raw: unknown): TabState {
   if (!input || typeof input !== 'object') return initialTabState;
   const record = input as Record<string, unknown>;
   const parsed = Array.isArray(record.tabs) ? record.tabs.map(parseTab).filter((tab): tab is AppTab => Boolean(tab)) : [];
-  const tabs = [workbenchTab, ...parsed.filter((tab) => tab.id !== workbenchTab.id)];
+  // Settings is an ephemeral navigation view, not a document/resource tab.
+  // Never resurrect it from a previous session when the user did not open it.
+  const tabs = [workbenchTab, ...parsed.filter((tab) => tab.id !== workbenchTab.id && tab.kind !== 'settings')];
   const requested = typeof record.activeId === 'string' ? record.activeId : workbenchTab.id;
   const activeId = tabs.some((tab) => tab.id === requested) ? requested as AppTab['id'] : workbenchTab.id;
   return { tabs, activeId };

@@ -24,7 +24,7 @@ describe('tab model', () => {
 
   it('restores only valid tabs and always keeps workbench', () => {
     const restored = restoreTabs(serializeTabs({ tabs: [settings, { id: 'broken', kind: 'task' } as unknown as AppTab], activeId: 'broken' as AppTab['id'] }));
-    expect(restored.tabs).toEqual([workbench, settings]);
+    expect(restored.tabs).toEqual([workbench]);
     expect(restored.activeId).toBe('workbench');
   });
 
