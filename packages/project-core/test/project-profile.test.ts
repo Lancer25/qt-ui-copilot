@@ -29,6 +29,19 @@ describe('project profiles and artifacts', () => {
     const config = loadProjectConfig(root);
     expect(config).toMatchObject({ id: 'qt6-fixture', qt: { version: '6.10.2', compilerAbi: 'msvc2022_64' } });
     expect(config?.preview.sourceDirectory).toContain(path.join('native', 'qt-ui-preview-host'));
+    expect(config?.run).toMatchObject({
+      routeId: 'network-settings',
+      route: {
+        id: 'network-settings',
+        targetUi: 'NetworkSettings.ui',
+        steps: [
+          { kind: 'invoke', objectName: 'settingsButton' },
+          { kind: 'invoke', objectName: 'networkButton' },
+          { kind: 'waitForWidget', objectName: 'networkSettingsDialog' },
+          { kind: 'waitForUi', objectName: 'networkSettingsDialog' },
+        ],
+      },
+    });
     // The test documents configuration validity even on a contributor machine
     // without the optional fixture kit; native qualification checks existence.
     if (config) expect(existsSync(config.qt.uic) || process.platform !== 'win32').toBe(true);

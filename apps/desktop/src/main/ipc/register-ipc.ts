@@ -543,6 +543,9 @@ export function createLocalBackend(options: LocalBackendOptions = {}): DesktopBa
         : { id: randomUUID(), rootDir: inventory.rootDir, uiFiles: inventory.uiFiles, configRequired: '项目缺少 .qt-ui-copilot/project.json。导入成功，但开始真实任务前需要配置 Qt Kit、预览、构建和运行信息。' };
       projects.set(item.id, item);
       repository.upsertProject({ id: item.id, rootDir: item.rootDir, profilePath: config ? resolve(item.rootDir, '.qt-ui-copilot', 'project.json') : undefined, profile: config });
+      if (config?.run.routeId && config.run.route) {
+        repository.saveRoute(item.id, config.run.routeId, config.run.route);
+      }
       return { id: item.id, rootDir: item.rootDir, uiFiles: item.uiFiles, ...(item.configRequired ? { configurationRequired: item.configRequired } : {}) };
     },
     async startTask({ projectId, targetUi, requirement }) {

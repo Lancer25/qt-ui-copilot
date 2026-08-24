@@ -45,6 +45,16 @@
     "executable": "${projectRoot}/.qt-ui-copilot/build/Debug/qt-ui-copilot-qt6-fixture.exe",
     "args": [],
     "environment": {},
-    "routeId": "network-settings"
+    "routeId": "network-settings",
+    "route": {
+      "id": "network-settings",
+      "targetUi": "NetworkSettings.ui",
+      "steps": [
+        { "kind": "invoke", "objectName": "settingsButton" },
+        { "kind": "invoke", "objectName": "networkButton" },
+        { "kind": "waitForWidget", "objectName": "networkSettingsDialog", "timeoutMs": 5000 },
+        { "kind": "waitForUi", "objectName": "networkSettingsDialog", "timeoutMs": 5000 }
+      ]
+    }
   }
 }

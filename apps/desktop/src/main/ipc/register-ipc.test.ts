@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import type { ModelProvider } from '@qt-ui-copilot/agent-workflow';
 import { createLocalBackend, OpenAiCompatibleProvider, type ModelTraceEvent, type SecureStorage } from './register-ipc';
 import type { ModelRequest } from '@qt-ui-copilot/agent-workflow';
+import { openDatabase, TaskRepository } from '@qt-ui-copilot/task-store';
 
 const fakeProvider: ModelProvider = { generate: async (request) => request.kind === 'visual_review'
   ? { requirementSatisfied: true, score: 100, blockingIssues: [], suggestions: [] }
@@ -22,14 +23,14 @@ const unavailableStorage: SecureStorage = {
   decryptString: () => { throw new Error('unavailable'); },
 };
 
-function writeExecutionConfig(root: string): void {
+function writeExecutionConfig(root: string, route?: unknown): void {
   mkdirSync(join(root, '.qt-ui-copilot'), { recursive: true });
   writeFileSync(join(root, '.qt-ui-copilot', 'project.json'), JSON.stringify({
     id: 'test-project',
     qt: { version: '6.10.2', binDirectory: 'bin', uic: 'uic', rcc: 'rcc', cmake: 'cmake', cmakePrefixPath: 'qt', compilerAbi: 'test', architecture: 'x86_64' },
     preview: { sourceDirectory: 'preview-host', cacheDirectory: '.qt-ui-copilot/cache', width: 300, height: 200, locale: 'zh_CN', style: 'Fusion', qrcFiles: [], stylesheets: [], fonts: [], pluginPaths: [] },
     build: { command: { executable: 'cmake', args: ['--build', 'build'] } },
-    run: { executable: 'app', args: [], environment: {} },
+    run: { executable: 'app', args: [], environment: {}, ...(route ? { routeId: 'open-settings', route } : {}) },
   }));
 }
 
@@ -176,6 +177,32 @@ describe('local workflow backend', () => {
       const project = await backend.importProject({ rootDir: root }) as { id: string; uiFiles: string[]; configurationRequired?: string };
       expect(project.configurationRequired).toContain('project.json');
       await expect(backend.startTask({ projectId: project.id, targetUi: project.uiFiles[0], requirement: 'test' })).resolves.toMatchObject({ kind: 'configuration_required' });
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+
+  it('seeds a configured semantic route into the project route store on import', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'qt-ui-copilot-route-import-'));
+    const databasePath = join(root, 'tasks.sqlite');
+    const route = {
+      id: 'open-settings',
+      targetUi: 'Settings.ui',
+      steps: [
+        { kind: 'invoke', objectName: 'settingsButton' },
+        { kind: 'invoke', objectName: 'networkButton' },
+        { kind: 'waitForWidget', objectName: 'networkSettingsDialog', timeoutMs: 5000 },
+        { kind: 'waitForUi', objectName: 'networkSettingsDialog', timeoutMs: 5000 },
+      ],
+    };
+    try {
+      writeFileSync(join(root, 'Settings.ui'), '<ui version="4.0"><class>Settings</class><widget class="QWidget" name="Settings"/><resources/><connections/></ui>');
+      writeExecutionConfig(root, route);
+      const backend = createLocalBackend({ databasePath, modelProvider: fakeProvider });
+      const project = await backend.importProject({ rootDir: root }) as { id: string };
+      backend.dispose?.();
+      const database = openDatabase(databasePath);
+      try {
+        expect(new TaskRepository(database).getRoute(project.id, 'open-settings')).toEqual(route);
+      } finally { database.close(); }
     } finally { rmSync(root, { recursive: true, force: true }); }
   });
 
