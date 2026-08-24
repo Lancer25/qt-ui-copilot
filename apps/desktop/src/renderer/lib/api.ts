@@ -67,6 +67,24 @@ export interface ModelCapabilityResult {
   model: string;
 }
 
+export interface QtKit {
+  id: string;
+  displayName: string;
+  version: string;
+  qtMajor: 5 | 6;
+  rootDir: string;
+  binDirectory: string;
+  uic: string;
+  rcc: string;
+  qmake?: string;
+  cmakePrefixPath?: string;
+  compilerAbi?: string;
+  architecture?: string;
+}
+
+export interface QtToolHealth { name: 'uic' | 'rcc' | 'qmake' | 'cmake'; ok: boolean; path: string; version?: string; message?: string; }
+export interface QtKitHealth { ok: boolean; checkedAt: number; tools: QtToolHealth[]; previewHost: { ok: boolean; cacheKey?: string; message?: string }; }
+
 export type TaskStartResult =
   | { kind: 'started'; state: WorkflowUiState }
   | { kind: 'configuration_required'; message: string };
@@ -92,6 +110,13 @@ export interface DesktopApi {
     configureModel(input: { baseUrl: string; model: string; apiKey?: string }): Promise<ModelSettings>;
     testModel(): Promise<ModelConnectionResult>;
     testModelCapability(input: { capability: ModelCapability }): Promise<ModelCapabilityResult>;
+    qtKits?: {
+      list(): Promise<QtKit[]>;
+      scan(): Promise<QtKit[]>;
+      check(kit: QtKit): Promise<QtKitHealth>;
+      save(kit: QtKit): Promise<QtKit>;
+      delete(id: string): Promise<void>;
+    };
   };
   onWorkflowEvent(listener: (state: WorkflowUiState) => void): () => void;
 }

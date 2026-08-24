@@ -1,6 +1,6 @@
 import type { ComponentCandidate } from '@qt-ui-copilot/component-library';
 import type { UiPlan } from '@qt-ui-copilot/contracts';
-import type { DesktopApi, ModelConnectionResult, ModelSettings, ReportRequest, UiProject, WorkflowUiState } from '../lib/api';
+import type { DesktopApi, ModelConnectionResult, ModelSettings, ReportRequest, UiProject, WorkflowUiState, QtKit, QtKitHealth } from '../lib/api';
 
 const project: UiProject = { id: 'demo', rootDir: 'D:/demo', uiFiles: ['src/Settings.ui'] };
 
@@ -14,10 +14,14 @@ export class FakeDesktopApi implements DesktopApi {
   public exported?: ReportRequest;
   public selectedDirectory: string | undefined = 'D:/demo';
   public importedDirectories: string[] = [];
+  public qtKits: QtKit[] = [];
+  public qtKitHealth?: QtKitHealth;
   private revision = 0;
   withPlan(plan: UiPlan): this { this.plan = plan; return this; }
   withWorkflowState(state: Pick<WorkflowUiState, 'status' | 'node'>): this { this.initialStatus = state.status; this.initialNode = state.node; return this; }
   withFailure(failure: { code: string; message: string }): this { this.workflowFailure = failure; return this; }
+  withQtKits(kits: QtKit[]): this { this.qtKits = kits; return this; }
+  withQtKitHealth(health: Partial<QtKitHealth> & Pick<QtKitHealth, 'ok' | 'tools' | 'previewHost'>): this { this.qtKitHealth = { checkedAt: Date.now(), ...health }; return this; }
   emitWorkflowState(state: WorkflowUiState): void { this.listeners.forEach((listener) => listener(state)); }
   private initialStatus: WorkflowUiState['status'] = 'waiting_approval';
   private initialNode: WorkflowUiState['node'] = 'USER_APPROVAL';
@@ -49,7 +53,7 @@ export class FakeDesktopApi implements DesktopApi {
   };
   components = { search: async (): Promise<ComponentCandidate[]> => [] };
   reports = { export: async (request: ReportRequest) => { this.exported = request; return { cancelled: false, path: 'D:/report.html' }; } };
-  settings = { getModel: async (): Promise<ModelSettings> => ({ baseUrl: 'http://localhost:11434/v1', model: 'fake', hasApiKey: false }), configureModel: async ({ baseUrl, model, apiKey }: { baseUrl: string; model: string; apiKey?: string }): Promise<ModelSettings> => ({ baseUrl, model, hasApiKey: Boolean(apiKey) }), testModel: async (): Promise<ModelConnectionResult> => ({ ok: true, status: 200, elapsedMs: 1, model: 'fake' }), testModelCapability: async ({ capability }: { capability: 'text' | 'json' | 'vision' }) => ({ capability, ok: true, status: 200, elapsedMs: 1, model: 'fake' }) };
+  settings = { getModel: async (): Promise<ModelSettings> => ({ baseUrl: 'http://localhost:11434/v1', model: 'fake', hasApiKey: false }), configureModel: async ({ baseUrl, model, apiKey }: { baseUrl: string; model: string; apiKey?: string }): Promise<ModelSettings> => ({ baseUrl, model, hasApiKey: Boolean(apiKey) }), testModel: async (): Promise<ModelConnectionResult> => ({ ok: true, status: 200, elapsedMs: 1, model: 'fake' }), testModelCapability: async ({ capability }: { capability: 'text' | 'json' | 'vision' }) => ({ capability, ok: true, status: 200, elapsedMs: 1, model: 'fake' }), qtKits: { list: async (): Promise<QtKit[]> => this.qtKits, scan: async (): Promise<QtKit[]> => this.qtKits, check: async (): Promise<QtKitHealth> => this.qtKitHealth ?? ({ ok: true, checkedAt: Date.now(), tools: [], previewHost: { ok: true } }), save: async (kit: QtKit): Promise<QtKit> => { this.qtKits = [...this.qtKits.filter((item) => item.id !== kit.id), kit]; return kit; }, delete: async (id: string): Promise<void> => { this.qtKits = this.qtKits.filter((item) => item.id !== id); } } };
   onWorkflowEvent(listener: (state: WorkflowUiState) => void): () => void { this.listeners.add(listener); return () => this.listeners.delete(listener); }
   private requireState(change: Partial<WorkflowUiState>): WorkflowUiState { if (!this.state) throw new Error('No task'); return { ...this.state, ...change }; }
   private publish(state: WorkflowUiState): WorkflowUiState { this.state = { ...state, revision: ++this.revision }; this.listeners.forEach((listener) => listener(this.state!)); return this.state; }

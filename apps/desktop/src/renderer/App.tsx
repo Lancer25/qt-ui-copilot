@@ -10,6 +10,8 @@ import { desktopApi, type DesktopApi, type ModelSettings, type UiProject, type W
 import { formatWorkflowFailure, sanitizeFailureMessage } from './lib/failure-display';
 import './app.css';
 import { AppShell } from './app/AppShell';
+import { SettingsPage } from './pages/settings/SettingsPage';
+import type { PrimaryNavigationId } from './app/navigation';
 
 const workflowNodeOrder = ['IMPORT_PROJECT', 'SELECT_UI', 'CAPTURE_BASELINE', 'RETRIEVE_COMPONENTS', 'UNDERSTAND_REQUIREMENT', 'GENERATE_UI_PLAN', 'USER_APPROVAL', 'APPLY_CANDIDATE_PATCH', 'XML_VALIDATE', 'UIC_VALIDATE', 'ENHANCED_PREVIEW', 'DETERMINISTIC_CHECKS', 'VISUAL_REVIEW', 'OPTIONAL_REPAIR', 'INCREMENTAL_BUILD', 'LAUNCH_ISOLATED_EXE', 'NAVIGATE_TO_TARGET', 'PROBE_VERIFY_PAGE', 'CAPTURE_REAL_RESULT', 'FINAL_CHECKS', 'REPORT', 'ACCEPT_OR_ROLLBACK'] as const;
 const workflowNodeIndex = (node: string): number => workflowNodeOrder.indexOf(node as typeof workflowNodeOrder[number]);
@@ -87,5 +89,6 @@ export function LegacyWorkbenchPage({ api = desktopApi() }: { api?: DesktopApi }
 }
 
 export function App({ api = desktopApi() }: { api?: DesktopApi }) {
-  return <AppShell activePage={<LegacyWorkbenchPage api={api} />} />;
+  const [activeNavigation, setActiveNavigation] = useState<PrimaryNavigationId>('workbench');
+  return <AppShell activeNavigation={activeNavigation} onNavigate={setActiveNavigation} activePage={activeNavigation === 'settings' ? <SettingsPage api={api} /> : <LegacyWorkbenchPage api={api} />} />;
 }
