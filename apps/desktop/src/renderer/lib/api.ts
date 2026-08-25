@@ -129,6 +129,7 @@ export type WorkspaceChange =
   | { type: 'renamed'; workspaceId: string; path: string; oldPath: string; file: WorkspaceFile; previousHash: string };
 export interface V3PreviewRequest { uiFile: string; profile: { qtKitId: string; mode: 'quick' | 'enhanced'; width: number; height: number; locale: string; style: string; qrcFiles: string[]; stylesheets: string[]; fonts: string[]; pluginPaths: string[]; highDpiMode: 'project-default' | 'logical-96' | 'system' }; qt: { version: string; compilerAbi: string; architecture: string; binDirectory: string; uic: string; rcc: string; cmake: string; cmakePrefixPath: string; cmakeGenerator?: string }; sourceDirectory: string; cacheDirectory: string; outputImage: string; }
 export interface V3PreviewResult { imageDataUrl: string; mode: 'quick' | 'enhanced'; imagePath: string; findings: unknown[]; degradedFeatures: string[]; confidence: number; }
+export interface V3UiPlan { summary: string; riskLevel: 'low' | 'medium' | 'high'; operations: unknown[]; expectedResults: string[]; componentIds: string[]; }
 
 export type TaskStartResult =
   | { kind: 'started'; state: WorkflowUiState }
@@ -139,9 +140,11 @@ export interface DesktopApi {
   workspace?: {
     open(input: { rootDir: string; ignorePatterns?: string[] }): Promise<WorkspaceSummary>;
     listFiles(workspaceId: string): Promise<WorkspaceFile[]>;
+    readText(workspaceId: string, filePath: string): Promise<string>;
     onChange(listener: (change: WorkspaceChange) => void): () => void;
   };
   preview?: { render(input: V3PreviewRequest): Promise<V3PreviewResult> };
+  ai?: { plan(input: { requirement: string; uiFile: string; uiContent: string; contextMode: 'focused_ui' | 'whole_project' }): Promise<V3UiPlan> };
   projects: {
     /** Opens the native directory chooser in the Main process. Undefined means the user cancelled. */
     chooseDirectory(): Promise<string | undefined>;

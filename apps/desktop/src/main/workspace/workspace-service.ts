@@ -108,6 +108,12 @@ export class WorkspaceService {
     return workspace.rootDir;
   }
 
+  async readText(workspaceId: string, filePath: string): Promise<string> {
+    const root = this.getRoot(workspaceId); const absolute = resolve(root, filePath); const relativePath = relative(root, absolute);
+    if (relativePath.startsWith('..') || absolute === root) throw new Error('Workspace file path escapes the workspace');
+    return readFile(absolute, 'utf8');
+  }
+
   private async scanRoot(rootDir: string, options: WorkspaceScanOptions): Promise<WorkspaceFile[]> {
     const files: WorkspaceFile[] = [];
     const visit = async (directory: string): Promise<void> => {
