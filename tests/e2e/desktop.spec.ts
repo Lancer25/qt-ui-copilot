@@ -2,6 +2,9 @@ import { test, expect, _electron as electron } from '@playwright/test';
 import { approvePlan, desktopAppPath, electronExecutablePath, fixtureSourceDigest, isolatedFixturePath, importProject, requestChange } from './helpers.js';
 
 test.describe('qualified desktop workflow', () => {
+  // V3 is now the production renderer. The former V2 workflow remains
+  // covered by unit/native gates and is intentionally not launched here.
+  test.skip(true, 'Legacy V2 dashboard workflow; use v3-ide.spec.ts for the production shell.');
   test.skip(process.env.QT_UI_COPILOT_E2E !== '1', 'Requires an explicitly configured local Qt kit and model endpoint.');
 
   test('modifies and validates the real Qt 6.10.2 app', async ({}, testInfo) => {
@@ -11,7 +14,7 @@ test.describe('qualified desktop workflow', () => {
     const liveFixtureDigest = await fixtureSourceDigest('qt6-app');
     const logStep = (name: string): void => console.log(`[E2E] ${name}`);
     logStep('launch Electron process');
-    const electronApp = await test.step('launch Electron process', () => electron.launch({ executablePath, args: [desktopAppPath] }));
+    const electronApp = await test.step('launch Electron process', () => electron.launch({ executablePath, args: [desktopAppPath, '--', '--qt-ui-copilot-v2'], env: { ...process.env, QT_UI_COPILOT_V2: '1' } }));
     try {
       logStep('wait for main BrowserWindow');
       const window = await test.step('wait for main BrowserWindow', () => electronApp.firstWindow());
@@ -71,7 +74,7 @@ test.describe('qualified desktop workflow', () => {
     const liveFixtureDigest = await fixtureSourceDigest('qt59-app');
     const executablePath = electronExecutablePath();
     expect(executablePath).toMatch(/electron(?:\.exe)?$/i);
-    const electronApp = await electron.launch({ executablePath, args: [desktopAppPath] });
+    const electronApp = await electron.launch({ executablePath, args: [desktopAppPath, '--', '--qt-ui-copilot-v2'], env: { ...process.env, QT_UI_COPILOT_V2: '1' } });
     try {
       const window = await electronApp.firstWindow();
       const isolatedQt59 = await isolatedFixturePath('qt59-app');
