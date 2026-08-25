@@ -121,6 +121,7 @@ export interface WorkspaceSummary {
   createdAt: number;
   updatedAt: number;
   files: WorkspaceFile[];
+  profile?: Record<string, unknown>;
 }
 export type WorkspaceChange =
   | { type: 'created'; workspaceId: string; path: string; file: WorkspaceFile }

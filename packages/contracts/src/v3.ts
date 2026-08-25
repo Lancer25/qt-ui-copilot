@@ -24,6 +24,7 @@ export const WorkspaceSummarySchema = z.object({
   lastOpenedAt: z.number().finite(),
   createdAt: z.number().finite(),
   updatedAt: z.number().finite(),
+  profile: z.record(z.string(), z.unknown()).optional(),
 }).strict();
 
 export const PreviewModeSchema = z.enum(['quick', 'enhanced']);

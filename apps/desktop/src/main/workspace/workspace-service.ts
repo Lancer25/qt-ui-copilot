@@ -93,7 +93,9 @@ export class WorkspaceService {
     this.workspaces.set(id, { rootDir: normalizedRoot, options: { ignorePatterns: [...(options.ignorePatterns ?? [])] } });
     const now = Date.now();
     const files = await this.listFiles(id);
-    return { id, name: basename(normalizedRoot), rootDir: normalizedRoot, fileCount: files.length, lastOpenedAt: now, createdAt: now, updatedAt: now, files };
+    let profile: Record<string, unknown> | undefined;
+    try { profile = JSON.parse(await readFile(join(normalizedRoot, '.qt-ui-copilot', 'project.json'), 'utf8')) as Record<string, unknown>; } catch { /* profile is optional for source browsing */ }
+    return { id, name: basename(normalizedRoot), rootDir: normalizedRoot, fileCount: files.length, lastOpenedAt: now, createdAt: now, updatedAt: now, files, ...(profile ? { profile } : {}) };
   }
 
   async listFiles(workspaceId: string): Promise<WorkspaceFile[]> {

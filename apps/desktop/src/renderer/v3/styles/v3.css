@@ -9,3 +9,4 @@
 .v3-root{display:grid;grid-template-rows:36px minmax(0,1fr);height:100vh;min-height:0;background:var(--surface-0)}
 .v3-windowbar{display:flex;align-items:center;justify-content:space-between;padding-left:12px;background:var(--surface-1);border-bottom:1px solid var(--border-subtle);-webkit-app-region:drag;color:var(--text-secondary);font-size:12px;font-weight:650}
 .v3-windowbar div{display:flex;height:100%;-webkit-app-region:no-drag}.v3-windowbar button{width:46px;background:transparent;border:0;color:var(--text-secondary)}.v3-windowbar button:hover{background:var(--surface-2);color:var(--text-primary)}.v3-windowbar button:last-child:hover{background:#c94257;color:#fff}
+.v3-preview-image{width:calc(100% - 36px);height:calc(100% - 110px);margin:18px;object-fit:contain;background:var(--surface-2);border:1px solid var(--border-default);border-radius:8px}
