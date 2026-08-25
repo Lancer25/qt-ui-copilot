@@ -17,9 +17,9 @@ const desktopApi: DesktopApi = {
       return () => ipcRenderer.removeListener('v3.workspace.onChange', handler);
     },
   },
-  preview: { render: (input) => ipcRenderer.invoke('v3.preview.render', input) as ReturnType<NonNullable<DesktopApi['preview']>['render']> },
+  preview: { render: (input) => ipcRenderer.invoke('v3.preview.render', input) as ReturnType<NonNullable<DesktopApi['preview']>['render']>, cancel: (uiFile) => ipcRenderer.invoke('v3.preview.cancel', { uiFile }) as ReturnType<NonNullable<DesktopApi['preview']>['cancel']> },
   ai: { plan: (input) => ipcRenderer.invoke('v3.ai.plan', input) as ReturnType<NonNullable<DesktopApi['ai']>['plan']>, planStream: (input) => ipcRenderer.invoke('v3.ai.planStream', input) as ReturnType<NonNullable<DesktopApi['ai']>['planStream']> },
-  revisions: { apply: (input) => ipcRenderer.invoke('v3.revision.apply', input) as ReturnType<NonNullable<DesktopApi['revisions']>['apply']>, undo: (uiFile) => ipcRenderer.invoke('v3.revision.undo', { uiFile }) as ReturnType<NonNullable<DesktopApi['revisions']>['undo']>, redo: (uiFile) => ipcRenderer.invoke('v3.revision.redo', { uiFile }) as ReturnType<NonNullable<DesktopApi['revisions']>['redo']> },
+  revisions: { apply: (input) => ipcRenderer.invoke('v3.revision.apply', input) as ReturnType<NonNullable<DesktopApi['revisions']>['apply']>, undo: (uiFile) => ipcRenderer.invoke('v3.revision.undo', { uiFile }) as ReturnType<NonNullable<DesktopApi['revisions']>['undo']>, redo: (uiFile) => ipcRenderer.invoke('v3.revision.redo', { uiFile }) as ReturnType<NonNullable<DesktopApi['revisions']>['redo']>, rebase: (uiFile) => ipcRenderer.invoke('v3.revision.rebase', { uiFile }) as ReturnType<NonNullable<DesktopApi['revisions']>['rebase']> },
   projects: {
     chooseDirectory: () => ipcRenderer.invoke('projects:chooseDirectory') as Promise<string | undefined>,
     import: (input) => ipcRenderer.invoke('projects:import', input) as Promise<UiProject>,

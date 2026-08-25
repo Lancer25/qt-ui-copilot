@@ -7,12 +7,16 @@ export interface V3PreviewResult { imageDataUrl: string; mode: PreviewProfile['m
 
 export class PreviewSessionService {
   private readonly builder = new PreviewHostBuilder();
+  private readonly sequences = new Map<string, number>();
   async render(input: V3PreviewInput): Promise<V3PreviewResult> {
+    const sequence = (this.sequences.get(input.uiFile) ?? 0) + 1; this.sequences.set(input.uiFile, sequence);
     const host = await this.builder.ensureBuilt({ qtVersion: input.qt.version, compilerAbi: input.qt.compilerAbi, architecture: input.qt.architecture, buildType: 'Debug', operatingSystem: process.platform, cmakeExecutable: input.qt.cmake, cmakePrefixPath: input.qt.cmakePrefixPath, cmakeGenerator: input.qt.cmakeGenerator, sourceDirectory: input.sourceDirectory, cacheDirectory: input.cacheDirectory });
     const request: NativePreviewRequest = { uiFile: input.uiFile, width: input.profile.width, height: input.profile.height, locale: input.profile.locale, style: input.profile.style, qrcFiles: input.profile.mode === 'enhanced' ? input.profile.qrcFiles : [], stylesheets: input.profile.mode === 'enhanced' ? input.profile.stylesheets : [], fonts: input.profile.mode === 'enhanced' ? input.profile.fonts : [], pluginPaths: input.profile.mode === 'enhanced' ? input.profile.pluginPaths : [], rccExecutable: input.qt.rcc, cacheDirectory: input.cacheDirectory, outputImage: input.outputImage };
     const result = await new PreviewClient({ executable: host, qtBinDirectory: input.qt.binDirectory }).render(request);
+    if (this.sequences.get(input.uiFile) !== sequence) throw new Error('Preview request superseded');
     if (!result.imagePath) throw new Error('PreviewHost did not return an image path');
     const imageDataUrl = `data:image/png;base64,${(await readFile(result.imagePath)).toString('base64')}`;
     return { imageDataUrl, mode: input.profile.mode, imagePath: result.imagePath, findings: result.findings, degradedFeatures: result.degradedFeatures, confidence: result.degradedFeatures.length ? 0.65 : input.profile.mode === 'enhanced' ? 0.92 : 0.78 };
   }
+  cancel(uiFile: string): void { this.sequences.set(uiFile, (this.sequences.get(uiFile) ?? 0) + 1); }
 }

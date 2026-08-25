@@ -15,6 +15,7 @@ export class RevisionService {
     if (!validation.xml || !validation.semantic || !validation.uic || !validation.preview || validation.findings.some((finding) => finding.severity === 'error')) throw new Error('Revision validation failed; source file was not changed');
     await writeFile(uiFile, candidate, 'utf8'); this.history.set(uiFile, { before, after: candidate, position: 1 }); return { id: randomUUID(), uiFile, conversationId, operations, beforeHash: hash(before), afterHash: hash(candidate), validation };
   }
-  async undo(uiFile: string): Promise<void> { const entry = this.history.get(uiFile); if (!entry) throw new Error('No revision to undo'); await writeFile(uiFile, entry.before, 'utf8'); entry.position = 0; }
-  async redo(uiFile: string): Promise<void> { const entry = this.history.get(uiFile); if (!entry) throw new Error('No revision to redo'); await writeFile(uiFile, entry.after, 'utf8'); entry.position = 1; }
+  async undo(uiFile: string): Promise<void> { const entry = this.history.get(uiFile); if (!entry) throw new Error('No revision to undo'); const current = await readFile(uiFile, 'utf8'); if (entry.position === 1 && hash(current) !== hash(entry.after)) throw new Error('External change detected; rebase before undo'); await writeFile(uiFile, entry.before, 'utf8'); entry.position = 0; }
+  async redo(uiFile: string): Promise<void> { const entry = this.history.get(uiFile); if (!entry) throw new Error('No revision to redo'); const current = await readFile(uiFile, 'utf8'); if (entry.position === 0 && hash(current) !== hash(entry.before)) throw new Error('External change detected; rebase before redo'); await writeFile(uiFile, entry.after, 'utf8'); entry.position = 1; }
+  async rebaseAfterExternalChange(uiFile: string): Promise<void> { const entry = this.history.get(uiFile); if (!entry) throw new Error('No revision to rebase'); const current = await readFile(uiFile, 'utf8'); entry.before = current; entry.position = 0; }
 }

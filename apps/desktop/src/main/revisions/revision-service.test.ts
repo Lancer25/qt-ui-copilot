@@ -20,4 +20,10 @@ describe('RevisionService', () => {
     const service = new RevisionService({ apply: (source) => `${source}candidate`, validate: async () => ({ xml: true, semantic: true, uic: true, preview: true, findings: [], validatedAt: Date.now() }) });
     await service.apply(file, [], 'conversation'); await service.undo(file); expect(await readFile(file, 'utf8')).toBe('<ui/>'); await service.redo(file); expect(await readFile(file, 'utf8')).toContain('candidate');
   });
+  it('refuses to overwrite an external edit until the caller rebases', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'v3-revision-')); const file = join(root, 'Settings.ui'); await writeFile(file, '<ui/>');
+    const service = new RevisionService({ apply: (source) => `${source}candidate`, validate: async () => ({ xml: true, semantic: true, uic: true, preview: true, findings: [], validatedAt: Date.now() }) });
+    await service.apply(file, [], 'conversation'); await writeFile(file, '<ui/>external');
+    await expect(service.undo(file)).rejects.toThrow('External change'); await service.rebaseAfterExternalChange(file); await service.undo(file); expect(await readFile(file, 'utf8')).toBe('<ui/>external');
+  });
 });

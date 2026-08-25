@@ -96,6 +96,7 @@ export const DATABASE_SCHEMA = `
     name TEXT NOT NULL,
     root_dir TEXT NOT NULL UNIQUE,
     file_count INTEGER NOT NULL DEFAULT 0,
+    profile_json TEXT,
     last_opened_at INTEGER NOT NULL,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL

@@ -27,26 +27,29 @@ const decoded = (value: string): unknown => JsonValueSchema.parse(JSON.parse(val
 const asBoolean = (value: number): boolean => value === 1;
 
 export class V3Repository {
-  public constructor(private readonly database: Database) {}
+  public constructor(private readonly database: Database) {
+    // Existing V3 databases predate persisted project profiles.
+    try { this.database.exec('ALTER TABLE v3_workspaces ADD COLUMN profile_json TEXT'); } catch { /* column already exists */ }
+  }
 
   public saveWorkspace(input: WorkspaceSummary): WorkspaceSummary {
     const record = WorkspaceSummarySchema.parse(input);
     this.database.prepare(`
-      INSERT INTO v3_workspaces (id, name, root_dir, file_count, last_opened_at, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO v3_workspaces (id, name, root_dir, file_count, profile_json, last_opened_at, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET name = excluded.name, root_dir = excluded.root_dir,
-        file_count = excluded.file_count, last_opened_at = excluded.last_opened_at, updated_at = excluded.updated_at
-    `).run(record.id, record.name, record.rootDir, record.fileCount, record.lastOpenedAt, record.createdAt, record.updatedAt);
+        file_count = excluded.file_count, profile_json = excluded.profile_json, last_opened_at = excluded.last_opened_at, updated_at = excluded.updated_at
+    `).run(record.id, record.name, record.rootDir, record.fileCount, record.profile === undefined ? null : encoded(record.profile), record.lastOpenedAt, record.createdAt, record.updatedAt);
     return record;
   }
 
   public upsertWorkspace(input: WorkspaceSummary): WorkspaceSummary { return this.saveWorkspace(input); }
 
   public getWorkspace(id: string): WorkspaceSummary | undefined {
-    const row = this.database.prepare('SELECT id, name, root_dir, file_count, last_opened_at, created_at, updated_at FROM v3_workspaces WHERE id = ?').get(id) as {
-      id: string; name: string; root_dir: string; file_count: number; last_opened_at: number; created_at: number; updated_at: number;
+    const row = this.database.prepare('SELECT id, name, root_dir, file_count, profile_json, last_opened_at, created_at, updated_at FROM v3_workspaces WHERE id = ?').get(id) as {
+      id: string; name: string; root_dir: string; file_count: number; profile_json: string | null; last_opened_at: number; created_at: number; updated_at: number;
     } | undefined;
-    return row && WorkspaceSummarySchema.parse({ id: row.id, name: row.name, rootDir: row.root_dir, fileCount: row.file_count, lastOpenedAt: row.last_opened_at, createdAt: row.created_at, updatedAt: row.updated_at });
+    return row && WorkspaceSummarySchema.parse({ id: row.id, name: row.name, rootDir: row.root_dir, fileCount: row.file_count, ...(row.profile_json ? { profile: decoded(row.profile_json) } : {}), lastOpenedAt: row.last_opened_at, createdAt: row.created_at, updatedAt: row.updated_at });
   }
 
   public getWorkspaceByRoot(rootDir: string): WorkspaceSummary | undefined {
@@ -55,10 +58,10 @@ export class V3Repository {
   }
 
   public listWorkspaces(): WorkspaceSummary[] {
-    const rows = this.database.prepare('SELECT id, name, root_dir, file_count, last_opened_at, created_at, updated_at FROM v3_workspaces ORDER BY last_opened_at DESC, id').all() as Array<{
-      id: string; name: string; root_dir: string; file_count: number; last_opened_at: number; created_at: number; updated_at: number;
+    const rows = this.database.prepare('SELECT id, name, root_dir, file_count, profile_json, last_opened_at, created_at, updated_at FROM v3_workspaces ORDER BY last_opened_at DESC, id').all() as Array<{
+      id: string; name: string; root_dir: string; file_count: number; profile_json: string | null; last_opened_at: number; created_at: number; updated_at: number;
     }>;
-    return rows.map((row) => WorkspaceSummarySchema.parse({ id: row.id, name: row.name, rootDir: row.root_dir, fileCount: row.file_count, lastOpenedAt: row.last_opened_at, createdAt: row.created_at, updatedAt: row.updated_at }));
+    return rows.map((row) => WorkspaceSummarySchema.parse({ id: row.id, name: row.name, rootDir: row.root_dir, fileCount: row.file_count, ...(row.profile_json ? { profile: decoded(row.profile_json) } : {}), lastOpenedAt: row.last_opened_at, createdAt: row.created_at, updatedAt: row.updated_at }));
   }
 
   public deleteWorkspace(id: string): void { this.database.prepare('DELETE FROM v3_workspaces WHERE id = ?').run(id); }

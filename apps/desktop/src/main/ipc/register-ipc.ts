@@ -345,7 +345,7 @@ async function testOpenAiCompatibleConnection(settings: { baseUrl: string; model
 export function createLocalBackend(options: LocalBackendOptions = {}): DesktopBackend {
   const database = openDatabase(options.databasePath ?? ':memory:');
   const repository = new TaskRepository(database);
-  migrateToV3(new V3Repository(database));
+  migrateToV3(new V3Repository(database), repository);
   const settingsRepository = new SettingsRepository(database);
   const qtKitService = new QtKitService({ roots: options.qtKitRoots ?? [process.env.QT_ROOT, 'D:/Qt5.9.6', 'D:/Qt6.10.2', 'C:/Qt', '/opt/Qt'].filter((value): value is string => Boolean(value)) });
   const catalog = new ComponentCatalog({ databasePath: ':memory:' });

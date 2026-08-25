@@ -132,7 +132,7 @@ export interface V3PreviewRequest { uiFile: string; profile: { qtKitId: string; 
 export interface V3PreviewResult { imageDataUrl: string; mode: 'quick' | 'enhanced'; imagePath: string; findings: unknown[]; degradedFeatures: string[]; confidence: number; }
 export interface V3UiPlan { summary: string; riskLevel: 'low' | 'medium' | 'high'; operations: unknown[]; expectedResults: string[]; componentIds: string[]; }
 export interface V3RevisionResult { id: string; uiFile: string; conversationId: string; operations: unknown[]; beforeHash: string; afterHash: string; validation: { xml: boolean; semantic: boolean; uic: boolean; preview: boolean; findings: unknown[]; validatedAt: number }; }
-export type V3ConversationEvent = { type: 'started'; conversationId: string } | { type: 'plan'; plan: V3UiPlan } | { type: 'error'; message: string } | { type: 'done' };
+export type V3ConversationEvent = { type: 'started'; conversationId: string } | { type: 'message_delta'; content: string } | { type: 'tool_request'; requestId: string; path: string; reason: string } | { type: 'plan'; plan: V3UiPlan } | { type: 'error'; message: string } | { type: 'done' };
 
 export type TaskStartResult =
   | { kind: 'started'; state: WorkflowUiState }
@@ -146,9 +146,9 @@ export interface DesktopApi {
     readText(workspaceId: string, filePath: string): Promise<string>;
     onChange(listener: (change: WorkspaceChange) => void): () => void;
   };
-  preview?: { render(input: V3PreviewRequest): Promise<V3PreviewResult> };
+  preview?: { render(input: V3PreviewRequest): Promise<V3PreviewResult>; cancel(uiFile: string): Promise<void> };
   ai?: { plan(input: { requirement: string; uiFile: string; uiContent: string; contextMode: 'focused_ui' | 'whole_project'; workspaceId?: string }): Promise<V3UiPlan>; planStream(input: { requirement: string; uiFile: string; uiContent: string; contextMode: 'focused_ui' | 'whole_project'; workspaceId?: string }): Promise<V3ConversationEvent[]> };
-  revisions?: { apply(input: { uiFile: string; operations: unknown[]; conversationId: string }): Promise<V3RevisionResult>; undo(uiFile: string): Promise<void>; redo(uiFile: string): Promise<void> };
+  revisions?: { apply(input: { uiFile: string; operations: unknown[]; conversationId: string }): Promise<V3RevisionResult>; undo(uiFile: string): Promise<void>; redo(uiFile: string): Promise<void>; rebase(uiFile: string): Promise<void> };
   projects: {
     /** Opens the native directory chooser in the Main process. Undefined means the user cancelled. */
     chooseDirectory(): Promise<string | undefined>;
