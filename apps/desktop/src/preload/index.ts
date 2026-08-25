@@ -1,11 +1,20 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { DesktopApi, ModelSettings, ReportRequest, TaskStartResult, UiProject, WorkflowUiState } from '../renderer/lib/api';
+import type { DesktopApi, ModelSettings, ReportRequest, TaskStartResult, UiProject, WorkflowUiState, WorkspaceChange } from '../renderer/lib/api';
 
 const desktopApi: DesktopApi = {
   window: {
     minimize: () => { void ipcRenderer.invoke('window:minimize'); },
     toggleMaximize: () => ipcRenderer.invoke('window:toggleMaximize') as Promise<boolean>,
     close: () => { void ipcRenderer.invoke('window:close'); },
+  },
+  workspace: {
+    open: (input) => ipcRenderer.invoke('v3.workspace.open', input) as ReturnType<NonNullable<DesktopApi['workspace']>['open']>,
+    listFiles: (workspaceId) => ipcRenderer.invoke('v3.workspace.listFiles', { workspaceId }) as ReturnType<NonNullable<DesktopApi['workspace']>['listFiles']>,
+    onChange: (listener) => {
+      const handler = (_event: Electron.IpcRendererEvent, change: WorkspaceChange) => listener(change);
+      ipcRenderer.on('v3.workspace.onChange', handler);
+      return () => ipcRenderer.removeListener('v3.workspace.onChange', handler);
+    },
   },
   projects: {
     chooseDirectory: () => ipcRenderer.invoke('projects:chooseDirectory') as Promise<string | undefined>,

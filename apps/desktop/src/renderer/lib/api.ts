@@ -103,12 +103,42 @@ export interface QtKitHealth { ok: boolean; checkedAt: number; tools: QtToolHeal
 export interface ProjectBinding { projectId: string; qtKitId: string; config: Record<string, unknown>; updatedAt?: number; }
 export interface WindowControls { minimize(): void; toggleMaximize(): Promise<boolean>; close(): void; }
 
+export type WorkspaceFileKind = 'ui' | 'qss' | 'qrc' | 'source' | 'header' | 'cmake' | 'font' | 'plugin' | 'other';
+export interface WorkspaceFile {
+  absolutePath: string;
+  relativePath: string;
+  kind: WorkspaceFileKind;
+  size: number;
+  modifiedAt: number;
+  contentHash: string;
+}
+export interface WorkspaceSummary {
+  id: string;
+  rootDir: string;
+  name: string;
+  fileCount: number;
+  lastOpenedAt: number;
+  createdAt: number;
+  updatedAt: number;
+  files: WorkspaceFile[];
+}
+export type WorkspaceChange =
+  | { type: 'created'; workspaceId: string; path: string; file: WorkspaceFile }
+  | { type: 'changed'; workspaceId: string; path: string; file: WorkspaceFile; previousHash: string }
+  | { type: 'deleted'; workspaceId: string; path: string; previousHash: string }
+  | { type: 'renamed'; workspaceId: string; path: string; oldPath: string; file: WorkspaceFile; previousHash: string };
+
 export type TaskStartResult =
   | { kind: 'started'; state: WorkflowUiState }
   | { kind: 'configuration_required'; message: string };
 
 export interface DesktopApi {
   window?: WindowControls;
+  workspace?: {
+    open(input: { rootDir: string; ignorePatterns?: string[] }): Promise<WorkspaceSummary>;
+    listFiles(workspaceId: string): Promise<WorkspaceFile[]>;
+    onChange(listener: (change: WorkspaceChange) => void): () => void;
+  };
   projects: {
     /** Opens the native directory chooser in the Main process. Undefined means the user cancelled. */
     chooseDirectory(): Promise<string | undefined>;

@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, Menu, safeStorage, utilityProcess, type Ut
 import { join, resolve } from 'node:path';
 import { resolveMainWindowLoadTarget, resolvePreloadEntryPath } from './window-loading';
 import { createLocalBackend, registerIpc } from './ipc/register-ipc';
+import { registerV3Ipc } from './ipc/register-v3-ipc';
 import { verifyRuntimeAssets } from './runtime-assets';
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string | undefined;
@@ -87,7 +88,8 @@ app.whenReady().then(async () => {
     secureStorage: safeStorage,
   });
   registerIpc(window, backend);
-  app.once('before-quit', () => backend.dispose?.());
+  const v3Ipc = registerV3Ipc(window);
+  app.once('before-quit', () => { v3Ipc.dispose(); backend.dispose?.(); });
   const target = resolveMainWindowLoadTarget(
     MAIN_WINDOW_VITE_DEV_SERVER_URL,
     MAIN_WINDOW_VITE_NAME,
