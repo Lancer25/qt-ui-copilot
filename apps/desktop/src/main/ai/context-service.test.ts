@@ -17,4 +17,11 @@ describe('ContextService', () => {
     const context = await service.searchWholeProject('testConnectionButton', files);
     expect(context.files[0].path).toBe('src/BillingEngine.cpp');
   });
+  it('requires approval before reading a related C++ file', async () => {
+    const service = new ContextService(async () => 'class SettingsController {}');
+    const request = service.requestRelatedFileRead('src/SettingsController.h', 'Need signal names');
+    await expect(service.readApprovedFile(request.id)).rejects.toThrow('approval');
+    service.approveFileRead(request.id);
+    await expect(service.readApprovedFile(request.id)).resolves.toContain('SettingsController');
+  });
 });
