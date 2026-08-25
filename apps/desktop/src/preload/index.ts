@@ -11,6 +11,7 @@ const desktopApi: DesktopApi = {
     open: (input) => ipcRenderer.invoke('v3.workspace.open', input) as ReturnType<NonNullable<DesktopApi['workspace']>['open']>,
     listFiles: (workspaceId) => ipcRenderer.invoke('v3.workspace.listFiles', { workspaceId }) as ReturnType<NonNullable<DesktopApi['workspace']>['listFiles']>,
     readText: (workspaceId, filePath) => ipcRenderer.invoke('v3.workspace.readText', { workspaceId, filePath }) as ReturnType<NonNullable<DesktopApi['workspace']>['readText']>,
+    writeText: (workspaceId, filePath, content) => ipcRenderer.invoke('v3.workspace.writeText', { workspaceId, filePath, content }) as ReturnType<NonNullable<DesktopApi['workspace']>['writeText']>,
     onChange: (listener) => {
       const handler = (_event: Electron.IpcRendererEvent, change: WorkspaceChange) => listener(change);
       ipcRenderer.on('v3.workspace.onChange', handler);

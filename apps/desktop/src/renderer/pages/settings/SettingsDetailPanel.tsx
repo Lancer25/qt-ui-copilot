@@ -1,20 +1,36 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import type { DesktopApi, WorkspaceSummary } from '../../lib/api';
 import type { SettingsSection } from '../../app/tabs/tab-model';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { Field } from '../../components/ui/Field';
 
-const copy: Record<Exclude<SettingsSection, 'model' | 'qt-kits' | 'project-binding'>, { title: string; description: string; fields: Array<{ label: string; value: string; placeholder?: string }> }> = {
-  'build-tools': { title: '构建工具', description: '管理 CMake 和默认构建行为。项目绑定中的显式配置优先。', fields: [{ label: 'CMake 可执行文件', value: 'cmake', placeholder: 'C:\\Program Files\\CMake\\bin\\cmake.exe' }, { label: '默认构建类型', value: 'Debug' }] },
-  preview: { title: '预览与资源', description: '控制快速预览的尺寸、样式、QSS、QRC 和字体加载策略。', fields: [{ label: 'Qt Style', value: 'Fusion' }, { label: 'Locale', value: 'zh_CN' }, { label: '预览尺寸', value: '900 × 640' }] },
-  navigation: { title: '启动与导航', description: '配置真实应用启动、语义路线和人工接管策略。', fields: [{ label: '导航模式', value: '语义路线优先' }, { label: '人工接管', value: '失败时允许' }] },
+const appCopy: Record<'component-sources' | 'appearance' | 'data-safety', { title: string; description: string; fields: Array<{ label: string; value: string; placeholder?: string }> }> = {
   'component-sources': { title: '组件来源', description: '管理本地 Qt 组件索引；外部数据源只在显式配置后参与召回。', fields: [{ label: '本地组件库', value: '已启用' }, { label: '外部 Adapter', value: '', placeholder: '可选服务地址' }] },
-  appearance: { title: '外观', description: '默认采用中性石墨灰主题，保证长时间开发时的层级和对比度。', fields: [{ label: '主题', value: 'Neutral Graphite · 中性石墨灰' }, { label: '显示密度', value: '舒适' }] },
-  'data-safety': { title: '数据与安全', description: '敏感凭据只在 Main 进程安全存储；任务产物和缓存分开管理。', fields: [{ label: 'API Key', value: 'Electron safeStorage（Main 进程）' }, { label: '日志脱敏', value: '已启用' }, { label: '缓存清理', value: '仅清理可再生成产物' }] },
+  appearance: { title: '外观', description: '调整界面主题与显示密度。设置保存在当前用户偏好中。', fields: [{ label: '主题', value: 'Neutral Graphite · 中性石墨灰' }, { label: '显示密度', value: '舒适' }] },
+  'data-safety': { title: '数据与安全', description: 'API Key 由 Electron safeStorage 管理；这里仅展示状态，不读取密钥内容。', fields: [{ label: 'API Key', value: '由模型服务页面管理' }, { label: '日志脱敏', value: '已启用' }, { label: '缓存清理', value: '由项目缓存目录管理' }] },
 };
 
-export function SettingsDetailPanel({ section }: { section: Exclude<SettingsSection, 'model' | 'qt-kits' | 'project-binding'> }) {
-  const detail = copy[section]; const [values, setValues] = useState(() => Object.fromEntries(detail.fields.map((field) => [field.label, field.value]))); const [saved, setSaved] = useState(false);
-  const save = () => { localStorage.setItem(`qt-ui-copilot:v2-setting:${section}`, JSON.stringify(values)); setSaved(true); };
-  return <Card className="settings-card"><div className="settings-card__heading"><div><h2>{detail.title}</h2><p className="muted">{detail.description}</p></div><Button variant="primary" onClick={save}>保存</Button></div><div className="settings-form-grid">{detail.fields.map((field) => <Field key={field.label} label={field.label}><input value={values[field.label] ?? ''} placeholder={field.placeholder} onChange={(event) => { setSaved(false); setValues((old) => ({ ...old, [field.label]: event.target.value })); }} /></Field>)}</div>{saved && <p role="status" className="muted">配置已保存到当前用户界面偏好。</p>}</Card>;
+const projectFields = {
+  'build-tools': [{ key: 'build.command.executable', label: '构建命令', fallback: 'cmake' }, { key: 'build.command.args', label: '构建参数（每行一个）', fallback: '' }],
+  preview: [{ key: 'preview.width', label: '预览宽度', fallback: '900' }, { key: 'preview.height', label: '预览高度', fallback: '640' }, { key: 'preview.style', label: 'Qt Style', fallback: 'Fusion' }, { key: 'preview.locale', label: 'Locale', fallback: 'zh_CN' }, { key: 'preview.stylesheets', label: 'QSS 文件（每行一个）', fallback: '' }, { key: 'preview.qrcFiles', label: 'QRC 文件（每行一个）', fallback: '' }],
+  navigation: [{ key: 'run.executable', label: '目标程序', fallback: '' }, { key: 'run.args', label: '启动参数（每行一个）', fallback: '' }, { key: 'run.routeId', label: 'QtUiProbe 路线 ID', fallback: '' }],
+} as const;
+
+const getPath = (value: Record<string, unknown>, path: string): unknown => path.split('.').reduce<unknown>((current, key) => (current && typeof current === 'object' ? (current as Record<string, unknown>)[key] : undefined), value);
+const setPath = (value: Record<string, unknown>, path: string, next: unknown): Record<string, unknown> => { const result = structuredClone(value); const parts = path.split('.'); let current = result; parts.slice(0, -1).forEach((part) => { if (!current[part] || typeof current[part] !== 'object') current[part] = {}; current = current[part] as Record<string, unknown>; }); current[parts.at(-1)!] = next; return result; };
+const parseValue = (key: string, value: string): unknown => key.endsWith('.args') || key.endsWith('.stylesheets') || key.endsWith('.qrcFiles') ? value.split(/\r?\n/).map((item) => item.trim()).filter(Boolean) : key.endsWith('.width') || key.endsWith('.height') ? Number(value) : value;
+const displayValue = (key: string, value: unknown): string => Array.isArray(value) ? value.join('\n') : value === undefined || value === null ? '' : String(value);
+
+export function SettingsDetailPanel({ api, section, workspace }: { api: DesktopApi; section: Exclude<SettingsSection, 'model' | 'qt-kits' | 'project-binding'>; workspace?: WorkspaceSummary }) {
+  const isProject = section === 'build-tools' || section === 'preview' || section === 'navigation';
+  const fields = isProject ? projectFields[section] : undefined;
+  const [config, setConfig] = useState<Record<string, unknown>>({}); const [values, setValues] = useState<Record<string, string>>({}); const [message, setMessage] = useState(''); const [busy, setBusy] = useState(false);
+  const detail = !isProject ? appCopy[section as keyof typeof appCopy] : undefined;
+  useEffect(() => { if (!isProject || !workspace || !api.workspace) return; void api.workspace.readText(workspace.id, '.qt-ui-copilot/project.json').then((raw) => { const parsed = JSON.parse(raw) as Record<string, unknown>; setConfig(parsed); setValues(Object.fromEntries(fields!.map((field) => [field.key, displayValue(field.key, getPath(parsed, field.key) ?? field.fallback)]))); }).catch((error) => setMessage(error instanceof Error ? error.message : String(error))); }, [api, fields, isProject, workspace]);
+  const saveProject = async () => { if (!workspace || !api.workspace) return; setBusy(true); try { let next = config; for (const field of fields ?? []) next = setPath(next, field.key, parseValue(field.key, values[field.key] ?? '')); await api.workspace.writeText(workspace.id, '.qt-ui-copilot/project.json', `${JSON.stringify(next, null, 2)}\n`); setConfig(next); setMessage('项目配置已保存，重新预览后生效'); } catch (error) { setMessage(error instanceof Error ? error.message : String(error)); } finally { setBusy(false); } };
+  const saveApp = () => { localStorage.setItem(`qt-ui-copilot:setting:${section}`, JSON.stringify(values)); setMessage('应用偏好已保存'); };
+  if (isProject && !workspace) return <Card className="settings-card"><h2>{section === 'build-tools' ? '构建工具' : section === 'preview' ? '预览与资源' : '启动与导航'}</h2><p className="muted">请先打开一个 V3 工作区，才能编辑项目配置。</p></Card>;
+  if (isProject) return <Card className="settings-card"><div className="settings-card__heading"><div><h2>{section === 'build-tools' ? '构建工具' : section === 'preview' ? '预览与资源' : '启动与导航'}</h2><p className="muted">配置会写入当前项目的 .qt-ui-copilot/project.json。</p></div><Button variant="primary" loading={busy} onClick={() => void saveProject()}>保存项目配置</Button></div><div className="settings-form-grid">{fields!.map((field) => <Field key={field.key} label={field.label}><textarea rows={field.key.endsWith('.args') || field.key.endsWith('stylesheets') || field.key.endsWith('qrcFiles') ? 3 : 1} value={values[field.key] ?? ''} onChange={(event) => setValues((old) => ({ ...old, [field.key]: event.target.value }))} /></Field>)}</div>{message && <p role="status" className="muted">{message}</p>}</Card>;
+  return <Card className="settings-card"><div className="settings-card__heading"><div><h2>{detail!.title}</h2><p className="muted">{detail!.description}</p></div><Button variant="primary" onClick={saveApp}>保存</Button></div><div className="settings-form-grid">{detail!.fields.map((field) => <Field key={field.label} label={field.label}><input value={values[field.label] ?? field.value} placeholder={field.placeholder} onChange={(event) => setValues((old) => ({ ...old, [field.label]: event.target.value }))} /></Field>)}</div>{message && <p role="status" className="muted">{message}</p>}</Card>;
 }

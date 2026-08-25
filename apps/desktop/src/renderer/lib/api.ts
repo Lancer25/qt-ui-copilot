@@ -144,6 +144,7 @@ export interface DesktopApi {
     open(input: { rootDir: string; ignorePatterns?: string[] }): Promise<WorkspaceSummary>;
     listFiles(workspaceId: string): Promise<WorkspaceFile[]>;
     readText(workspaceId: string, filePath: string): Promise<string>;
+    writeText(workspaceId: string, filePath: string, content: string): Promise<void>;
     onChange(listener: (change: WorkspaceChange) => void): () => void;
   };
   preview?: { render(input: V3PreviewRequest): Promise<V3PreviewResult>; cancel(uiFile: string): Promise<void> };

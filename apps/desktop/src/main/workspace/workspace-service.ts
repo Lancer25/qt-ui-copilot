@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { lstat, readdir, readFile } from 'node:fs/promises';
+import { lstat, readdir, readFile, writeFile } from 'node:fs/promises';
 import { basename, join, relative, resolve, sep } from 'node:path';
 
 export type WorkspaceFileKind = 'ui' | 'qss' | 'qrc' | 'source' | 'header' | 'cmake' | 'font' | 'plugin' | 'other';
@@ -114,6 +114,12 @@ export class WorkspaceService {
     const root = this.getRoot(workspaceId); const absolute = resolve(root, filePath); const relativePath = relative(root, absolute);
     if (relativePath.startsWith('..') || absolute === root) throw new Error('Workspace file path escapes the workspace');
     return readFile(absolute, 'utf8');
+  }
+
+  async writeText(workspaceId: string, filePath: string, content: string): Promise<void> {
+    const root = this.getRoot(workspaceId); const absolute = resolve(root, filePath); const relativePath = relative(root, absolute);
+    if (relativePath.startsWith('..') || absolute === root || filePath.replaceAll('\\', '/') !== '.qt-ui-copilot/project.json') throw new Error('Only the workspace project profile can be edited from Settings');
+    await writeFile(absolute, content, 'utf8');
   }
 
   private async scanRoot(rootDir: string, options: WorkspaceScanOptions): Promise<WorkspaceFile[]> {
