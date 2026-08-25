@@ -14,6 +14,6 @@ describe('V3App', () => {
     await user.dblClick(screen.getByRole('treeitem', { name: /ui\/Settings\.ui/ }));
     expect(screen.getByRole('tab', { name: 'Settings.ui' })).toBeTruthy();
     await user.click(screen.getByRole('button', { name: '增强预览' }));
-    expect(screen.getByText('增强 Qt 预览')).toBeTruthy();
+    expect(screen.getByRole('img', { name: '增强 Qt 预览' })).toBeTruthy();
   });
 });
