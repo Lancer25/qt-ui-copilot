@@ -17,6 +17,9 @@ const playwrightCli = fileURLToPath(import.meta.resolve('@playwright/test/cli'))
 const electronDist = path.join(root, 'node_modules', 'electron', 'dist');
 const e2eEnvironment = {
   ...process.env,
+  // The existing qualified workflow exercises the V2 compatibility path;
+  // v3-ide.spec.ts explicitly clears this flag to verify the new default.
+  QT_UI_COPILOT_V2: '1',
   // The repository's offline Electron bootstrap may have the extracted
   // runtime but no electron/path.txt. Playwright resolves Electron through
   // the package entry point, so point it at the verified runtime directory.
