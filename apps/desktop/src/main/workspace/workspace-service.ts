@@ -94,7 +94,7 @@ export class WorkspaceService {
     const now = Date.now();
     const files = await this.listFiles(id);
     let profile: Record<string, unknown> | undefined;
-    try { profile = JSON.parse(await readFile(join(normalizedRoot, '.qt-ui-copilot', 'project.json'), 'utf8')) as Record<string, unknown>; } catch { /* profile is optional for source browsing */ }
+    try { const rawProfile = await readFile(join(normalizedRoot, '.qt-ui-copilot', 'project.json'), 'utf8'); profile = JSON.parse(rawProfile.replaceAll('${projectRoot}', normalizedRoot.replaceAll('\\', '/'))) as Record<string, unknown>; } catch { /* profile is optional for source browsing */ }
     return { id, name: basename(normalizedRoot), rootDir: normalizedRoot, fileCount: files.length, lastOpenedAt: now, createdAt: now, updatedAt: now, files, ...(profile ? { profile } : {}) };
   }
 
