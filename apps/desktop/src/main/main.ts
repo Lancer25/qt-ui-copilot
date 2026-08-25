@@ -95,7 +95,7 @@ app.whenReady().then(async () => {
     MAIN_WINDOW_VITE_NAME,
     __dirname,
   );
-  const v2Target = process.env.QT_UI_COPILOT_V2 === '1';
+  const v2Target = process.env.QT_UI_COPILOT_V2 === '1' || process.argv.includes('--qt-ui-copilot-v2');
   void (target.kind === 'url' ? window.loadURL(v2Target ? `${target.value}#v2` : target.value) : window.loadFile(target.value, v2Target ? { hash: 'v2' } : undefined));
 
   app.on('activate', () => {
