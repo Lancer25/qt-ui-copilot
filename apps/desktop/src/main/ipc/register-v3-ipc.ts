@@ -7,6 +7,7 @@ import { UiPlanner, type ModelProvider } from '@qt-ui-copilot/agent-workflow';
 import { applyOperations, parseUi } from '@qt-ui-copilot/ui-document';
 import { RevisionService } from '../revisions/revision-service';
 import { ContextService } from '../ai/context-service';
+import { ConversationService } from '../ai/conversation-service';
 
 const OpenWorkspaceSchema = z.object({ rootDir: z.string().min(1).max(4096), ignorePatterns: z.array(z.string().min(1).max(512)).max(128).optional() }).strict();
 const WorkspaceIdSchema = z.object({ workspaceId: z.string().min(1).max(128) }).strict();
@@ -42,6 +43,7 @@ export function registerV3Ipc(window: BrowserWindow, service = new WorkspaceServ
   ipcMain.handle('v3.workspace.readText', (_event, input: unknown) => { const parsed = ReadWorkspaceFileSchema.parse(input); return service.readText(parsed.workspaceId, parsed.filePath); });
   ipcMain.handle('v3.preview.render', (_event, input: unknown) => preview.render(PreviewInputSchema.parse(input) as V3PreviewInput));
   ipcMain.handle('v3.ai.plan', async (_event, input: unknown) => { if (!modelProvider) throw new Error('模型服务尚未配置'); const request = PlanInputSchema.parse(input); let context: Record<string, unknown> = { uiFile: request.uiFile, uiContent: request.uiContent }; if (request.contextMode === 'whole_project' && request.workspaceId) { const files = await service.listFiles(request.workspaceId); context = { ...context, projectSearch: await new ContextService((filePath) => service.readText(request.workspaceId!, filePath)).searchWholeProject(request.requirement, files as never[]) }; } return new UiPlanner(modelProvider).plan({ requirement: request.requirement, targetSemanticTree: context, runtimeFacts: { contextMode: request.contextMode } }); });
+  ipcMain.handle('v3.ai.planStream', async (_event, input: unknown) => { if (!modelProvider) throw new Error('模型服务尚未配置'); const request = PlanInputSchema.parse(input); const events = []; const context = { requirement: request.requirement, targetSemanticTree: { uiFile: request.uiFile, uiContent: request.uiContent }, runtimeFacts: { contextMode: request.contextMode } }; for await (const event of new ConversationService(modelProvider).plan(`v3-${request.uiFile}`, context)) events.push(event); return events; });
   ipcMain.handle('v3.revision.apply', async (_event, input: unknown) => {
     const request = RevisionInputSchema.parse(input);
     const revision = revisionServices.get(request.uiFile) ?? new RevisionService({
@@ -61,6 +63,7 @@ export function registerV3Ipc(window: BrowserWindow, service = new WorkspaceServ
       ipcMain.removeHandler?.('v3.workspace.readText');
       ipcMain.removeHandler?.('v3.preview.render');
       ipcMain.removeHandler?.('v3.ai.plan');
+      ipcMain.removeHandler?.('v3.ai.planStream');
       ipcMain.removeHandler?.('v3.revision.apply');
       ipcMain.removeHandler?.('v3.revision.undo'); ipcMain.removeHandler?.('v3.revision.redo');
     },
