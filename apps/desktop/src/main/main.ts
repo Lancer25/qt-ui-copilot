@@ -88,7 +88,7 @@ app.whenReady().then(async () => {
     secureStorage: safeStorage,
   });
   registerIpc(window, backend);
-  const v3Ipc = registerV3Ipc(window);
+  const v3Ipc = registerV3Ipc(window, undefined, undefined, backend.createModelProvider?.());
   app.once('before-quit', () => { v3Ipc.dispose(); backend.dispose?.(); });
   const target = resolveMainWindowLoadTarget(
     MAIN_WINDOW_VITE_DEV_SERVER_URL,

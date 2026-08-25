@@ -48,6 +48,7 @@ export const ModelConnectionResultSchema = z.object({
 const ReportSchema = z.object({ task: z.object({ taskId: z.string().min(1), targetUi: z.string().min(1), status: z.string().min(1), node: z.string().min(1), plan: z.object({ summary: z.string(), operations: z.array(z.unknown()), expectedResults: z.array(z.string()) }).passthrough().optional(), xmlBefore: z.string().max(2_000_000).optional(), xmlAfter: z.string().max(2_000_000).optional(), beforeImage: z.string().max(4_000_000).optional(), afterImage: z.string().max(4_000_000).optional(), deterministicFindings: z.array(z.string()), visualFindings: z.array(z.string()), visualReviewStatus: z.enum(['not_run', 'passed', 'unavailable', 'failed']).optional(), evidence: z.array(z.string()).optional(), routeEvidence: z.array(z.string()), qtKit: z.string().optional(), build: z.object({ executable: z.string(), args: z.array(z.string()), exitCode: z.number().optional() }).optional() }).passthrough(), selectedComponent: z.object({ component: z.object({ id: z.string(), name: z.string(), sourceUiFile: z.string() }).passthrough() }).passthrough().optional() }).strict();
 
 export interface DesktopBackend {
+  createModelProvider?(): ModelProvider;
   importProject(input: z.infer<typeof ImportProjectSchema>): Promise<unknown>;
   listProjects(): Promise<unknown>;
   startTask(input: z.infer<typeof StartTaskSchema>): Promise<unknown>;
@@ -692,6 +693,7 @@ export function createLocalBackend(options: LocalBackendOptions = {}): DesktopBa
       if (!configured) return { capability: input.capability, ok: false, code: 'configuration_required', message: '请先保存 Base URL、模型和 API Key。', elapsedMs: 0, model: modelSettings().model };
       return testModelCapability(configured, input.capability, fetchImpl);
     },
+    createModelProvider() { return provider(); },
     async listQtKits() {
       return settingsRepository.listQtKits().map((record) => ({ ...(record.config as unknown as QtKit), id: record.id, displayName: record.displayName }));
     },
