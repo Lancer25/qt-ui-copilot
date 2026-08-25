@@ -127,6 +127,8 @@ export type WorkspaceChange =
   | { type: 'changed'; workspaceId: string; path: string; file: WorkspaceFile; previousHash: string }
   | { type: 'deleted'; workspaceId: string; path: string; previousHash: string }
   | { type: 'renamed'; workspaceId: string; path: string; oldPath: string; file: WorkspaceFile; previousHash: string };
+export interface V3PreviewRequest { uiFile: string; profile: { qtKitId: string; mode: 'quick' | 'enhanced'; width: number; height: number; locale: string; style: string; qrcFiles: string[]; stylesheets: string[]; fonts: string[]; pluginPaths: string[]; highDpiMode: 'project-default' | 'logical-96' | 'system' }; qt: { version: string; compilerAbi: string; architecture: string; binDirectory: string; uic: string; rcc: string; cmake: string; cmakePrefixPath: string; cmakeGenerator?: string }; sourceDirectory: string; cacheDirectory: string; outputImage: string; }
+export interface V3PreviewResult { imageDataUrl: string; mode: 'quick' | 'enhanced'; imagePath: string; findings: unknown[]; degradedFeatures: string[]; confidence: number; }
 
 export type TaskStartResult =
   | { kind: 'started'; state: WorkflowUiState }
@@ -139,6 +141,7 @@ export interface DesktopApi {
     listFiles(workspaceId: string): Promise<WorkspaceFile[]>;
     onChange(listener: (change: WorkspaceChange) => void): () => void;
   };
+  preview?: { render(input: V3PreviewRequest): Promise<V3PreviewResult> };
   projects: {
     /** Opens the native directory chooser in the Main process. Undefined means the user cancelled. */
     chooseDirectory(): Promise<string | undefined>;
