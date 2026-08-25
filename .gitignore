@@ -16,3 +16,6 @@ fixtures/*/.qt-ui-copilot/tasks/
 !fixtures/qt59-app/.qt-ui-copilot/project.json
 *.log
 .superpowers/
+# Local .NET launcher build outputs
+apps/desktop/scripts/portable-launcher/bin/
+apps/desktop/scripts/portable-launcher/obj/
