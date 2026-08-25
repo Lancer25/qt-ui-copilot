@@ -88,4 +88,58 @@ export const DATABASE_SCHEMA = `
     preferences_json TEXT NOT NULL,
     updated_at INTEGER NOT NULL
   );
+
+  -- V3 IDE state is intentionally kept separate from the V2 task/report
+  -- tables. JSON columns are validated by V3Repository on every read/write.
+  CREATE TABLE IF NOT EXISTS v3_workspaces (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    root_dir TEXT NOT NULL UNIQUE,
+    file_count INTEGER NOT NULL DEFAULT 0,
+    last_opened_at INTEGER NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS v3_editor_sessions (
+    id TEXT PRIMARY KEY,
+    workspace_id TEXT REFERENCES v3_workspaces(id) ON DELETE CASCADE,
+    file_path TEXT NOT NULL,
+    preview_json TEXT NOT NULL,
+    conversation_id TEXT NOT NULL,
+    dirty INTEGER NOT NULL DEFAULT 0 CHECK (dirty IN (0, 1)),
+    baseline_hash TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    UNIQUE(workspace_id, file_path)
+  );
+
+  CREATE TABLE IF NOT EXISTS v3_conversations (
+    id TEXT PRIMARY KEY,
+    ui_file TEXT NOT NULL,
+    context_mode TEXT NOT NULL,
+    apply_mode TEXT NOT NULL,
+    title TEXT,
+    messages_json TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS v3_revisions (
+    id TEXT PRIMARY KEY,
+    ui_file TEXT NOT NULL,
+    parent_id TEXT REFERENCES v3_revisions(id) ON DELETE SET NULL,
+    conversation_id TEXT NOT NULL,
+    operations_json TEXT NOT NULL,
+    before_hash TEXT NOT NULL,
+    after_hash TEXT NOT NULL,
+    validation_json TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS v3_preferences (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    preferences_json TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
 `;

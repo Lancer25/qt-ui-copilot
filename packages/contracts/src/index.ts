@@ -4,3 +4,4 @@ export * from './workflow.js';
 export * from './probe.js';
 export * from './preview.js';
 export * from './component.js';
+export * from './v3.js';
