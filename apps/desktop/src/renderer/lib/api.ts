@@ -130,6 +130,7 @@ export type WorkspaceChange =
 export interface V3PreviewRequest { uiFile: string; profile: { qtKitId: string; mode: 'quick' | 'enhanced'; width: number; height: number; locale: string; style: string; qrcFiles: string[]; stylesheets: string[]; fonts: string[]; pluginPaths: string[]; highDpiMode: 'project-default' | 'logical-96' | 'system' }; qt: { version: string; compilerAbi: string; architecture: string; binDirectory: string; uic: string; rcc: string; cmake: string; cmakePrefixPath: string; cmakeGenerator?: string }; sourceDirectory: string; cacheDirectory: string; outputImage: string; }
 export interface V3PreviewResult { imageDataUrl: string; mode: 'quick' | 'enhanced'; imagePath: string; findings: unknown[]; degradedFeatures: string[]; confidence: number; }
 export interface V3UiPlan { summary: string; riskLevel: 'low' | 'medium' | 'high'; operations: unknown[]; expectedResults: string[]; componentIds: string[]; }
+export interface V3RevisionResult { id: string; uiFile: string; conversationId: string; operations: unknown[]; beforeHash: string; afterHash: string; validation: { xml: boolean; semantic: boolean; uic: boolean; preview: boolean; findings: unknown[]; validatedAt: number }; }
 
 export type TaskStartResult =
   | { kind: 'started'; state: WorkflowUiState }
@@ -145,6 +146,7 @@ export interface DesktopApi {
   };
   preview?: { render(input: V3PreviewRequest): Promise<V3PreviewResult> };
   ai?: { plan(input: { requirement: string; uiFile: string; uiContent: string; contextMode: 'focused_ui' | 'whole_project' }): Promise<V3UiPlan> };
+  revisions?: { apply(input: { uiFile: string; operations: unknown[]; conversationId: string }): Promise<V3RevisionResult> };
   projects: {
     /** Opens the native directory chooser in the Main process. Undefined means the user cancelled. */
     chooseDirectory(): Promise<string | undefined>;

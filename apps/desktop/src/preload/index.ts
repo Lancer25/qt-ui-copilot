@@ -19,6 +19,7 @@ const desktopApi: DesktopApi = {
   },
   preview: { render: (input) => ipcRenderer.invoke('v3.preview.render', input) as ReturnType<NonNullable<DesktopApi['preview']>['render']> },
   ai: { plan: (input) => ipcRenderer.invoke('v3.ai.plan', input) as ReturnType<NonNullable<DesktopApi['ai']>['plan']> },
+  revisions: { apply: (input) => ipcRenderer.invoke('v3.revision.apply', input) as ReturnType<NonNullable<DesktopApi['revisions']>['apply']> },
   projects: {
     chooseDirectory: () => ipcRenderer.invoke('projects:chooseDirectory') as Promise<string | undefined>,
     import: (input) => ipcRenderer.invoke('projects:import', input) as Promise<UiProject>,
