@@ -76,7 +76,7 @@ app.whenReady().then(async () => {
   Menu.setApplicationMenu(null);
   // A packaged application must never silently use incomplete/tampered native
   // helper sources. Development builds intentionally build these per Qt kit.
-  if (app.isPackaged) await verifyRuntimeAssets(join(process.resourcesPath, 'qt-ui-copilot-assets'));
+  if (app.isPackaged) void verifyRuntimeAssets(join(process.resourcesPath, 'qt-ui-copilot-assets')).catch((error) => console.error('[runtime-assets]', error));
   ipcMain.handle('desktop:getAppVersion', () => app.getVersion());
   ipcMain.handle('window:minimize', (event) => BrowserWindow.fromWebContents(event.sender)?.minimize());
   ipcMain.handle('window:toggleMaximize', (event) => { const window = BrowserWindow.fromWebContents(event.sender); if (!window) return false; if (window.isMaximized()) window.unmaximize(); else window.maximize(); return window.isMaximized(); });
@@ -91,7 +91,7 @@ app.whenReady().then(async () => {
   const v3Ipc = registerV3Ipc(window, undefined, undefined, backend.createModelProvider?.());
   app.once('before-quit', () => { v3Ipc.dispose(); backend.dispose?.(); });
   const target = resolveMainWindowLoadTarget(
-    MAIN_WINDOW_VITE_DEV_SERVER_URL,
+    app.isPackaged ? undefined : MAIN_WINDOW_VITE_DEV_SERVER_URL,
     MAIN_WINDOW_VITE_NAME,
     __dirname,
   );
@@ -101,7 +101,7 @@ app.whenReady().then(async () => {
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
-});
+}).catch((error) => { console.error('[startup] failed', error); try { require('node:fs').writeFileSync(join(process.resourcesPath, 'startup-error.log'), String(error?.stack ?? error)); } catch { /* best effort */ } app.quit(); });
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
