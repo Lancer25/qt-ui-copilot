@@ -87,7 +87,7 @@ body {
 .app-tab--active > [role="tab"] { color: var(--text-primary); border-bottom-color: var(--accent-primary); }
 .app-tab__close { min-width: 30px; padding: 0 8px; color: var(--text-muted); background: transparent; border: 0; border-bottom: 2px solid transparent; border-radius: 0; }
 .app-tab__close:hover { color: var(--text-primary); background: var(--surface-2); }
-.product-page { min-width: 0; min-height: 0; overflow: auto; background: radial-gradient(circle at 90% -10%, rgba(111, 74, 214, .12), transparent 34rem), var(--surface-0); }
+.product-page { min-width: 0; min-height: 0; overflow: auto; background: radial-gradient(circle at 90% -10%, rgba(180, 190, 205, .08), transparent 34rem), var(--surface-0); }
 .status-bar { display: flex; align-items: center; gap: 18px; padding: 0 14px; color: var(--text-muted); background: var(--surface-1); border-top: 1px solid var(--border-subtle); font-size: 11px; }
 .notifications { position: fixed; z-index: 20; top: 62px; right: 18px; display: grid; gap: 8px; width: min(360px, calc(100vw - 36px)); }
 .notifications > div { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; color: var(--text-primary); background: var(--surface-raised); border: 1px solid var(--border-default); border-radius: var(--radius-sm); box-shadow: var(--shadow-md); }

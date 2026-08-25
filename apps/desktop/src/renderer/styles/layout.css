@@ -2,7 +2,7 @@
   min-height: 100vh;
   padding: var(--space-6);
   background:
-    radial-gradient(circle at 85% -10%, rgba(111, 74, 214, 0.16), transparent 36rem),
+    radial-gradient(circle at 85% -10%, rgba(180, 190, 205, 0.10), transparent 36rem),
     var(--surface-0);
 }
 

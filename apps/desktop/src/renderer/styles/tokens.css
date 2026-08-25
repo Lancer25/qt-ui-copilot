@@ -1,27 +1,27 @@
 :root {
   color-scheme: dark;
 
-  /* B1 墨黑紫 · AI 原生 palette */
-  --surface-0: #0b0a14;
-  --surface-1: #121022;
-  --surface-2: #1a1730;
-  --surface-3: #24203d;
-  --surface-raised: #211d38;
-  --surface-overlay: rgba(18, 16, 34, 0.92);
-  --border-subtle: rgba(177, 163, 255, 0.14);
-  --border-default: rgba(177, 163, 255, 0.24);
-  --border-strong: rgba(177, 163, 255, 0.42);
+  /* Neutral Graphite · product shell palette */
+  --surface-0: #0f1115;
+  --surface-1: #15181d;
+  --surface-2: #1d2128;
+  --surface-3: #272c34;
+  --surface-raised: #232830;
+  --surface-overlay: rgba(21, 24, 29, 0.94);
+  --border-subtle: rgba(210, 216, 226, 0.14);
+  --border-default: rgba(210, 216, 226, 0.24);
+  --border-strong: rgba(210, 216, 226, 0.42);
 
-  --text-primary: #f5f1ff;
-  --text-secondary: #c7bfdc;
-  --text-muted: #9188ad;
-  --text-inverse: #110d20;
+  --text-primary: #f1f3f5;
+  --text-secondary: #c0c6d0;
+  --text-muted: #8b939f;
+  --text-inverse: #111318;
 
-  --accent-primary: #9d7bff;
-  --accent-primary-hover: #b39aff;
-  --accent-primary-active: #8965ed;
-  --accent-secondary: #30255f;
-  --accent-focus: rgba(157, 123, 255, 0.42);
+  --accent-primary: #d7dce3;
+  --accent-primary-hover: #f4f6f8;
+  --accent-primary-active: #b9c2ce;
+  --accent-secondary: #3b424d;
+  --accent-focus: rgba(210, 216, 226, 0.38);
 
   --status-success: #5ed6a0;
   --status-warning: #f4bd68;
@@ -44,7 +44,7 @@
 
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.2);
   --shadow-md: 0 12px 32px rgba(0, 0, 0, 0.28);
-  --shadow-glow: 0 0 0 1px var(--accent-focus), 0 8px 28px rgba(108, 76, 214, 0.2);
+  --shadow-glow: 0 0 0 1px var(--accent-focus), 0 8px 28px rgba(180, 190, 205, 0.12);
 
   --font-sans: Inter, "Microsoft YaHei", "Segoe UI", sans-serif;
   --font-mono: "Cascadia Code", Consolas, monospace;

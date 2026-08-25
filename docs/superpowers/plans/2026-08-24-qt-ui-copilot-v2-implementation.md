@@ -10,6 +10,8 @@
 
 **Spec:** `docs/superpowers/specs/2026-08-24-qt-ui-copilot-v2-design.md`
 
+视觉变更：2026-08-25 默认主题采用 Neutral Graphite 中性石墨灰，替换原 B1 紫色强调色。
+
 ## Global Constraints
 
 - Default visual direction is B1 “墨黑紫 · AI 原生”; colors and spacing must come from CSS design tokens.
