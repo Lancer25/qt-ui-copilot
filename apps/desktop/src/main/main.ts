@@ -95,8 +95,8 @@ app.whenReady().then(async () => {
     MAIN_WINDOW_VITE_NAME,
     __dirname,
   );
-  const v3Target = process.env.QT_UI_COPILOT_V3 === '1';
-  void (target.kind === 'url' ? window.loadURL(v3Target ? `${target.value}#v3` : target.value) : window.loadFile(target.value, v3Target ? { hash: 'v3' } : undefined));
+  const v2Target = process.env.QT_UI_COPILOT_V2 === '1';
+  void (target.kind === 'url' ? window.loadURL(v2Target ? `${target.value}#v2` : target.value) : window.loadFile(target.value, v2Target ? { hash: 'v2' } : undefined));
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

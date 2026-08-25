@@ -15,5 +15,5 @@ if (!root) {
   throw new Error('Renderer root element is missing');
 }
 
-const enableV3 = window.location.hash === '#v3';
+const enableV3 = window.location.hash !== '#v2';
 createRoot(root).render(<StrictMode>{enableV3 ? <V3App api={window.qtUiCopilot} /> : <App />}</StrictMode>);
