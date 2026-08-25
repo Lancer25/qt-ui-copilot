@@ -15,5 +15,5 @@ if (!root) {
   throw new Error('Renderer root element is missing');
 }
 
-const enableV3 = import.meta.env.VITE_QT_UI_COPILOT_V3 === '1';
+const enableV3 = window.location.hash === '#v3';
 createRoot(root).render(<StrictMode>{enableV3 ? <V3App api={window.qtUiCopilot} /> : <App />}</StrictMode>);
