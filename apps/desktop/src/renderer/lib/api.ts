@@ -146,7 +146,7 @@ export interface DesktopApi {
     onChange(listener: (change: WorkspaceChange) => void): () => void;
   };
   preview?: { render(input: V3PreviewRequest): Promise<V3PreviewResult> };
-  ai?: { plan(input: { requirement: string; uiFile: string; uiContent: string; contextMode: 'focused_ui' | 'whole_project' }): Promise<V3UiPlan> };
+  ai?: { plan(input: { requirement: string; uiFile: string; uiContent: string; contextMode: 'focused_ui' | 'whole_project'; workspaceId?: string }): Promise<V3UiPlan> };
   revisions?: { apply(input: { uiFile: string; operations: unknown[]; conversationId: string }): Promise<V3RevisionResult>; undo(uiFile: string): Promise<void>; redo(uiFile: string): Promise<void> };
   projects: {
     /** Opens the native directory chooser in the Main process. Undefined means the user cancelled. */
