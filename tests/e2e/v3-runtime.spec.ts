@@ -15,7 +15,7 @@ test('V3 opens a Qt fixture and renders enhanced preview', async () => {
   } finally { await app.close(); }
 });
 
-test.skip('V3 Qt 5.9.6 runtime scenario is covered by the native Qt5 gate; run separately after fixture routing is expanded', async () => {
+test.skip('V3 Qt 5.9.6 runtime scenario is covered by the native Qt5 gate; fixture routing requires a separate UI path', async () => {
   test.skip(process.env.QT_UI_COPILOT_E2E !== '1', 'Requires explicit E2E qualification.');
   test.setTimeout(180_000);
   const app = await electron.launch({ executablePath: electronExecutablePath(), args: [desktopAppPath], env: { ...process.env, QT_UI_COPILOT_V2: '' } });

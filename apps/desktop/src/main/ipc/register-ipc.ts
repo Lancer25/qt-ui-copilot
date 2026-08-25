@@ -3,7 +3,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { basename, relative, resolve } from 'node:path';
 import { z } from 'zod';
 import { ArtifactStore, loadProjectConfig, prepareBuild, profileFromConfig, runProcess, RuntimeSession, scanProject, validateUiWithUic } from '@qt-ui-copilot/project-core';
-import { openDatabase, SettingsRepository, TaskRepository } from '@qt-ui-copilot/task-store';
+import { openDatabase, SettingsRepository, TaskRepository, V3Repository } from '@qt-ui-copilot/task-store';
 import { ComponentCatalog } from '@qt-ui-copilot/component-library';
 import { classifyVisualReviewUnavailable, TaskRepositoryWorkflowStore, UiPlanner, VisualCritic, WorkflowMachine, type ModelProvider, type ModelRequest, type WorkflowNode, type WorkflowState } from '@qt-ui-copilot/agent-workflow';
 import type { ProjectConfig, ProjectProfile, UiPlan } from '@qt-ui-copilot/contracts';
@@ -15,6 +15,7 @@ import { readFileSync } from 'node:fs';
 import { ModelCapabilitySchema, ModelCapabilityResultSchema, testModelCapability } from '../settings/model-capabilities';
 import { QtKitService, type QtKit, type QtKitHealth } from '../settings/qt-kit-service';
 import { checkProjectBinding } from '../settings/project-binding-service';
+import { migrateToV3 } from '../v3-migration';
 
 const ImportProjectSchema = z.object({ rootDir: z.string().min(1).max(4096) }).strict();
 const ChooseDirectorySchema = z.undefined();
@@ -344,6 +345,7 @@ async function testOpenAiCompatibleConnection(settings: { baseUrl: string; model
 export function createLocalBackend(options: LocalBackendOptions = {}): DesktopBackend {
   const database = openDatabase(options.databasePath ?? ':memory:');
   const repository = new TaskRepository(database);
+  migrateToV3(new V3Repository(database));
   const settingsRepository = new SettingsRepository(database);
   const qtKitService = new QtKitService({ roots: options.qtKitRoots ?? [process.env.QT_ROOT, 'D:/Qt5.9.6', 'D:/Qt6.10.2', 'C:/Qt', '/opt/Qt'].filter((value): value is string => Boolean(value)) });
   const catalog = new ComponentCatalog({ databasePath: ':memory:' });
