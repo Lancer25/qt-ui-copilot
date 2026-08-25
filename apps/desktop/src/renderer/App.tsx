@@ -17,6 +17,7 @@ import { ProjectsPage } from './pages/projects/ProjectsPage';
 import { ComponentsPage } from './pages/components/ComponentsPage';
 import { TasksPage } from './pages/tasks/TasksPage';
 import { ReportsPage } from './pages/reports/ReportsPage';
+import { ReportDetailPage } from './pages/reports/ReportDetailPage';
 
 const workflowNodeOrder = ['IMPORT_PROJECT', 'SELECT_UI', 'CAPTURE_BASELINE', 'RETRIEVE_COMPONENTS', 'UNDERSTAND_REQUIREMENT', 'GENERATE_UI_PLAN', 'USER_APPROVAL', 'APPLY_CANDIDATE_PATCH', 'XML_VALIDATE', 'UIC_VALIDATE', 'ENHANCED_PREVIEW', 'DETERMINISTIC_CHECKS', 'VISUAL_REVIEW', 'OPTIONAL_REPAIR', 'INCREMENTAL_BUILD', 'LAUNCH_ISOLATED_EXE', 'NAVIGATE_TO_TARGET', 'PROBE_VERIFY_PAGE', 'CAPTURE_REAL_RESULT', 'FINAL_CHECKS', 'REPORT', 'ACCEPT_OR_ROLLBACK'] as const;
 const workflowNodeIndex = (node: string): number => workflowNodeOrder.indexOf(node as typeof workflowNodeOrder[number]);
@@ -95,7 +96,8 @@ export function LegacyWorkbenchPage({ api = desktopApi() }: { api?: DesktopApi }
 export function App({ api = desktopApi() }: { api?: DesktopApi }) {
   const [activeNavigation, setActiveNavigation] = useState<PrimaryNavigationId>('workbench');
   const [projectRevision, setProjectRevision] = useState(0);
-  const renderPage = (id: PrimaryNavigationId, openTab: (tab: AppTab) => void) => {
+  const renderPage = (id: PrimaryNavigationId, openTab: (tab: AppTab) => void, activeTab?: AppTab) => {
+    if (activeTab?.kind === 'report') return <ReportDetailPage api={api} taskId={activeTab.taskId} />;
     switch (id) {
       case 'projects': return <ProjectsPage api={api} onOpenTab={openTab} />;
       case 'components': return <ComponentsPage api={api} onOpenTab={openTab} />;

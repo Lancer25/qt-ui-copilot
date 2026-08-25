@@ -2,6 +2,11 @@ import { contextBridge, ipcRenderer } from 'electron';
 import type { DesktopApi, ModelSettings, ReportRequest, TaskStartResult, UiProject, WorkflowUiState } from '../renderer/lib/api';
 
 const desktopApi: DesktopApi = {
+  window: {
+    minimize: () => { void ipcRenderer.invoke('window:minimize'); },
+    toggleMaximize: () => ipcRenderer.invoke('window:toggleMaximize') as Promise<boolean>,
+    close: () => { void ipcRenderer.invoke('window:close'); },
+  },
   projects: {
     chooseDirectory: () => ipcRenderer.invoke('projects:chooseDirectory') as Promise<string | undefined>,
     import: (input) => ipcRenderer.invoke('projects:import', input) as Promise<UiProject>,

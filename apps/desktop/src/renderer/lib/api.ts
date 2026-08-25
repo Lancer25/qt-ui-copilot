@@ -101,12 +101,14 @@ export interface QtKit {
 export interface QtToolHealth { name: 'uic' | 'rcc' | 'qmake' | 'cmake'; ok: boolean; path: string; version?: string; message?: string; }
 export interface QtKitHealth { ok: boolean; checkedAt: number; tools: QtToolHealth[]; previewHost: { ok: boolean; cacheKey?: string; message?: string }; }
 export interface ProjectBinding { projectId: string; qtKitId: string; config: Record<string, unknown>; updatedAt?: number; }
+export interface WindowControls { minimize(): void; toggleMaximize(): Promise<boolean>; close(): void; }
 
 export type TaskStartResult =
   | { kind: 'started'; state: WorkflowUiState }
   | { kind: 'configuration_required'; message: string };
 
 export interface DesktopApi {
+  window?: WindowControls;
   projects: {
     /** Opens the native directory chooser in the Main process. Undefined means the user cancelled. */
     chooseDirectory(): Promise<string | undefined>;

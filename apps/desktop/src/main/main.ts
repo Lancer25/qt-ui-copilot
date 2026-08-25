@@ -59,6 +59,8 @@ const createWindow = (): BrowserWindow => new BrowserWindow({
   height: 800,
   minWidth: 1100,
   minHeight: 640,
+  frame: false,
+  titleBarStyle: 'hidden',
   webPreferences: {
     preload: resolvePreloadEntryPath(__dirname),
     sandbox: true,
@@ -75,6 +77,9 @@ app.whenReady().then(async () => {
   // helper sources. Development builds intentionally build these per Qt kit.
   if (app.isPackaged) await verifyRuntimeAssets(join(process.resourcesPath, 'qt-ui-copilot-assets'));
   ipcMain.handle('desktop:getAppVersion', () => app.getVersion());
+  ipcMain.handle('window:minimize', (event) => BrowserWindow.fromWebContents(event.sender)?.minimize());
+  ipcMain.handle('window:toggleMaximize', (event) => { const window = BrowserWindow.fromWebContents(event.sender); if (!window) return false; if (window.isMaximized()) window.unmaximize(); else window.maximize(); return window.isMaximized(); });
+  ipcMain.handle('window:close', (event) => BrowserWindow.fromWebContents(event.sender)?.close());
 
   const window = createWindow();
   const backend = createLocalBackend({
