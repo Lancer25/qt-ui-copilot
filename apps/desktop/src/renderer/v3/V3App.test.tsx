@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it } from 'vitest';
 import { V3App } from './V3App';
@@ -32,5 +32,14 @@ describe('V3App', () => {
     await user.click(screen.getByRole('button', { name: '创建新界面' }));
     expect(screen.getByRole('button', { name: '创建新界面' }).getAttribute('aria-pressed')).toBe('true');
     expect((screen.getByLabelText('新 UI 文件名') as HTMLInputElement).value).toBe('NewWidget.ui');
+  });
+  it('switches to creation mode when a reference image is dropped before selecting a UI', async () => {
+    const user = userEvent.setup(); render(<V3App api={api} />);
+    await user.click(screen.getByRole('button', { name: '打开文件夹' }));
+    const reference = new File([new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])], 'login-reference.png', { type: 'image/png' });
+    fireEvent.drop(screen.getByLabelText('附件区域'), { dataTransfer: { files: [reference] } });
+    expect(await screen.findByText('login-reference.png')).toBeTruthy();
+    expect(screen.getByRole('button', { name: '创建新界面' }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByLabelText('新界面需求')).toBeTruthy();
   });
 });
