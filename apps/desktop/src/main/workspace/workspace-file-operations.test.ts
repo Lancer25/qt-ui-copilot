@@ -4,4 +4,4 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { WorkspaceService } from './workspace-service';
 import { WorkspaceFileOperations } from './workspace-file-operations';
-describe('WorkspaceFileOperations', () => { it('rejects traversal and requires confirmation for permanent delete', async () => { const root = await mkdtemp(join(tmpdir(), 'ops-')); await writeFile(join(root, 'a.txt'), 'x'); const workspace = await new WorkspaceService().open(root); const ops = new WorkspaceFileOperations(new WorkspaceService()); expect(ops.createFile(workspace.id, '..', 'x')).rejects.toThrow(); }); });
+describe('WorkspaceFileOperations', () => { it('rejects traversal', async () => { const root = await mkdtemp(join(tmpdir(), 'ops-')); await writeFile(join(root, 'a.txt'), 'x'); const service = new WorkspaceService(); const workspace = await service.open(root); const ops = new WorkspaceFileOperations(service); await expect(ops.createFile(workspace.id, '..', 'x')).rejects.toThrow(); }); });
