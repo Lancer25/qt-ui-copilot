@@ -1,11 +1,17 @@
 import { access, lstat, mkdir, rename, rm, unlink, writeFile } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, relative, resolve } from 'node:path';
 import type { WorkspaceService } from './workspace-service';
-
 export interface FileOperationDeps { trashItem?: (path: string) => Promise<void>; }
 export class WorkspaceFileOperations {
   constructor(private readonly workspace: WorkspaceService, private readonly deps: FileOperationDeps = {}) {}
-  private async safe(workspaceId: string, rel: string, allowMissing = false): Promise<{ root: string; absolute: string }> { if (!rel || isAbsolute(rel) || rel.split(/[\\/]/).includes('..')) throw new Error('Invalid workspace path'); const root = resolve(this.workspace.getRoot(workspaceId)); const absolute = resolve(root, rel); const contained = absolute === root || absolute.startsWith(`${root}\`) || absolute.startsWith(`${root}/`); if (!contained) throw new Error('Path escapes workspace'); if (!allowMissing) await access(absolute); if (rel === '.git' || rel.startsWith('.git/') || rel === '.qt-ui-copilot/project.json' || rel.startsWith('.qt-ui-copilot/candidates/')) throw new Error('Protected workspace path'); return { root, absolute }; }
+  private async safe(workspaceId: string, rel: string, allowMissing = false): Promise<{ root: string; absolute: string }> {
+    if (!rel || isAbsolute(rel) || rel.split(/[\\/]/).includes('..')) throw new Error('Invalid workspace path');
+    const root = resolve(this.workspace.getRoot(workspaceId)); const absolute = resolve(root, rel); const relToRoot = relative(root, absolute);
+    if (relToRoot.startsWith('..') || isAbsolute(relToRoot)) throw new Error('Path escapes workspace');
+    if (!allowMissing) await access(absolute);
+    if (rel === '.git' || rel.startsWith('.git/') || rel === '.qt-ui-copilot/project.json' || rel.startsWith('.qt-ui-copilot/candidates/')) throw new Error('Protected workspace path');
+    return { root, absolute };
+  }
   async createFile(workspaceId: string, parentPath: string, name: string): Promise<void> { if (!name || /[\\/:*?"<>|]/.test(name) || name.endsWith('.') || name.endsWith(' ')) throw new Error('Invalid file name'); const target = await this.safe(workspaceId, `${parentPath.replace(/[\\/]$/, '')}/${name}`, true); await writeFile(target.absolute, '', { flag: 'wx' }); }
   async createDirectory(workspaceId: string, parentPath: string, name: string): Promise<void> { if (!name || /[\\/:*?"<>|]/.test(name)) throw new Error('Invalid directory name'); const target = await this.safe(workspaceId, `${parentPath.replace(/[\\/]$/, '')}/${name}`, true); await mkdir(target.absolute); }
   async renameEntry(workspaceId: string, sourcePath: string, newName: string): Promise<{ oldPath: string; newPath: string }> { if (!newName || /[\\/:*?"<>|]/.test(newName)) throw new Error('Invalid name'); const source = await this.safe(workspaceId, sourcePath); const next = await this.safe(workspaceId, `${dirname(sourcePath).replaceAll('\\', '/')}/${newName}`, true); if (await exists(next.absolute)) throw new Error('Target already exists'); await rename(source.absolute, next.absolute); return { oldPath: sourcePath, newPath: relative(source.root, next.absolute).replaceAll('\\', '/') }; }
