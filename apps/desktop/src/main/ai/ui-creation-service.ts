@@ -30,7 +30,8 @@ export class UiCreationService {
   private readonly candidates = new Map<string, StoredCandidate>();
   constructor(private readonly deps: UiCreationServiceDeps) {}
 
-  async createCandidate(raw: UiCreationRequest, onProgress?: (progress: UiCreationProgress) => void): Promise<UiCreationCandidate> {
+  async createCandidate(raw: UiCreationRequest, onProgress?: (progress: UiCreationProgress) => void, signal?: AbortSignal): Promise<UiCreationCandidate> {
+    if (signal?.aborted) throw new Error('UI creation cancelled');
     const request = UiCreationRequestSchema.parse(raw);
     const rootDir = resolve(this.deps.workspace.getRoot(request.workspaceId));
     const targetPath = this.resolveTarget(rootDir, request.directory, request.fileName);
@@ -40,7 +41,7 @@ export class UiCreationService {
     let source: string;
     if (this.deps.taskService) {
       try {
-        const result = await this.deps.taskService.run({
+        const result = await this.deps.taskService.runBase({
           requirement: request.requirement,
           targetQtVersion: request.qtKitId,
           fileName: request.fileName,
@@ -48,10 +49,11 @@ export class UiCreationService {
           referenceImages: attachments.filter((item) => item.kind === 'image' && item.dataUrl).map((item) => ({ name: item.name, mimeType: item.mimeType, dataUrl: item.dataUrl! })),
           capabilityCandidates: request.capabilityCandidates,
         }, onProgress);
+        if (signal?.aborted) throw new Error('UI creation cancelled');
         if (result.intent.fileName.toLowerCase() !== request.fileName.toLowerCase()) throw new Error('planner returned a different file name');
         if (result.intent.rootType !== request.rootType) throw new Error('planner returned a different root type');
         blueprint = intentToBlueprint(result.intent);
-        source = result.enhancedSource;
+        source = result.baseSource;
       } catch (error) {
         // Do not turn an outage or authentication failure into another model
         // request. For local semantic/format failures, retain the old path.
@@ -69,6 +71,7 @@ export class UiCreationService {
     await mkdir(candidateDir, { recursive: true });
     try {
       await writeFile(candidatePath, source, { encoding: 'utf8', flag: 'wx' });
+      if (signal?.aborted) throw new Error('UI creation cancelled');
       const validation = await this.validateBase(rootDir, candidatePath);
       if (!validation.uic) throw new Error(`无法验证新界面：${validation.findings.find((finding) => finding.code === 'uic_failed')?.message ?? '请先在项目设置中选择 Qt Kit（需要 uic）'}`);
       const candidate: StoredCandidate = {
