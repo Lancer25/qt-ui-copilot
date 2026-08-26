@@ -69,16 +69,17 @@ export class UiCreationService {
     await mkdir(candidateDir, { recursive: true });
     try {
       await writeFile(candidatePath, source, { encoding: 'utf8', flag: 'wx' });
-      const validation = await this.validate(rootDir, candidatePath);
+      const validation = await this.validateBase(rootDir, candidatePath);
       if (!validation.uic) throw new Error(`无法验证新界面：${validation.findings.find((finding) => finding.code === 'uic_failed')?.message ?? '请先在项目设置中选择 Qt Kit（需要 uic）'}`);
       const candidate: StoredCandidate = {
         id, workspaceId: request.workspaceId, targetPath, blueprint, source,
         sourceHash: createHash('sha256').update(source).digest('hex'),
-        ...(validation.previewDataUrl ? { previewDataUrl: validation.previewDataUrl } : {}),
+        
         validation: { xml: true, semantic: true, uic: validation.uic, preview: validation.preview, findings: validation.findings },
         createdAt: Date.now(), candidatePath,
       };
       this.candidates.set(id, candidate);
+      void this.finishPreview(id, rootDir, candidatePath);
       return this.publicCandidate(candidate);
     } catch (error) {
       await rm(candidateDir, { recursive: true, force: true });
@@ -157,6 +158,32 @@ export class UiCreationService {
     } catch (error) {
       findings.push({ severity: 'warning', code: 'preview_unavailable', message: error instanceof Error ? error.message : 'PreviewHost 暂不可用，已保留 UI 草稿。' });
       return { uic: true, preview: false, findings };
+    }
+  }
+
+  private async validateBase(rootDir: string, uiFile: string): Promise<{ uic: boolean; preview: boolean; findings: Array<{ severity: 'info' | 'warning' | 'error'; code: string; message: string }> }> {
+    let config: ReturnType<typeof loadProjectConfig>;
+    try { config = loadProjectConfig(rootDir); } catch { config = undefined; }
+    const qtOnlyProfile = config ? undefined : await loadQtOnlyProfile(rootDir);
+    const uic = this.deps.validateUic
+      ? await this.deps.validateUic(rootDir, uiFile)
+      : config ? await validateUiWithUic(profileFromConfig(rootDir, config), uiFile)
+        : qtOnlyProfile ? await validateUiWithUic(qtOnlyProfile, uiFile)
+          : { valid: false, stderr: '请先在项目设置中选择 Qt Kit（需要 uic）' };
+    if (!uic.valid) return { uic: false, preview: false, findings: [{ severity: 'error', code: 'uic_failed', message: (uic.stderr || uic.stdout || 'uic validation failed').slice(0, 1000) }] };
+    return { uic: true, preview: false, findings: [{ severity: 'info', code: 'preview_pending', message: '基础 UI 已通过 uic，预览正在后台生成。' }] };
+  }
+
+  private async finishPreview(id: string, rootDir: string, candidatePath: string): Promise<void> {
+    try {
+      const preview = await this.validate(rootDir, candidatePath);
+      const candidate = this.candidates.get(id);
+      if (!candidate) return;
+      this.candidates.set(id, { ...candidate, ...(preview.previewDataUrl ? { previewDataUrl: preview.previewDataUrl } : {}), validation: { ...candidate.validation, preview: preview.preview, findings: [...candidate.validation.findings.filter((finding) => finding.code !== 'preview_pending'), ...preview.findings] } });
+    } catch (error) {
+      const candidate = this.candidates.get(id);
+      if (!candidate) return;
+      this.candidates.set(id, { ...candidate, validation: { ...candidate.validation, preview: false, findings: [...candidate.validation.findings.filter((finding) => finding.code !== 'preview_pending'), { severity: 'warning', code: 'preview_unavailable', message: error instanceof Error ? error.message : 'PreviewHost 暂不可用' }] } });
     }
   }
 
