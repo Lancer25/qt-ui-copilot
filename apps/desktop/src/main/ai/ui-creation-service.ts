@@ -9,12 +9,16 @@ import type { WorkspaceService } from '../workspace/workspace-service';
 import type { PreviewSessionService, V3PreviewInput } from '../preview/preview-session-service';
 import type { AttachmentService, ValidatedAttachment } from './attachment-service';
 import type { UiCreationPlanner } from './ui-creation-planner';
+import type { UiCreationTaskService } from './ui-creation-task-service';
+import type { UiCreationTaskResult } from './ui-creation-task-service';
 
 export interface UiCreationServiceDeps {
   workspace: WorkspaceService;
   planner: UiCreationPlanner;
   attachments: AttachmentService;
   preview?: PreviewSessionService;
+  /** Optional semantic two-stage generator. The legacy blueprint planner remains the fallback. */
+  taskService?: UiCreationTaskService;
   /** Injectable for deterministic service tests. */
   validateUic?: (rootDir: string, uiFile: string) => Promise<{ valid: boolean; stdout?: string; stderr?: string }>;
 }
@@ -32,14 +36,32 @@ export class UiCreationService {
     const targetPath = this.resolveTarget(rootDir, request.directory, request.fileName);
     if (await exists(targetPath)) throw new Error(`target already exists: ${targetPath}`);
     const attachments = this.deps.attachments.validate(request.attachments);
-    const blueprint = await this.deps.planner.plan({
-      requirement: request.requirement, contextMode: request.contextMode, attachments, targetQtVersion: request.qtKitId,
-      fileName: request.fileName, rootType: request.rootType,
-      useProjectResources: request.useProjectResources, useComponentLibrary: request.useComponentLibrary,
-    });
-    if (blueprint.fileName.toLowerCase() !== request.fileName.toLowerCase()) throw new Error('planner returned a different file name');
-    if (blueprint.rootType !== request.rootType) throw new Error('planner returned a different root type');
-    const source = generateUiFromBlueprint(blueprint).source;
+    let blueprint: UiCreationBlueprint;
+    let source: string;
+    if (this.deps.taskService) {
+      try {
+        const result = await this.deps.taskService.run({
+          requirement: request.requirement,
+          targetQtVersion: request.qtKitId,
+          fileName: request.fileName,
+          rootType: request.rootType,
+          referenceImages: attachments.filter((item) => item.kind === 'image' && item.dataUrl).map((item) => ({ name: item.name, mimeType: item.mimeType, dataUrl: item.dataUrl! })),
+        });
+        if (result.intent.fileName.toLowerCase() !== request.fileName.toLowerCase()) throw new Error('planner returned a different file name');
+        if (result.intent.rootType !== request.rootType) throw new Error('planner returned a different root type');
+        blueprint = intentToBlueprint(result.intent);
+        source = result.enhancedSource;
+      } catch (error) {
+        // Do not turn an outage or authentication failure into another model
+        // request. For local semantic/format failures, retain the old path.
+        if (isTransientModelError(error)) throw error;
+        blueprint = await this.planLegacy(request, attachments);
+        source = generateUiFromBlueprint(blueprint).source;
+      }
+    } else {
+      blueprint = await this.planLegacy(request, attachments);
+      source = generateUiFromBlueprint(blueprint).source;
+    }
     const id = `ui-creation-${randomUUID()}`;
     const candidateDir = join(rootDir, '.qt-ui-copilot', 'candidates', id);
     const candidatePath = join(candidateDir, request.fileName);
@@ -61,6 +83,17 @@ export class UiCreationService {
       await rm(candidateDir, { recursive: true, force: true });
       throw error;
     }
+  }
+
+  private async planLegacy(request: UiCreationRequest, attachments: ValidatedAttachment[]): Promise<UiCreationBlueprint> {
+    const blueprint = await this.deps.planner.plan({
+      requirement: request.requirement, contextMode: request.contextMode, attachments, targetQtVersion: request.qtKitId,
+      fileName: request.fileName, rootType: request.rootType,
+      useProjectResources: request.useProjectResources, useComponentLibrary: request.useComponentLibrary,
+    });
+    if (blueprint.fileName.toLowerCase() !== request.fileName.toLowerCase()) throw new Error('planner returned a different file name');
+    if (blueprint.rootType !== request.rootType) throw new Error('planner returned a different root type');
+    return blueprint;
   }
 
   async commit(candidateId: string): Promise<{ uiFile: string }> {
@@ -127,6 +160,24 @@ export class UiCreationService {
   }
 
   private publicCandidate(candidate: StoredCandidate): UiCreationCandidate { const { candidatePath: _candidatePath, ...publicValue } = candidate; return publicValue; }
+}
+
+function isTransientModelError(error: unknown): boolean {
+  return error instanceof Error && /HTTP\s+(?:401|403|404|408|429|5\d\d)/i.test(error.message);
+}
+
+function intentToBlueprint(intent: import('@qt-ui-copilot/contracts').CanonicalUiIntent): UiCreationBlueprint {
+  const widgetClass: Record<string, string> = { container: 'QWidget', label: 'QLabel', button: 'QPushButton', lineEdit: 'QLineEdit', textEdit: 'QTextEdit', checkBox: 'QCheckBox', comboBox: 'QComboBox', list: 'QListWidget', table: 'QTableWidget' };
+  const layoutClass: Record<string, string> = { vertical: 'QVBoxLayout', horizontal: 'QHBoxLayout', grid: 'QGridLayout', form: 'QFormLayout' };
+  const convert = (node: import('@qt-ui-copilot/contracts').CanonicalUiNode): import('@qt-ui-copilot/contracts').UiBlueprintNode => {
+    const properties: Record<string, import('@qt-ui-copilot/contracts').UiValue> = {};
+    if (node.text !== undefined) properties.text = node.text;
+    if (node.placeholder !== undefined) properties.placeholderText = node.placeholder;
+    if (node.kind === 'layout') return { kind: 'layout', className: layoutClass[node.layout ?? 'vertical'], objectName: node.objectName ?? node.role, properties: {}, children: node.children.map(convert) };
+    if (node.kind === 'spacer') return { kind: 'spacer', className: 'QSpacerItem', objectName: node.objectName ?? node.role, properties: {}, children: [] };
+    return { kind: 'widget', className: widgetClass[node.widget ?? 'container'], objectName: node.objectName ?? node.role, properties, children: [] };
+  };
+  return { fileName: intent.fileName, rootType: intent.rootType, rootObjectName: intent.rootObjectName, windowTitle: intent.windowTitle, size: intent.size ?? { width: 900, height: 640 }, layoutTree: convert(intent.tree), tabOrder: [], connections: [], resourceRefs: [], componentIds: [], expectedResults: intent.expectedResults };
 }
 
 async function loadQtOnlyProfile(rootDir: string): Promise<ProjectProfile | undefined> {

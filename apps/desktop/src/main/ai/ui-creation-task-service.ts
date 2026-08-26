@@ -5,7 +5,7 @@ import { generateBaseUi, normalizeUiIntent, applyEnhancement } from '@qt-ui-copi
 export type UiCreationStage = 'preparing_context' | 'generating_intent' | 'normalizing_intent' | 'building_base_ui' | 'validating_base_ui' | 'generating_enhancements' | 'applying_enhancements' | 'validating_preview' | 'waiting_approval' | 'failed' | 'cancelled';
 export interface UiCreationProgress { stage: UiCreationStage; message: string; warnings: Array<{ code: string; message: string }>; }
 export interface UiCreationTaskInput { requirement: string; targetQtVersion: string; fileName: string; rootType: CanonicalUiIntent['rootType']; referenceImages?: Array<{ name: string; mimeType: string; dataUrl: string }>; }
-export interface UiCreationTaskResult { baseSource: string; enhancedSource: string; baseHash: string; enhancedHash: string; warnings: Array<{ code: string; message: string }>; stage: UiCreationStage; }
+export interface UiCreationTaskResult { baseSource: string; enhancedSource: string; baseHash: string; enhancedHash: string; intent: CanonicalUiIntent; warnings: Array<{ code: string; message: string }>; stage: UiCreationStage; }
 export interface UiCreationTaskDeps { planIntent(input: UiCreationTaskInput): Promise<CanonicalUiIntent>; planEnhancements(input: { requirement: string; baseUi: string; objectNames: string[]; referenceImage?: { name: string; mimeType: string; dataUrl: string } }): Promise<VisualEnhancementPlan>; validateUic(source: string): Promise<boolean>; }
 
 export class UiCreationTaskService {
@@ -35,7 +35,7 @@ export class UiCreationTaskService {
     }
     report('validating_preview', '基础版本和增强版本均已准备');
     report('waiting_approval', '等待用户审批保存');
-    return { baseSource, enhancedSource, baseHash: hash(baseSource), enhancedHash: hash(enhancedSource), warnings, stage: 'waiting_approval' };
+    return { baseSource, enhancedSource, intent: normalized.intent, baseHash: hash(baseSource), enhancedHash: hash(enhancedSource), warnings, stage: 'waiting_approval' };
   }
 }
 

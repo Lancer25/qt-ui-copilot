@@ -16,6 +16,9 @@ import { UiCreationRequestSchema, type UiCreationRequest } from '@qt-ui-copilot/
 import { AttachmentService } from '../ai/attachment-service';
 import { UiCreationPlanner } from '../ai/ui-creation-planner';
 import { UiCreationService } from '../ai/ui-creation-service';
+import { UiCreationTaskService } from '../ai/ui-creation-task-service';
+import { UiIntentPlanner } from '../ai/ui-intent-planner';
+import { UiEnhancementPlanner } from '../ai/ui-enhancement-planner';
 
 const OpenWorkspaceSchema = z.object({ rootDir: z.string().min(1).max(4096), ignorePatterns: z.array(z.string().min(1).max(512)).max(128).optional() }).strict();
 const WorkspaceIdSchema = z.object({ workspaceId: z.string().min(1).max(128) }).strict();
@@ -35,7 +38,19 @@ export function registerV3Ipc(window: BrowserWindow, service = new WorkspaceServ
   const watchers = new Map<string, WorkspaceWatcher>();
   const revisionServices = new Map<string, RevisionService>();
   const creationTasks = new Map<string, AbortController>();
-  const creationService = modelProvider ? new UiCreationService({ workspace: service, planner: new UiCreationPlanner(modelProvider), attachments: new AttachmentService(), preview }) : undefined;
+  const creationService = modelProvider ? (() => {
+    const intentPlanner = new UiIntentPlanner(modelProvider);
+    const enhancementPlanner = new UiEnhancementPlanner(modelProvider);
+    const taskService = new UiCreationTaskService({
+      planIntent: (input) => intentPlanner.plan(input),
+      planEnhancements: (input) => enhancementPlanner.plan(input),
+      // The candidate service performs the authoritative uic/preview validation
+      // after staging the generated source. This keeps the task service pure
+      // and lets it remain usable in deterministic tests.
+      validateUic: async () => true,
+    });
+    return new UiCreationService({ workspace: service, planner: new UiCreationPlanner(modelProvider), taskService, attachments: new AttachmentService(), preview });
+  })() : undefined;
   const publish = (change: WorkspaceChange): void => {
     if (!window.isDestroyed?.()) window.webContents.send('v3.workspace.onChange', change);
   };
