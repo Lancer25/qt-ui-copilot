@@ -29,4 +29,16 @@ describe('CreateUiForm', () => {
     await user.click(screen.getByRole('button', { name: '审批并保存' }));
     expect(onCommitted).toHaveBeenCalledWith(candidate.targetPath);
   });
+
+  it('shows a collapsible diagnostic card when creation fails', async () => {
+    const user = userEvent.setup();
+    const api = { ai: { createUiCandidate: vi.fn(async () => { throw new Error('UI blueprint schema validation failed: minimumSize'); }) } } as unknown as DesktopApi;
+    render(<CreateUiForm api={api} workspace={workspace} attachments={[]} onCommitted={vi.fn()} />);
+    await user.type(screen.getByLabelText('新界面需求'), 'Create a settings panel');
+    await user.click(screen.getByRole('button', { name: '生成界面草稿' }));
+    expect(await screen.findByRole('alert', { name: '任务错误' })).toBeTruthy();
+    expect(screen.queryByText(/minimumSize/)).toBeNull();
+    await user.click(screen.getByRole('button', { name: '查看详情' }));
+    expect(screen.getByText(/minimumSize/)).toBeTruthy();
+  });
 });

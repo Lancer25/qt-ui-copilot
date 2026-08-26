@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import type { DesktopApi, UiCreationRequest, UiCreationResult, WorkspaceSummary } from '../../lib/api';
 import type { AiAttachment } from './attachment-reader';
+import { UiCreationErrorCard } from './UiCreationErrorCard';
+import { UiCreationProgressCard, type UiCreationStage } from './UiCreationProgressCard';
 
 export interface CreateUiFormProps {
   api: DesktopApi;
@@ -24,6 +26,7 @@ export function CreateUiForm({ api, workspace, attachments, onCommitted, onMessa
   const [candidate, setCandidate] = useState<UiCreationResult>();
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState('');
+  const [progressIndex, setProgressIndex] = useState(-1);
   const [retryAvailable, setRetryAvailable] = useState(false);
   const [errorState, setErrorState] = useState<{ message: string; detailsOpen: boolean }>();
   const effectiveContextMode = contextMode ?? localContextMode; const changeContextMode = (mode: 'focused_ui' | 'whole_project') => { setLocalContextMode(mode); onContextModeChange?.(mode); };
@@ -35,14 +38,14 @@ export function CreateUiForm({ api, workspace, attachments, onCommitted, onMessa
 
   const generate = async () => {
     if (!workspace || !api.ai?.createUiCandidate || !canGenerate) return;
-    setBusy(true); setRetryAvailable(false); setErrorState(undefined); setCandidate(undefined); setProgress('正在准备参考图与项目上下文…');
+    setBusy(true); setRetryAvailable(false); setErrorState(undefined); setCandidate(undefined); setProgressIndex(0); setProgress('正在准备参考图与项目上下文…');
     const steps = ['正在分析参考图与需求…', '正在生成 Qt Widgets 蓝图…', '正在生成 .ui XML…', '正在执行 uic 校验…', '正在准备预览结果…']; let index = 0;
-    const timer = window.setInterval(() => { index = Math.min(index + 1, steps.length - 1); setProgress(steps[index]); }, 900);
+    const timer = window.setInterval(() => { index = Math.min(index + 1, steps.length - 1); setProgressIndex(index + 3); setProgress(steps[index]); }, 900);
     try {
       const result = await api.ai.createUiCandidate({ workspaceId: workspace.id, contextMode: effectiveContextMode, requirement: requirement.trim(), attachments: [...attachments], fileName, rootType, directory, qtKitId, useProjectResources, useComponentLibrary });
-      setCandidate(result); onMessage?.('界面草稿已生成，请检查预览并审批保存。');
-    } catch (error) { const text = error instanceof Error ? error.message : String(error); setRetryAvailable(/HTTP\s+(?:408|429|5\d\d)/i.test(text)); setErrorState({ message: text, detailsOpen: false }); }
-    finally { window.clearInterval(timer); setBusy(false); setProgress(''); }
+      setCandidate(result); setProgressIndex(8); setProgress('等待审批保存'); onMessage?.('界面草稿已生成，请检查预览并审批保存。');
+    } catch (error) { const text = error instanceof Error ? error.message : String(error); setRetryAvailable(/HTTP\s+(?:408|429|5\d\d)/i.test(text)); setErrorState({ message: text, detailsOpen: false }); setProgressIndex(-1); }
+    finally { window.clearInterval(timer); setBusy(false); }
   };
   const reject = async () => {
     if (!candidate || !api.ai?.rejectUiCandidate) return;
@@ -65,9 +68,9 @@ export function CreateUiForm({ api, workspace, attachments, onCommitted, onMessa
     <div className="v3-create-context"><span>AI 上下文</span><button type="button" className={effectiveContextMode === 'focused_ui' ? 'is-active' : ''} onClick={() => changeContextMode('focused_ui')}>专注界面</button><button type="button" className={effectiveContextMode === 'whole_project' ? 'is-active' : ''} onClick={() => changeContextMode('whole_project')}>整体模式</button></div><div className="v3-create-options"><label><input type="checkbox" checked={useProjectResources} onChange={(event) => setUseProjectResources(event.target.checked)} /> 使用项目 QSS/QRC</label><label><input type="checkbox" checked={useComponentLibrary} onChange={(event) => setUseComponentLibrary(event.target.checked)} /> 检索组件库</label></div></fieldset>
     {!hasQtKit && <p className="v3-create-warning" role="status">请先在设置中选择当前项目的 Qt Kit。</p>}
     {hasQtKit && !workspace?.profile?.preview && <p className="v3-create-hint" role="status">已使用 Qt Kit。PreviewHost、QSS/QRC 可稍后在设置中补充，当前仍可生成并校验 UI。</p>}
-    {busy && <p className="v3-create-progress" role="status"><span className="v3-progress-dot" />{progress || '处理中…'}</p>}
-    {errorState && <section className={`v3-error-card ${/HTTP\s+429/i.test(errorState.message) ? 'v3-error-card--warning' : ''}`} role="alert" aria-label="任务错误"><div className="v3-error-card__heading"><span className="v3-error-icon">!</span><div><b>{/HTTP\s+429/i.test(errorState.message) ? '模型服务暂时限流' : '界面生成失败'}</b><small>{/schema validation failed|Invalid input/i.test(errorState.message) ? 'AI 返回的界面蓝图不符合当前 Qt UI 协议。' : '任务未完成，源文件尚未写入项目。'}</small></div></div><div className="v3-error-card__actions">{retryAvailable && <button onClick={() => void generate()}>继续重试</button>}<button onClick={() => setErrorState((state) => state ? { ...state, detailsOpen: !state.detailsOpen } : state)}>{errorState.detailsOpen ? '收起详情' : '查看详情'}</button><button onClick={() => void navigator.clipboard?.writeText(errorState.message)}>复制信息</button></div>{errorState.detailsOpen && <pre className="v3-error-card__details">{errorState.message}</pre>}</section>}
-    <div className="v3-create-action-row"><button className="v3-create-primary" disabled={!canGenerate} onClick={() => void generate()}>{busy ? '处理中…' : '生成界面草稿'}</button>{retryAvailable && !busy && <button className="v3-create-retry" onClick={() => void generate()}>继续重试</button>}</div>
+    {progressIndex >= 0 && <UiCreationProgressCard stage={(['preparing_context', 'generating_intent', 'normalizing_intent', 'building_base_ui', 'validating_base_ui', 'generating_enhancements', 'applying_enhancements', 'validating_preview', 'waiting_approval'] as UiCreationStage[])[progressIndex]} completed={(['preparing_context', 'generating_intent', 'normalizing_intent', 'building_base_ui', 'validating_base_ui', 'generating_enhancements', 'applying_enhancements', 'validating_preview', 'waiting_approval'] as UiCreationStage[]).slice(0, progressIndex)} onCancel={busy ? () => onMessage?.('当前任务暂不支持取消，请等待本轮请求结束。') : undefined} />}
+    {errorState && <UiCreationErrorCard title={/HTTP\s+429/i.test(errorState.message) ? '模型服务暂时限流' : '界面生成失败'} message={errorState.message} tone={/HTTP\s+429/i.test(errorState.message) ? 'warning' : 'error'} retry={retryAvailable ? () => void generate() : undefined} onCopy={() => void navigator.clipboard?.writeText(errorState.message)} />}
+    <div className="v3-create-action-row"><button className="v3-create-primary" disabled={!canGenerate} onClick={() => void generate()}>{busy ? '处理中…' : '生成界面草稿'}</button></div>
     {candidate && <div className="v3-create-candidate" aria-label="界面草稿候选"><div className="v3-create-candidate-title"><b>{candidate.blueprint.fileName}</b><span>{candidate.blueprint.rootType} · {candidate.blueprint.expectedResults.length} 项预期结果</span></div>{candidate.previewDataUrl ? <img src={candidate.previewDataUrl} alt="新界面草稿预览" /> : <div className="v3-create-no-preview">暂无预览图</div>}<div className="v3-create-validation"><span className={candidate.validation.uic ? 'is-ok' : 'is-error'}>uic {candidate.validation.uic ? '通过' : '失败'}</span><span className={candidate.validation.preview ? 'is-ok' : candidate.validation.uic ? 'is-warning' : 'is-error'}>预览 {candidate.validation.preview ? '通过' : candidate.validation.uic ? '待配置' : '失败'}</span></div><div className="v3-create-actions"><button onClick={() => void reject()} disabled={busy}>放弃草稿</button><button className="v3-create-primary" onClick={() => void commit()} disabled={busy || !candidate.validation.uic}>审批并保存</button></div></div>}
   </section>;
 }
