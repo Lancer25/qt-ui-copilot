@@ -5,3 +5,4 @@ export * from './vector-adapter.js';
 export * from './local-component-capability-adapter.js';
 export * from './capability-registry.js';
 export * from './capability-resolver.js';
+export * from './promoted-widget-scanner.js';

@@ -9,4 +9,5 @@ export * from './ui-enhancement-applier.js';
 export * from './qt-widget-catalog.js';
 export * from './qt-widget-capability-source.js';
 export * from './base-ui-generator.js';
+export * from './promoted-widget-generator.js';
 export * from './ui-enhancement-applier.js';
