@@ -3,6 +3,7 @@ import { asJsonValue, type ModelProvider, type ModelRequest } from '@qt-ui-copil
 import { ZodError } from 'zod';
 
 export interface UiCreationPlannerInput {
+  contextMode?: 'focused_ui' | 'whole_project';
   requirement: string;
   attachments: AiAttachment[];
   targetQtVersion: string;
@@ -53,7 +54,7 @@ export class UiCreationPlanner {
       .filter((attachment) => attachment.kind === 'image' && attachment.dataUrl)
       .map((attachment) => ({ name: attachment.name, mimeType: attachment.mimeType, dataUrl: attachment.dataUrl }));
     const requestInput: Record<string, unknown> = {
-      requirement: input.requirement.trim(), targetQtVersion: input.targetQtVersion,
+      requirement: input.requirement.trim(), contextMode: input.contextMode ?? 'focused_ui', targetQtVersion: input.targetQtVersion,
       fileName: input.fileName, rootType: input.rootType,
       useProjectResources: input.useProjectResources ?? true, useComponentLibrary: input.useComponentLibrary ?? true,
       attachments, visualAttachments, allowedBlueprintSchema: blueprintDescription,
@@ -76,4 +77,3 @@ export class UiCreationPlanner {
     return { kind: 'ui_creation', systemPrompt, input, responseSchema: blueprintDescription };
   }
 }
-

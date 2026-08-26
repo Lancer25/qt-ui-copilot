@@ -24,12 +24,15 @@ function V3Content({ api }: { api: DesktopApi }) {
   const [preview, setPreview] = useState<V3PreviewResult>(); const [previewFindings, setPreviewFindings] = useState<string[]>([]); const [diff, setDiff] = useState<string>();
   const [activityPanel, setActivityPanel] = useState<ActivityPanel>('explorer'); const [explorerExpanded, setExplorerExpanded] = useState(true);
   const [showContextHint, setShowContextHint] = useState(true);
+  const [processing, setProcessing] = useState(false);
   const [assistantWidth, setAssistantWidth] = useState(() => {
     try { return clampAssistantWidth(Number(window.localStorage.getItem('qt-ui-copilot:v3:assistant-width')) || ASSISTANT_WIDTH_DEFAULT); } catch { return ASSISTANT_WIDTH_DEFAULT; }
   });
   const [attachments, setAttachments] = useState<AiAttachment[]>([]);
   const [assistantMode, setAssistantMode] = useState<'modify' | 'create'>('modify');
   useEffect(() => { try { window.localStorage.setItem('qt-ui-copilot:v3:assistant-width', String(assistantWidth)); } catch { /* storage is optional */ } }, [assistantWidth]);
+  useEffect(() => { const input = document.querySelector<HTMLInputElement>('[aria-label="AI 输入"]'); const button = input?.parentElement?.querySelector<HTMLButtonElement>('button'); if (input) input.disabled = processing; if (button) button.disabled = processing; }, [processing]);
+  useEffect(() => { if (conversation.at(-1)?.role === 'user') setProcessing(true); if (message === 'AI 修改计划已生成' || message.startsWith('错误：')) setProcessing(false); }, [conversation, message]);
   const active = state.editors.find((editor) => editor.id === state.activeEditorId); const uiFiles = useMemo(() => state.files.filter((file) => file.kind === 'ui'), [state.files]);
   const openFolder = async () => { if (!api.workspace) { setMessage('当前运行时未接入 V3 工作区服务。'); return; } const rootDir = await api.projects.chooseDirectory(); if (!rootDir) return; try { const workspace = await api.workspace.open({ rootDir }); dispatch({ type: 'workspace', workspace, files: workspace.files }); setExplorerExpanded(true); setMessage(''); } catch (error) { setMessage(error instanceof Error ? error.message : String(error)); } };
   useEffect(() => api.workspace?.onChange((change) => { if (change.type !== 'changed' && change.type !== 'created') return; void api.workspace?.listFiles(change.workspaceId).then((files) => state.workspace && dispatch({ type: 'workspace', workspace: { ...state.workspace, fileCount: files.length, updatedAt: Date.now() }, files })); }), [api, state.workspace]);

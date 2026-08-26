@@ -32,7 +32,7 @@ export class UiCreationService {
     if (await exists(targetPath)) throw new Error(`target already exists: ${targetPath}`);
     const attachments = this.deps.attachments.validate(request.attachments);
     const blueprint = await this.deps.planner.plan({
-      requirement: request.requirement, attachments, targetQtVersion: request.qtKitId,
+      requirement: request.requirement, contextMode: request.contextMode, attachments, targetQtVersion: request.qtKitId,
       fileName: request.fileName, rootType: request.rootType,
       useProjectResources: request.useProjectResources, useComponentLibrary: request.useComponentLibrary,
     });
@@ -46,7 +46,7 @@ export class UiCreationService {
     try {
       await writeFile(candidatePath, source, { encoding: 'utf8', flag: 'wx' });
       const validation = await this.validate(rootDir, candidatePath);
-      if (!validation.uic) throw new Error(validation.findings.find((finding) => finding.code === 'uic_failed')?.message ?? 'uic validation failed');
+    if (!validation.uic) throw new Error(`无法验证新界面：${validation.findings.find((finding) => finding.code === 'uic_failed')?.message ?? '请先在项目设置中配置 Qt Preview Profile（uic、CMake 和 PreviewHost）'}`);
       if (!validation.preview && this.deps.preview) throw new Error('preview validation failed');
       const candidate: StoredCandidate = {
         id, workspaceId: request.workspaceId, targetPath, blueprint, source,
@@ -104,9 +104,9 @@ export class UiCreationService {
     const config = loadProjectConfig(rootDir);
     const uic = this.deps.validateUic
       ? await this.deps.validateUic(rootDir, uiFile)
-      : config
+        : config
         ? await validateUiWithUic(profileFromConfig(rootDir, config), uiFile)
-        : { valid: false, stderr: 'project profile missing' };
+        : { valid: false, stderr: '请先在项目设置中配置 Preview Profile（Qt Kit、uic、CMake 和 PreviewHost）' };
     if (!uic.valid) { findings.push({ severity: 'error', code: 'uic_failed', message: (uic.stderr || uic.stdout || 'uic validation failed').slice(0, 1000) }); return { uic: false, preview: false, findings }; }
     if (!this.deps.preview || !config) return { uic: true, preview: false, findings };
     const qt = config.qt; const p = config.preview;

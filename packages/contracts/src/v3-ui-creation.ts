@@ -73,6 +73,7 @@ export type UiCreationBlueprint = z.infer<typeof UiCreationBlueprintSchema>;
 
 export const UiCreationRequestSchema = z.object({
   workspaceId: z.string().min(1),
+  contextMode: z.enum(['focused_ui', 'whole_project']).default('focused_ui'),
   requirement: z.string().max(20_000).default(''),
   attachments: z.array(AiAttachmentSchema).max(16),
   fileName: z.string().regex(/^[^\\/:*?"<>|]+\.ui$/i),
@@ -107,4 +108,3 @@ export const UiCreationCandidateSchema = z.object({
 }).strict();
 
 export type UiCreationCandidate = z.infer<typeof UiCreationCandidateSchema>;
-
