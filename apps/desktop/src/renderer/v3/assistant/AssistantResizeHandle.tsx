@@ -42,7 +42,7 @@ export function AssistantResizeHandle({ width, onWidthChange, onReset }: Assista
   return (
     <div
       role="separator"
-      aria-label="调整 AI 助手宽度"
+      aria-label="调整右侧面板宽度"
       aria-orientation="vertical"
       aria-valuemin={ASSISTANT_WIDTH_MIN}
       aria-valuemax={ASSISTANT_WIDTH_MAX}
