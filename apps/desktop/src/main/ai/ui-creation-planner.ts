@@ -38,10 +38,23 @@ function errorText(error: unknown): string {
 }
 
 function parseBlueprint(value: unknown): UiCreationBlueprint {
-  const parsed = asJsonValue(value);
+  const parsed = normalizeFontValues(asJsonValue(value));
   const result = UiCreationBlueprintSchema.safeParse(parsed);
   if (!result.success) throw new UiCreationOutputInvalidError(errorText(result.error));
   return result.data;
+}
+
+/** Qwen and other vision models often emit Qt font values without the
+ * protocol discriminator. Normalize that one harmless shorthand before the
+ * strict schema check; all other unknown structures remain rejected. */
+function normalizeFontValues(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(normalizeFontValues);
+  if (!value || typeof value !== 'object') return value;
+  const object = value as Record<string, unknown>;
+  return Object.fromEntries(Object.entries(object).map(([key, item]) => {
+    if (key === 'font' && item && typeof item === 'object' && !Array.isArray(item) && !('kind' in (item as Record<string, unknown>))) return [key, { kind: 'font', ...(normalizeFontValues(item) as Record<string, unknown>) }];
+    return [key, normalizeFontValues(item)];
+  }));
 }
 
 /** Model-facing planner. It never accepts or emits raw XML. */

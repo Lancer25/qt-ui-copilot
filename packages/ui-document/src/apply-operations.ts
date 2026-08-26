@@ -53,6 +53,7 @@ function serializeValue(value: UiValue): string {
     case 'rect': return `<rect><x>${value.x}</x><y>${value.y}</y><width>${value.width}</width><height>${value.height}</height></rect>`;
     case 'stringList': return `<stringlist>${value.values.map((item) => `<string>${escapeXml(item)}</string>`).join('')}</stringlist>`;
     case 'icon': return `<iconset resource="${escapeXml(value.resourcePath)}"/>`;
+    case 'font': return `<font>${value.family !== undefined ? `<family>${escapeXml(value.family)}</family>` : ''}${value.pointSize !== undefined ? `<pointsize>${value.pointSize}</pointsize>` : ''}${value.weight !== undefined ? `<weight>${value.weight}</weight>` : ''}${value.bold !== undefined ? `<bold>${value.bold ? 'true' : 'false'}</bold>` : ''}${value.italic !== undefined ? `<italic>${value.italic ? 'true' : 'false'}</italic>` : ''}${value.underline !== undefined ? `<underline>${value.underline ? 'true' : 'false'}</underline>` : ''}</font>`;
   }
 }
 

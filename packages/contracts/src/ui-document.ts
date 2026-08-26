@@ -13,6 +13,7 @@ export const UiValueSchema = z.union([
   z.object({ kind: z.literal('rect'), x: z.number(), y: z.number(), width: z.number(), height: z.number() }).strict(),
   z.object({ kind: z.literal('stringList'), values: z.array(z.string()) }).strict(),
   z.object({ kind: z.literal('icon'), resourcePath: z.string().min(1) }).strict(),
+  z.object({ kind: z.literal('font'), family: z.string().optional(), pointSize: z.number().optional(), bold: z.boolean().optional(), italic: z.boolean().optional(), underline: z.boolean().optional(), weight: z.number().optional() }).strict(),
 ]);
 
 const WidgetPropertiesSchema = z.record(z.string().min(1), UiValueSchema);
