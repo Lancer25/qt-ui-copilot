@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { DesktopApi, UiCreationRequest, UiCreationResult, WorkspaceSummary } from '../../lib/api';
 import type { AiAttachment } from './attachment-reader';
 import { UiCreationErrorCard } from './UiCreationErrorCard';
@@ -29,20 +29,34 @@ export function CreateUiForm({ api, workspace, attachments, onCommitted, onMessa
   const [progressIndex, setProgressIndex] = useState(-1);
   const [retryAvailable, setRetryAvailable] = useState(false);
   const [errorState, setErrorState] = useState<{ message: string; detailsOpen: boolean }>();
+  const taskIdRef = useRef<string | undefined>(undefined);
   const effectiveContextMode = contextMode ?? localContextMode; const changeContextMode = (mode: 'focused_ui' | 'whole_project') => { setLocalContextMode(mode); onContextModeChange?.(mode); };
   const qtKitId = useMemo(() => String((workspace?.profile?.qt as { version?: unknown } | undefined)?.version ?? 'project-kit'), [workspace]);
   // A Qt kit is enough to generate and uic-check a new UI.  PreviewHost/QSS/QRC
   // are enhancement settings and must not block the first-use workflow.
   const hasQtKit = Boolean(workspace?.profile?.qt);
   const canGenerate = Boolean(workspace && hasQtKit && api.ai?.createUiCandidate && (requirement.trim() || attachments.some((item) => item.kind === 'image')) && fileName.toLowerCase().endsWith('.ui') && !busy);
+  useEffect(() => {
+    const unsubscribe = api.ai?.onCreationProgress?.(({ taskId, progress: next }) => {
+      if (taskId === taskIdRef.current) {
+        setProgress(next.message);
+        const stages: UiCreationStage[] = ['preparing_context', 'generating_intent', 'normalizing_intent', 'building_base_ui', 'validating_base_ui', 'generating_enhancements', 'applying_enhancements', 'validating_preview', 'waiting_approval'];
+        const index = stages.indexOf(next.stage as UiCreationStage);
+        if (index >= 0) setProgressIndex(index);
+      }
+    });
+    return unsubscribe;
+  }, [api.ai]);
 
   const generate = async () => {
     if (!workspace || !api.ai?.createUiCandidate || !canGenerate) return;
+    const taskId = `ui-create-${crypto.randomUUID?.() ?? Date.now()}`;
+    taskIdRef.current = taskId;
     setBusy(true); setRetryAvailable(false); setErrorState(undefined); setCandidate(undefined); setProgressIndex(0); setProgress('正在准备参考图与项目上下文…');
     const steps = ['正在分析参考图与需求…', '正在生成 Qt Widgets 蓝图…', '正在生成 .ui XML…', '正在执行 uic 校验…', '正在准备预览结果…']; let index = 0;
     const timer = window.setInterval(() => { index = Math.min(index + 1, steps.length - 1); setProgressIndex(index + 3); setProgress(steps[index]); }, 900);
     try {
-      const result = await api.ai.createUiCandidate({ workspaceId: workspace.id, contextMode: effectiveContextMode, requirement: requirement.trim(), attachments: [...attachments], fileName, rootType, directory, qtKitId, useProjectResources, useComponentLibrary });
+      const result = await api.ai.createUiCandidate({ workspaceId: workspace.id, contextMode: effectiveContextMode, requirement: requirement.trim(), attachments: [...attachments], fileName, rootType, directory, qtKitId, useProjectResources, useComponentLibrary, taskId });
       setCandidate(result); setProgressIndex(8); setProgress('等待审批保存'); onMessage?.('界面草稿已生成，请检查预览并审批保存。');
     } catch (error) { const text = error instanceof Error ? error.message : String(error); setRetryAvailable(/HTTP\s+(?:408|429|5\d\d)/i.test(text)); setErrorState({ message: text, detailsOpen: false }); setProgressIndex(-1); }
     finally { window.clearInterval(timer); setBusy(false); }
