@@ -28,11 +28,21 @@ type StoredCandidate = UiCreationCandidate & { candidatePath: string; source: st
 /** Stages generated UI files and commits only after all validation gates pass. */
 export class UiCreationService {
   private readonly candidates = new Map<string, StoredCandidate>();
+  private readonly taskCandidates = new Map<string, string>();
   constructor(private readonly deps: UiCreationServiceDeps) {}
 
-  async createCandidate(raw: UiCreationRequest, onProgress?: (progress: UiCreationProgress) => void, signal?: AbortSignal): Promise<UiCreationCandidate> {
+  async createCandidate(raw: UiCreationRequest, onProgress?: (progress: UiCreationProgress) => void, signal?: AbortSignal, taskId?: string): Promise<UiCreationCandidate> {
     if (signal?.aborted) throw new Error('UI creation cancelled');
     const request = UiCreationRequestSchema.parse(raw);
+    if (taskId) {
+      const previousId = this.taskCandidates.get(taskId);
+      const previous = previousId ? this.candidates.get(previousId) : undefined;
+      if (previous) {
+        onProgress?.({ stage: previous.validation.preview ? 'preview_ready' : 'validating_preview', message: previous.validation.preview ? '已恢复上次生成的预览' : '继续生成预览', warnings: [] });
+        if (!previous.validation.preview) void this.finishPreview(previous.id, resolve(this.deps.workspace.getRoot(request.workspaceId)), previous.candidatePath, onProgress);
+        return this.publicCandidate(previous);
+      }
+    }
     const rootDir = resolve(this.deps.workspace.getRoot(request.workspaceId));
     const targetPath = this.resolveTarget(rootDir, request.directory, request.fileName);
     if (await exists(targetPath)) throw new Error(`target already exists: ${targetPath}`);
@@ -82,6 +92,7 @@ export class UiCreationService {
         createdAt: Date.now(), candidatePath,
       };
       this.candidates.set(id, candidate);
+      if (taskId) this.taskCandidates.set(taskId, id);
       void this.finishPreview(id, rootDir, candidatePath, onProgress);
       return this.publicCandidate(candidate);
     } catch (error) {
@@ -113,6 +124,7 @@ export class UiCreationService {
       await handle.close(); handle = undefined;
       await rm(dirname(candidate.candidatePath), { recursive: true, force: true });
       this.candidates.delete(candidateId);
+      for (const [taskId, id] of this.taskCandidates) if (id === candidateId) this.taskCandidates.delete(taskId);
       return { uiFile: candidate.targetPath };
     } catch (error) {
       await handle?.close().catch(() => undefined);
@@ -125,6 +137,7 @@ export class UiCreationService {
     const candidate = this.candidates.get(candidateId);
     if (!candidate) return;
     this.candidates.delete(candidateId);
+    for (const [taskId, id] of this.taskCandidates) if (id === candidateId) this.taskCandidates.delete(taskId);
     void rm(dirname(candidate.candidatePath), { recursive: true, force: true });
   }
 

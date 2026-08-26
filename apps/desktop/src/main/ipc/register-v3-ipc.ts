@@ -115,7 +115,7 @@ export function registerV3Ipc(window: BrowserWindow, service = new WorkspaceServ
       const { taskId: _taskId, ...request } = parsed;
         return await creationService.createCandidate(request as UiCreationRequest, (progress: UiCreationProgress) => {
           if (!window.isDestroyed?.()) window.webContents.send('v3.ai.creationProgress', { taskId, progress });
-        }, controller.signal);
+        }, controller.signal, taskId);
     } finally { creationTasks.delete(taskId); }
   });
   ipcMain.handle('v3.ai.commitUiCandidate', async (_event, input: unknown) => { if (!creationService) throw new Error('UI creation service unavailable'); return creationService.commit(CandidateIdSchema.parse(input).candidateId); });
