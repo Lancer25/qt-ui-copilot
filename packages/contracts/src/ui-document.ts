@@ -9,6 +9,7 @@ export const UiValueSchema = z.union([
   z.number(),
   z.boolean(),
   z.object({ kind: z.literal('enum'), value: z.string() }).strict(),
+  z.object({ kind: z.literal('set'), value: z.string() }).strict(),
   z.object({ kind: z.literal('size'), width: z.number(), height: z.number() }).strict(),
   z.object({ kind: z.literal('rect'), x: z.number(), y: z.number(), width: z.number(), height: z.number() }).strict(),
   z.object({ kind: z.literal('stringList'), values: z.array(z.string()) }).strict(),

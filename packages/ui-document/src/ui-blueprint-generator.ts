@@ -28,6 +28,7 @@ function propertyValue(value: UiValue, resourceRefs: readonly string[]): string 
     return `<font>${font.family !== undefined ? `<family>${escapeXml(font.family)}</family>` : ''}${font.pointSize !== undefined ? `<pointsize>${font.pointSize}</pointsize>` : ''}${font.weight !== undefined ? `<weight>${font.weight}</weight>` : ''}${font.bold !== undefined ? `<bold>${font.bold ? 'true' : 'false'}</bold>` : ''}${font.italic !== undefined ? `<italic>${font.italic ? 'true' : 'false'}</italic>` : ''}${font.underline !== undefined ? `<underline>${font.underline ? 'true' : 'false'}</underline>` : ''}</font>`;
   }
   if (value.kind === 'enum') return `<enum>${escapeXml(value.value)}</enum>`;
+  if (value.kind === 'set') return `<set>${escapeXml(value.value)}</set>`;
   if (value.kind === 'size') return `<size><width>${value.width}</width><height>${value.height}</height></size>`;
   if (value.kind === 'rect') return `<rect><x>${value.x}</x><y>${value.y}</y><width>${value.width}</width><height>${value.height}</height></rect>`;
   if (value.kind === 'stringList') return `<stringlist>${value.values.map((item) => `<string>${escapeXml(item)}</string>`).join('')}</stringlist>`;

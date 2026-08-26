@@ -49,6 +49,7 @@ function serializeValue(value: UiValue): string {
   if (typeof value === 'boolean') return `<bool>${value ? 'true' : 'false'}</bool>`;
   switch (value.kind) {
     case 'enum': return `<enum>${escapeXml(value.value)}</enum>`;
+    case 'set': return `<set>${escapeXml(value.value)}</set>`;
     case 'size': return `<size><width>${value.width}</width><height>${value.height}</height></size>`;
     case 'rect': return `<rect><x>${value.x}</x><y>${value.y}</y><width>${value.width}</width><height>${value.height}</height></rect>`;
     case 'stringList': return `<stringlist>${value.values.map((item) => `<string>${escapeXml(item)}</string>`).join('')}</stringlist>`;
