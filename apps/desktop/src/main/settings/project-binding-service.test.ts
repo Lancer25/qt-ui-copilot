@@ -8,4 +8,8 @@ describe('project binding service', () => {
   it('accepts a complete imported project binding', () => {
     expect(checkProjectBinding({ projectId: 'p', qtKitId: 'q', config: { buildDirectory: 'build', executable: 'app.exe' } }, { hasProject: () => true, hasQtKit: () => true })).toEqual({ ok: true, blocking: [] });
   });
+
+  it('does not require build fields when the caller supplies defaults', () => {
+    expect(checkProjectBinding({ projectId: 'p', qtKitId: 'q', config: { buildDirectory: '${projectRoot}/.qt-ui-copilot/build', executable: '${projectRoot}/.qt-ui-copilot/build/Debug/demo.exe' } }, { hasProject: () => true, hasQtKit: () => true })).toEqual({ ok: true, blocking: [] });
+  });
 });

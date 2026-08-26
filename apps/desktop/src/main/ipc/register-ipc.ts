@@ -712,7 +712,11 @@ export function createLocalBackend(options: LocalBackendOptions = {}): DesktopBa
     async getProjectBinding(projectId) { return settingsRepository.getProjectBinding(projectId); },
     async saveProjectBinding(input) { return settingsRepository.saveProjectBinding(input); },
     async checkProjectBinding(input) {
-      return checkProjectBinding(input, { hasProject: (projectId) => projects.has(projectId), hasQtKit: (qtKitId) => Boolean(settingsRepository.getQtKit(qtKitId)) });
+      // Project records are durable, while the in-memory workflow map is
+      // rebuilt lazily after application restart. A project shown by the
+      // settings page must therefore count as imported even before a legacy
+      // task is started in this session.
+      return checkProjectBinding(input, { hasProject: (projectId) => projects.has(projectId) || Boolean(repository.listProjects().some((project) => project.id === projectId)), hasQtKit: (qtKitId) => Boolean(settingsRepository.getQtKit(qtKitId)) });
     },
     subscribeWorkflow(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     dispose() { database.close(); },
