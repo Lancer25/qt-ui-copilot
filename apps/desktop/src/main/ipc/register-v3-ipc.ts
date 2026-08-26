@@ -16,6 +16,7 @@ import { UiCreationRequestSchema, type UiCreationRequest } from '@qt-ui-copilot/
 import { AttachmentService } from '../ai/attachment-service';
 import { UiCreationPlanner } from '../ai/ui-creation-planner';
 import { UiCreationService } from '../ai/ui-creation-service';
+import { QtWidgetCapabilitySource } from '@qt-ui-copilot/ui-document';
 import { UiCreationTaskService } from '../ai/ui-creation-task-service';
 import type { UiCreationProgress } from '../ai/ui-creation-task-service';
 import { UiIntentPlanner } from '../ai/ui-intent-planner';
@@ -33,12 +34,14 @@ const RevisionFileSchema = z.object({ uiFile: z.string().min(1) }).strict();
 const UiCreationIpcSchema = UiCreationRequestSchema.extend({ taskId: z.string().min(1).max(128).optional() }).strict();
 const CandidateIdSchema = z.object({ candidateId: z.string().min(1).max(128) }).strict();
 const CancelUiCreationSchema = z.object({ taskId: z.string().min(1).max(128) }).strict();
+const CapabilitySearchSchema = z.object({ workspaceId: z.string().min(1).max(128), text: z.string().max(2000).optional(), limit: z.number().int().min(1).max(20).optional(), kind: z.enum(['qt_widget', 'ui_fragment', 'promoted_widget']).optional(), tags: z.array(z.string().min(1).max(64)).max(16).optional(), kit: z.object({ id: z.string().optional(), version: z.string(), modules: z.array(z.string()) }).optional() }).strict();
 
 /** Registers the sandboxed V3 workspace boundary and returns its lifecycle cleanup. */
 export function registerV3Ipc(window: BrowserWindow, service = new WorkspaceService(), preview = new PreviewSessionService(), modelProvider?: ModelProvider): { dispose(): void } {
   const watchers = new Map<string, WorkspaceWatcher>();
   const revisionServices = new Map<string, RevisionService>();
   const creationTasks = new Map<string, AbortController>();
+  const qtCapabilitySource = new QtWidgetCapabilitySource();
   const creationService = modelProvider ? (() => {
     const intentPlanner = new UiIntentPlanner(modelProvider);
     const enhancementPlanner = new UiEnhancementPlanner(modelProvider);
@@ -82,6 +85,7 @@ export function registerV3Ipc(window: BrowserWindow, service = new WorkspaceServ
   ipcMain.handle('v3.workspace.listFiles', listFilesHandler);
   ipcMain.handle('v3.workspace.readText', (_event, input: unknown) => { const parsed = ReadWorkspaceFileSchema.parse(input); return service.readText(parsed.workspaceId, parsed.filePath); });
   ipcMain.handle('v3.workspace.writeText', (_event, input: unknown) => { const parsed = WriteWorkspaceFileSchema.parse(input); return service.writeText(parsed.workspaceId, parsed.filePath, parsed.content); });
+  ipcMain.handle('v3.capabilities.search', (_event, input: unknown) => { const request = CapabilitySearchSchema.parse(input); const kit = request.kit ?? { version: '5.9.6', modules: ['Widgets'] }; const text = (request.text ?? '').toLowerCase(); return qtCapabilitySource.forKit(kit).filter((item) => (!request.kind || item.kind === request.kind) && (!text || `${item.displayName} ${item.description} ${item.tags.join(' ')}`.toLowerCase().includes(text)) && (!request.tags?.length || request.tags.every((tag) => item.tags.includes(tag)))).slice(0, request.limit ?? 20).map((item) => ({ capabilityId: item.id, displayName: item.displayName, kind: item.kind, description: item.description, tags: item.tags, dependencyStatus: 'ready' as const, reasons: ['Qt Widgets 内置能力'] })); });
   ipcMain.handle('v3.preview.render', (_event, input: unknown) => preview.render(PreviewInputSchema.parse(input) as V3PreviewInput));
   ipcMain.handle('v3.preview.cancel', (_event, input: unknown) => { preview.cancel(PreviewCancelSchema.parse(input).uiFile); });
   ipcMain.handle('v3.ai.plan', async (_event, input: unknown) => { if (!modelProvider) throw new Error('模型服务尚未配置'); const request = PlanInputSchema.parse(input); let context: Record<string, unknown> = { uiFile: request.uiFile, uiContent: request.uiContent }; if (request.contextMode === 'whole_project' && request.workspaceId) { const files = await service.listFiles(request.workspaceId); context = { ...context, projectSearch: await new ContextService((filePath) => service.readText(request.workspaceId!, filePath)).searchWholeProject(request.requirement, files as never[]) }; } return new UiPlanner(modelProvider).plan({ requirement: request.requirement, targetSemanticTree: context, runtimeFacts: { contextMode: request.contextMode } }); });
@@ -134,6 +138,7 @@ export function registerV3Ipc(window: BrowserWindow, service = new WorkspaceServ
       ipcMain.removeHandler?.('v3.workspace.listFiles');
       ipcMain.removeHandler?.('v3.workspace.readText');
       ipcMain.removeHandler?.('v3.workspace.writeText');
+      ipcMain.removeHandler?.('v3.capabilities.search');
       ipcMain.removeHandler?.('v3.preview.render');
       ipcMain.removeHandler?.('v3.preview.cancel');
       ipcMain.removeHandler?.('v3.ai.plan');

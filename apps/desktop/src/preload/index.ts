@@ -18,6 +18,7 @@ const desktopApi: DesktopApi = {
       return () => ipcRenderer.removeListener('v3.workspace.onChange', handler);
     },
   },
+  capabilities: { search: (input) => ipcRenderer.invoke('v3.capabilities.search', input) as ReturnType<NonNullable<DesktopApi['capabilities']>['search']> },
   preview: { render: (input) => ipcRenderer.invoke('v3.preview.render', input) as ReturnType<NonNullable<DesktopApi['preview']>['render']>, cancel: (uiFile) => ipcRenderer.invoke('v3.preview.cancel', { uiFile }) as ReturnType<NonNullable<DesktopApi['preview']>['cancel']> },
   ai: {
     plan: (input) => ipcRenderer.invoke('v3.ai.plan', input) as ReturnType<NonNullable<DesktopApi['ai']>['plan']>,

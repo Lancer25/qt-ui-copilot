@@ -46,6 +46,7 @@ export class UiCreationService {
           fileName: request.fileName,
           rootType: request.rootType,
           referenceImages: attachments.filter((item) => item.kind === 'image' && item.dataUrl).map((item) => ({ name: item.name, mimeType: item.mimeType, dataUrl: item.dataUrl! })),
+          capabilityCandidates: request.capabilityCandidates,
         }, onProgress);
         if (result.intent.fileName.toLowerCase() !== request.fileName.toLowerCase()) throw new Error('planner returned a different file name');
         if (result.intent.rootType !== request.rootType) throw new Error('planner returned a different root type');
