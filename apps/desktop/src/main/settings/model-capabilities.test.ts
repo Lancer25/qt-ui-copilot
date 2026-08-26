@@ -21,6 +21,11 @@ describe('model capability checks', () => {
     expect(body.messages[0]?.content).toEqual(expect.arrayContaining([
       expect.objectContaining({ type: 'image_url', image_url: expect.objectContaining({ url: expect.stringMatching(/^data:image\/png;base64,/) }) }),
     ]));
+    const imageUrl = (body.messages[0]?.content as Array<{ image_url?: { url?: string } }>).find((item) => item.image_url)?.image_url?.url ?? '';
+    const png = Buffer.from(imageUrl.split(',')[1] ?? '', 'base64');
+    expect(png.toString('ascii', 1, 4)).toBe('PNG');
+    expect(png.readUInt32BE(16)).toBeGreaterThan(10);
+    expect(png.readUInt32BE(20)).toBeGreaterThan(10);
   });
 
   it('requests JSON mode and validates the returned JSON', async () => {

@@ -18,7 +18,9 @@ export interface ModelCapabilitySettings { baseUrl: string; model: string; apiKe
 
 // Small embedded PNG used by the vision probe. It is deliberately kept in the
 // Main process so capability checks never depend on renderer assets.
-const VISION_PROBE_IMAGE = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+// 256×256 PNG probe. DashScope/Qwen reject tiny 1×1 placeholders because
+// their vision endpoint enforces a minimum image dimension of 10 pixels.
+const VISION_PROBE_IMAGE = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQAAAAEACAYAAABccqhmAAAHTUlEQVR4nO3UaRoAhBSF4VaHQsaSzGNCiOiaZSykDAmZybCdu6HbLvzwvUs4z/s954E3zd6bZ+8ts/fg7D00e2+dvbfN3ttn7+HZe8fsvXP23jV7756998zee2fvkdl7dPbeN3uPzd77Z+/x2fvA7H1w9j40ex+evY/M3kdn72Oz9/HZ+8TsfXL2PjV7n569J2bvM7P35Ox9dvY+N3ufn72nZu8Ls/fF2fvS7D09e1+eva/M3jOz99XZ+9rsPTt7M3tfn71vzN43Z+9bs/ft2fvO7H139r43e8/N3vdn7wez98PZ+9Hs/Xj2fjJ7z8/eC7P309n72ez9fPZenL1fzN5Ls/fy7P1y9n41e7+evd/M3iuz99vZe3X2fjd7v5+9P8zea7P3x9n70+z9efb+Mnt/nb2/zd7fZ+8fs/fP2Xt99v41e/+evf/M3n9njweP/6XHA//vAwXHg4cDEBwPHg5AcDx4OADB8eDhAATHo+7hAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zhAATHI+zxBrQY2PYB/8PLAAAAAElFTkSuQmCC';
 
 const diagnosticCode = (status: number): string => status === 401 || status === 403 ? 'authentication_failed'
   : status === 404 ? 'model_or_endpoint_not_found'
