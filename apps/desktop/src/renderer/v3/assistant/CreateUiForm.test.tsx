@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { CreateUiForm } from './CreateUiForm';
 import type { DesktopApi, UiCreationResult, WorkspaceSummary } from '../../lib/api';
 
-const workspace: WorkspaceSummary = { id: 'w', rootDir: 'D:/demo', name: 'demo', fileCount: 0, files: [], lastOpenedAt: 1, createdAt: 1, updatedAt: 1, profile: { qt: { version: '5.9.6' } } };
+const workspace: WorkspaceSummary = { id: 'w', rootDir: 'D:/demo', name: 'demo', fileCount: 0, files: [], lastOpenedAt: 1, createdAt: 1, updatedAt: 1, profile: { qt: { version: '5.9.6' }, preview: { sourceDirectory: 'D:/preview', cacheDirectory: 'D:/cache' } } };
 const candidate: UiCreationResult = { id: 'candidate-1', workspaceId: 'w', targetPath: 'D:/demo/ui/NewWidget.ui', source: '<ui version="4.0"/>', sourceHash: 'a'.repeat(64), blueprint: { fileName: 'NewWidget.ui', rootType: 'QWidget', rootObjectName: 'widget', windowTitle: 'Demo', size: { width: 400, height: 240 }, layoutTree: { kind: 'widget', className: 'QWidget', objectName: 'widget', properties: {}, children: [] }, tabOrder: [], connections: [], resourceRefs: [], componentIds: [], expectedResults: ['renders'] }, validation: { xml: true, semantic: true, uic: true, preview: true, findings: [] }, createdAt: 1, previewDataUrl: 'data:image/png;base64,AA==' };
 
 describe('CreateUiForm', () => {
