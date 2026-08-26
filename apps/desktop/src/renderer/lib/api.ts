@@ -1,5 +1,6 @@
 import type { ComponentCandidate } from '@qt-ui-copilot/component-library';
 import type { UiCapabilityCandidate } from '@qt-ui-copilot/contracts';
+import type { WorkspaceTreeSnapshot } from '@qt-ui-copilot/contracts';
 import type { AiAttachment, UiCreationBlueprint, UiCreationCandidate, UiPlan } from '@qt-ui-copilot/contracts';
 
 export type WorkflowUiStatus = 'running' | 'waiting_approval' | 'failed' | 'cancelled' | 'completed';
@@ -159,6 +160,12 @@ export interface DesktopApi {
     readText(workspaceId: string, filePath: string): Promise<string>;
     writeText(workspaceId: string, filePath: string, content: string): Promise<void>;
     onChange(listener: (change: WorkspaceChange) => void): () => void;
+    tree(input: { workspaceId: string; showInternal?: boolean }): Promise<WorkspaceTreeSnapshot>;
+    createFile(input: { workspaceId: string; parentPath: string; name: string }): Promise<void>;
+    createDirectory(input: { workspaceId: string; parentPath: string; name: string }): Promise<void>;
+    renameEntry(input: { workspaceId: string; sourcePath: string; newName: string }): Promise<{ oldPath: string; newPath: string }>;
+    trashEntry(input: { workspaceId: string; relativePath: string }): Promise<void>;
+    deleteEntryPermanently(input: { workspaceId: string; relativePath: string; confirmation: string }): Promise<void>;
   };
   capabilities?: { search(input: V3CapabilitySearchInput): Promise<UiCapabilityCandidate[]> };
   preview?: { render(input: V3PreviewRequest): Promise<V3PreviewResult>; cancel(uiFile: string): Promise<void> };

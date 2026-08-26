@@ -17,6 +17,12 @@ const desktopApi: DesktopApi = {
       ipcRenderer.on('v3.workspace.onChange', handler);
       return () => ipcRenderer.removeListener('v3.workspace.onChange', handler);
     },
+    tree: (input) => ipcRenderer.invoke('v3.workspace.tree', input) as ReturnType<NonNullable<DesktopApi['workspace']>['tree']>,
+    createFile: (input) => ipcRenderer.invoke('v3.workspace.createFile', input) as ReturnType<NonNullable<DesktopApi['workspace']>['createFile']>,
+    createDirectory: (input) => ipcRenderer.invoke('v3.workspace.createDirectory', input) as ReturnType<NonNullable<DesktopApi['workspace']>['createDirectory']>,
+    renameEntry: (input) => ipcRenderer.invoke('v3.workspace.renameEntry', input) as ReturnType<NonNullable<DesktopApi['workspace']>['renameEntry']>,
+    trashEntry: (input) => ipcRenderer.invoke('v3.workspace.trashEntry', input) as ReturnType<NonNullable<DesktopApi['workspace']>['trashEntry']>,
+    deleteEntryPermanently: (input) => ipcRenderer.invoke('v3.workspace.deleteEntryPermanently', input) as ReturnType<NonNullable<DesktopApi['workspace']>['deleteEntryPermanently']>,
   },
   capabilities: { search: (input) => ipcRenderer.invoke('v3.capabilities.search', input) as ReturnType<NonNullable<DesktopApi['capabilities']>['search']> },
   preview: { render: (input) => ipcRenderer.invoke('v3.preview.render', input) as ReturnType<NonNullable<DesktopApi['preview']>['render']>, cancel: (uiFile) => ipcRenderer.invoke('v3.preview.cancel', { uiFile }) as ReturnType<NonNullable<DesktopApi['preview']>['cancel']> },

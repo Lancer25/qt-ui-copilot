@@ -4,6 +4,8 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, parse, resolve } from 'node:path';
 import { z } from 'zod';
 import { WorkspaceService } from '../workspace/workspace-service';
+import { WorkspaceTreeService } from '../workspace/workspace-tree-service';
+import { WorkspaceFileOperations } from '../workspace/workspace-file-operations';
 import { WorkspaceWatcher, type WorkspaceChange } from '../workspace/workspace-watcher';
 import { PreviewSessionService, type V3PreviewInput } from '../preview/preview-session-service';
 import { UiPlanner, type ModelProvider } from '@qt-ui-copilot/agent-workflow';
@@ -35,6 +37,11 @@ const UiCreationIpcSchema = UiCreationRequestSchema.extend({ taskId: z.string().
 const CandidateIdSchema = z.object({ candidateId: z.string().min(1).max(128) }).strict();
 const CancelUiCreationSchema = z.object({ taskId: z.string().min(1).max(128) }).strict();
 const CapabilitySearchSchema = z.object({ workspaceId: z.string().min(1).max(128), text: z.string().max(2000).optional(), limit: z.number().int().min(1).max(20).optional(), kind: z.enum(['qt_widget', 'ui_fragment', 'promoted_widget']).optional(), tags: z.array(z.string().min(1).max(64)).max(16).optional(), kit: z.object({ id: z.string().optional(), version: z.string(), modules: z.array(z.string()) }).optional() }).strict();
+const TreeRequestSchema = z.object({ workspaceId: z.string().min(1), showInternal: z.boolean().optional() }).strict();
+const CreateEntrySchema = z.object({ workspaceId: z.string().min(1), parentPath: z.string().max(4096), name: z.string().min(1).max(255) }).strict();
+const RenameEntrySchema = z.object({ workspaceId: z.string().min(1), sourcePath: z.string().min(1).max(4096), newName: z.string().min(1).max(255) }).strict();
+const DeleteEntrySchema = z.object({ workspaceId: z.string().min(1), relativePath: z.string().min(1).max(4096) }).strict();
+const PermanentDeleteSchema = DeleteEntrySchema.extend({ confirmation: z.string().min(1).max(255) }).strict();
 
 /** Registers the sandboxed V3 workspace boundary and returns its lifecycle cleanup. */
 export function registerV3Ipc(window: BrowserWindow, service = new WorkspaceService(), preview = new PreviewSessionService(), modelProvider?: ModelProvider): { dispose(): void } {
@@ -42,6 +49,8 @@ export function registerV3Ipc(window: BrowserWindow, service = new WorkspaceServ
   const revisionServices = new Map<string, RevisionService>();
   const creationTasks = new Map<string, AbortController>();
   const qtCapabilitySource = new QtWidgetCapabilitySource();
+  const treeService = new WorkspaceTreeService(service);
+  const fileOperations = new WorkspaceFileOperations(service);
   const creationService = modelProvider ? (() => {
     const intentPlanner = new UiIntentPlanner(modelProvider);
     const enhancementPlanner = new UiEnhancementPlanner(modelProvider);
@@ -86,6 +95,12 @@ export function registerV3Ipc(window: BrowserWindow, service = new WorkspaceServ
   ipcMain.handle('v3.workspace.readText', (_event, input: unknown) => { const parsed = ReadWorkspaceFileSchema.parse(input); return service.readText(parsed.workspaceId, parsed.filePath); });
   ipcMain.handle('v3.workspace.writeText', (_event, input: unknown) => { const parsed = WriteWorkspaceFileSchema.parse(input); return service.writeText(parsed.workspaceId, parsed.filePath, parsed.content); });
   ipcMain.handle('v3.capabilities.search', (_event, input: unknown) => { const request = CapabilitySearchSchema.parse(input); const kit = request.kit ?? { version: '5.9.6', modules: ['Widgets'] }; const text = (request.text ?? '').toLowerCase(); return qtCapabilitySource.forKit(kit).filter((item) => (!request.kind || item.kind === request.kind) && (!text || `${item.displayName} ${item.description} ${item.tags.join(' ')}`.toLowerCase().includes(text)) && (!request.tags?.length || request.tags.every((tag) => item.tags.includes(tag)))).slice(0, request.limit ?? 20).map((item) => ({ capabilityId: item.id, displayName: item.displayName, kind: item.kind, description: item.description, tags: item.tags, dependencyStatus: 'ready' as const, reasons: ['Qt Widgets 内置能力'] })); });
+  ipcMain.handle('v3.workspace.tree', (_event, input: unknown) => { const request = TreeRequestSchema.parse(input); return treeService.build(request.workspaceId, request); });
+  ipcMain.handle('v3.workspace.createFile', (_event, input: unknown) => { const request = CreateEntrySchema.parse(input); return fileOperations.createFile(request.workspaceId, request.parentPath, request.name); });
+  ipcMain.handle('v3.workspace.createDirectory', (_event, input: unknown) => { const request = CreateEntrySchema.parse(input); return fileOperations.createDirectory(request.workspaceId, request.parentPath, request.name); });
+  ipcMain.handle('v3.workspace.renameEntry', (_event, input: unknown) => { const request = RenameEntrySchema.parse(input); return fileOperations.renameEntry(request.workspaceId, request.sourcePath, request.newName); });
+  ipcMain.handle('v3.workspace.trashEntry', (_event, input: unknown) => { const request = DeleteEntrySchema.parse(input); return fileOperations.trashEntry(request.workspaceId, request.relativePath); });
+  ipcMain.handle('v3.workspace.deleteEntryPermanently', (_event, input: unknown) => { const request = PermanentDeleteSchema.parse(input); return fileOperations.deleteEntryPermanently(request.workspaceId, request.relativePath, request.confirmation); });
   ipcMain.handle('v3.preview.render', (_event, input: unknown) => preview.render(PreviewInputSchema.parse(input) as V3PreviewInput));
   ipcMain.handle('v3.preview.cancel', (_event, input: unknown) => { preview.cancel(PreviewCancelSchema.parse(input).uiFile); });
   ipcMain.handle('v3.ai.plan', async (_event, input: unknown) => { if (!modelProvider) throw new Error('模型服务尚未配置'); const request = PlanInputSchema.parse(input); let context: Record<string, unknown> = { uiFile: request.uiFile, uiContent: request.uiContent }; if (request.contextMode === 'whole_project' && request.workspaceId) { const files = await service.listFiles(request.workspaceId); context = { ...context, projectSearch: await new ContextService((filePath) => service.readText(request.workspaceId!, filePath)).searchWholeProject(request.requirement, files as never[]) }; } return new UiPlanner(modelProvider).plan({ requirement: request.requirement, targetSemanticTree: context, runtimeFacts: { contextMode: request.contextMode } }); });
@@ -139,6 +154,7 @@ export function registerV3Ipc(window: BrowserWindow, service = new WorkspaceServ
       ipcMain.removeHandler?.('v3.workspace.readText');
       ipcMain.removeHandler?.('v3.workspace.writeText');
       ipcMain.removeHandler?.('v3.capabilities.search');
+      ipcMain.removeHandler?.('v3.workspace.tree'); ipcMain.removeHandler?.('v3.workspace.createFile'); ipcMain.removeHandler?.('v3.workspace.createDirectory'); ipcMain.removeHandler?.('v3.workspace.renameEntry'); ipcMain.removeHandler?.('v3.workspace.trashEntry'); ipcMain.removeHandler?.('v3.workspace.deleteEntryPermanently');
       ipcMain.removeHandler?.('v3.preview.render');
       ipcMain.removeHandler?.('v3.preview.cancel');
       ipcMain.removeHandler?.('v3.ai.plan');
