@@ -2,8 +2,8 @@ import { createHash } from 'node:crypto';
 import type { CanonicalUiIntent, UiCapabilityCandidate, VisualEnhancementPlan, VisualEnhancementOperation } from '@qt-ui-copilot/contracts';
 import { generateBaseUi, normalizeUiIntent, applyEnhancement } from '@qt-ui-copilot/ui-document';
 
-export type UiCreationStage = 'preparing_context' | 'generating_intent' | 'normalizing_intent' | 'building_base_ui' | 'validating_base_ui' | 'base_candidate_ready' | 'generating_enhancements' | 'applying_enhancements' | 'validating_preview' | 'waiting_approval' | 'failed' | 'cancelled';
-export interface UiCreationProgress { stage: UiCreationStage; message: string; warnings: Array<{ code: string; message: string }>; }
+export type UiCreationStage = 'preparing_context' | 'generating_intent' | 'normalizing_intent' | 'building_base_ui' | 'validating_base_ui' | 'base_candidate_ready' | 'generating_enhancements' | 'applying_enhancements' | 'validating_preview' | 'preview_ready' | 'waiting_approval' | 'failed' | 'cancelled';
+export interface UiCreationProgress { stage: UiCreationStage; message: string; warnings: Array<{ code: string; message: string }>; previewDataUrl?: string; previewStatus?: 'ready' | 'warning' | 'failed'; }
 export interface UiCreationTaskInput { requirement: string; targetQtVersion: string; fileName: string; rootType: CanonicalUiIntent['rootType']; referenceImages?: Array<{ name: string; mimeType: string; dataUrl: string }>; capabilityCandidates?: UiCapabilityCandidate[]; }
 export interface UiCreationBaseResult { baseSource: string; baseHash: string; intent: CanonicalUiIntent; warnings: Array<{ code: string; message: string }>; stage: 'base_candidate_ready'; }
 export interface UiCreationTaskResult { baseSource: string; enhancedSource: string; baseHash: string; enhancedHash: string; intent: CanonicalUiIntent; warnings: Array<{ code: string; message: string }>; stage: UiCreationStage; }

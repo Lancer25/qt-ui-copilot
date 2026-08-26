@@ -134,8 +134,8 @@ export interface V3PreviewResult { imageDataUrl: string; mode: 'quick' | 'enhanc
 export interface V3UiPlan { summary: string; riskLevel: 'low' | 'medium' | 'high'; operations: unknown[]; expectedResults: string[]; componentIds: string[]; }
 export type UiCreationRequest = { workspaceId: string; contextMode?: 'focused_ui' | 'whole_project'; requirement: string; attachments: AiAttachment[]; fileName: string; rootType: 'QWidget' | 'QDialog' | 'QMainWindow'; directory: string; qtKitId: string; useProjectResources?: boolean; useComponentLibrary?: boolean; taskId?: string };
 export type UiCreationResult = UiCreationCandidate & { blueprint: UiCreationBlueprint };
-export type V3UiCreationStage = 'preparing_context' | 'generating_intent' | 'normalizing_intent' | 'building_base_ui' | 'validating_base_ui' | 'generating_enhancements' | 'applying_enhancements' | 'validating_preview' | 'waiting_approval' | 'failed' | 'cancelled';
-export interface V3UiCreationProgress { stage: V3UiCreationStage; message: string; warnings: Array<{ code: string; message: string }>; }
+export type V3UiCreationStage = 'preparing_context' | 'generating_intent' | 'normalizing_intent' | 'building_base_ui' | 'validating_base_ui' | 'base_candidate_ready' | 'generating_enhancements' | 'applying_enhancements' | 'validating_preview' | 'preview_ready' | 'waiting_approval' | 'failed' | 'cancelled';
+export interface V3UiCreationProgress { stage: V3UiCreationStage; message: string; warnings: Array<{ code: string; message: string }>; previewDataUrl?: string; previewStatus?: 'ready' | 'warning' | 'failed'; }
 export interface V3CapabilitySearchInput {
   workspaceId: string;
   text?: string;

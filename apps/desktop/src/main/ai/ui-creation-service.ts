@@ -79,7 +79,7 @@ export class UiCreationService {
         createdAt: Date.now(), candidatePath,
       };
       this.candidates.set(id, candidate);
-      void this.finishPreview(id, rootDir, candidatePath);
+      void this.finishPreview(id, rootDir, candidatePath, onProgress);
       return this.publicCandidate(candidate);
     } catch (error) {
       await rm(candidateDir, { recursive: true, force: true });
@@ -174,16 +174,19 @@ export class UiCreationService {
     return { uic: true, preview: false, findings: [{ severity: 'info', code: 'preview_pending', message: '基础 UI 已通过 uic，预览正在后台生成。' }] };
   }
 
-  private async finishPreview(id: string, rootDir: string, candidatePath: string): Promise<void> {
+  private async finishPreview(id: string, rootDir: string, candidatePath: string, onProgress?: (progress: UiCreationProgress) => void): Promise<void> {
+    onProgress?.({ stage: 'validating_preview', message: '后台正在生成预览', warnings: [] });
     try {
       const preview = await this.validate(rootDir, candidatePath);
       const candidate = this.candidates.get(id);
       if (!candidate) return;
       this.candidates.set(id, { ...candidate, ...(preview.previewDataUrl ? { previewDataUrl: preview.previewDataUrl } : {}), validation: { ...candidate.validation, preview: preview.preview, findings: [...candidate.validation.findings.filter((finding) => finding.code !== 'preview_pending'), ...preview.findings] } });
+      onProgress?.(preview.previewDataUrl ? { stage: 'preview_ready', message: '预览已生成', warnings: [], previewDataUrl: preview.previewDataUrl, previewStatus: 'ready' } : { stage: 'preview_ready', message: '预览已完成但没有截图', warnings: preview.findings.map((finding) => ({ code: finding.code, message: finding.message })), previewStatus: 'warning' });
     } catch (error) {
       const candidate = this.candidates.get(id);
       if (!candidate) return;
       this.candidates.set(id, { ...candidate, validation: { ...candidate.validation, preview: false, findings: [...candidate.validation.findings.filter((finding) => finding.code !== 'preview_pending'), { severity: 'warning', code: 'preview_unavailable', message: error instanceof Error ? error.message : 'PreviewHost 暂不可用' }] } });
+      onProgress?.({ stage: 'preview_ready', message: '预览生成失败，但基础候选仍可保存', warnings: [{ code: 'preview_unavailable', message: error instanceof Error ? error.message : 'PreviewHost 暂不可用' }], previewStatus: 'failed' });
     }
   }
 
