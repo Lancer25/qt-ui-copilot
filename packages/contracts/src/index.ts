@@ -6,3 +6,4 @@ export * from './preview.js';
 export * from './component.js';
 export * from './v3.js';
 export * from './v3-ui-creation.js';
+export * from './v3-ui-intent.js';
