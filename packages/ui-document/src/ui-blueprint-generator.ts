@@ -1,17 +1,12 @@
 import { UiBlueprintNodeSchema, UiCreationBlueprintSchema, type UiBlueprintNode, type UiCreationBlueprint, type UiValue } from '@qt-ui-copilot/contracts';
 import { parseUi } from './parse-ui.js';
+import { isQtWidgetClass } from './qt-widget-catalog.js';
 
 export interface GeneratedUi {
   source: string;
   objectNames: string[];
 }
 
-const WIDGET_CLASSES = new Set([
-  'QWidget', 'QDialog', 'QMainWindow', 'QFrame', 'QLabel', 'QPushButton', 'QToolButton', 'QLineEdit',
-  'QTextEdit', 'QPlainTextEdit', 'QCheckBox', 'QRadioButton', 'QComboBox', 'QSpinBox', 'QDoubleSpinBox',
-  'QSlider', 'QProgressBar', 'QGroupBox', 'QTabWidget', 'QStackedWidget', 'QScrollArea', 'QTableWidget',
-  'QTreeWidget', 'QListWidget', 'QDateEdit', 'QTimeEdit', 'QDateTimeEdit', 'QLCDNumber', 'QCalendarWidget', 'QStatusBar', 'QMenuBar', 'QToolBar', 'QDockWidget',
-]);
 const LAYOUT_CLASSES = new Set(['QHBoxLayout', 'QVBoxLayout', 'QGridLayout', 'QFormLayout']);
 const XML_NAME = /^[A-Za-z_][A-Za-z0-9_.-]*$/;
 
@@ -65,7 +60,7 @@ function collectAndValidate(blueprint: UiCreationBlueprint): string[] {
     if (names.has(node.objectName)) throw new Error(`duplicate objectName "${node.objectName}"`);
     names.add(node.objectName);
     if (node.kind === 'layout' && !LAYOUT_CLASSES.has(node.className)) throw new Error(`unsupported Qt class "${node.className}"`);
-    if (node.kind === 'widget' && !WIDGET_CLASSES.has(node.className)) throw new Error(`unsupported Qt class "${node.className}"`);
+    if (node.kind === 'widget' && !isQtWidgetClass(node.className)) throw new Error(`unsupported Qt class "${node.className}"`);
     if (node.kind === 'spacer' && node.className !== 'QSpacerItem') throw new Error(`unsupported Qt class "${node.className}"`);
     for (const child of node.children) visit(child);
   };

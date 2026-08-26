@@ -1,0 +1,3 @@
+import { describe, expect, it } from 'vitest';
+import { isQtWidgetClass } from '../src/qt-widget-catalog';
+describe('Qt widget catalog', () => { it('covers common Qt 5 Designer widget families', () => { for (const name of ['QStatusBar', 'QMenuBar', 'QToolBar', 'QDockWidget', 'QDialogButtonBox', 'QTreeView', 'QTextBrowser', 'QWizard']) expect(isQtWidgetClass(name)).toBe(true); }); it('excludes abstract and non-widget support classes', () => { expect(isQtWidgetClass('QAbstractItemView')).toBe(false); expect(isQtWidgetClass('QAction')).toBe(false); expect(isQtWidgetClass('QListWidgetItem')).toBe(false); }); });
