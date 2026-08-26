@@ -1,9 +1,10 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { access, mkdir, open, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, open, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { UiCreationRequestSchema, type UiCreationBlueprint, type UiCreationCandidate, type UiCreationRequest } from '@qt-ui-copilot/contracts';
 import { generateUiFromBlueprint } from '@qt-ui-copilot/ui-document';
 import { loadProjectConfig, profileFromConfig, validateUiWithUic } from '@qt-ui-copilot/project-core';
+import type { ProjectProfile } from '@qt-ui-copilot/contracts';
 import type { WorkspaceService } from '../workspace/workspace-service';
 import type { PreviewSessionService, V3PreviewInput } from '../preview/preview-session-service';
 import type { AttachmentService, ValidatedAttachment } from './attachment-service';
@@ -46,8 +47,7 @@ export class UiCreationService {
     try {
       await writeFile(candidatePath, source, { encoding: 'utf8', flag: 'wx' });
       const validation = await this.validate(rootDir, candidatePath);
-    if (!validation.uic) throw new Error(`无法验证新界面：${validation.findings.find((finding) => finding.code === 'uic_failed')?.message ?? '请先在项目设置中配置 Qt Preview Profile（uic、CMake 和 PreviewHost）'}`);
-      if (!validation.preview && this.deps.preview) throw new Error('preview validation failed');
+      if (!validation.uic) throw new Error(`无法验证新界面：${validation.findings.find((finding) => finding.code === 'uic_failed')?.message ?? '请先在项目设置中选择 Qt Kit（需要 uic）'}`);
       const candidate: StoredCandidate = {
         id, workspaceId: request.workspaceId, targetPath, blueprint, source,
         sourceHash: createHash('sha256').update(source).digest('hex'),
@@ -102,19 +102,46 @@ export class UiCreationService {
   private async validate(rootDir: string, uiFile: string): Promise<{ uic: boolean; preview: boolean; previewDataUrl?: string; findings: Array<{ severity: 'info' | 'warning' | 'error'; code: string; message: string }> }> {
     const findings: Array<{ severity: 'info' | 'warning' | 'error'; code: string; message: string }> = [];
     const config = loadProjectConfig(rootDir);
+    // New projects commonly have only the Qt kit persisted. Keep uic
+    // validation available in that state; the enhanced PreviewHost path is
+    // intentionally optional until the user configures it.
+    const qtOnlyProfile = config ? undefined : await loadQtOnlyProfile(rootDir);
     const uic = this.deps.validateUic
       ? await this.deps.validateUic(rootDir, uiFile)
         : config
         ? await validateUiWithUic(profileFromConfig(rootDir, config), uiFile)
-        : { valid: false, stderr: '请先在项目设置中配置 Preview Profile（Qt Kit、uic、CMake 和 PreviewHost）' };
+        : qtOnlyProfile
+        ? await validateUiWithUic(qtOnlyProfile, uiFile)
+        : { valid: false, stderr: '请先在项目设置中选择 Qt Kit（需要 uic）' };
     if (!uic.valid) { findings.push({ severity: 'error', code: 'uic_failed', message: (uic.stderr || uic.stdout || 'uic validation failed').slice(0, 1000) }); return { uic: false, preview: false, findings }; }
-    if (!this.deps.preview || !config) return { uic: true, preview: false, findings };
+    if (!this.deps.preview || !config) return { uic: true, preview: false, findings: [{ severity: 'info', code: 'preview_not_configured', message: 'PreviewHost 未配置，已完成 UI XML 与 uic 校验。' }] };
     const qt = config.qt; const p = config.preview;
-    const result = await this.deps.preview.render({ uiFile, profile: { qtKitId: qt.version, mode: 'enhanced', width: p.width, height: p.height, locale: p.locale, style: p.style, qrcFiles: p.qrcFiles, stylesheets: p.stylesheets, fonts: p.fonts, pluginPaths: p.pluginPaths, highDpiMode: 'project-default' }, qt: { version: qt.version, compilerAbi: qt.compilerAbi, architecture: qt.architecture, binDirectory: qt.binDirectory, uic: qt.uic, rcc: qt.rcc, cmake: qt.cmake, cmakePrefixPath: qt.cmakePrefixPath, ...(qt.cmakeGenerator ? { cmakeGenerator: qt.cmakeGenerator } : {}) }, sourceDirectory: p.sourceDirectory, cacheDirectory: p.cacheDirectory, outputImage: join(dirname(uiFile), 'candidate.png') } as V3PreviewInput);
-    return { uic: true, preview: true, previewDataUrl: result.imageDataUrl, findings };
+    try {
+      const result = await this.deps.preview.render({ uiFile, profile: { qtKitId: qt.version, mode: 'enhanced', width: p.width, height: p.height, locale: p.locale, style: p.style, qrcFiles: p.qrcFiles, stylesheets: p.stylesheets, fonts: p.fonts, pluginPaths: p.pluginPaths, highDpiMode: 'project-default' }, qt: { version: qt.version, compilerAbi: qt.compilerAbi, architecture: qt.architecture, binDirectory: qt.binDirectory, uic: qt.uic, rcc: qt.rcc, cmake: qt.cmake, cmakePrefixPath: qt.cmakePrefixPath, ...(qt.cmakeGenerator ? { cmakeGenerator: qt.cmakeGenerator } : {}) }, sourceDirectory: p.sourceDirectory, cacheDirectory: p.cacheDirectory, outputImage: join(dirname(uiFile), 'candidate.png') } as V3PreviewInput);
+      return { uic: true, preview: true, previewDataUrl: result.imageDataUrl, findings };
+    } catch (error) {
+      findings.push({ severity: 'warning', code: 'preview_unavailable', message: error instanceof Error ? error.message : 'PreviewHost 暂不可用，已保留 UI 草稿。' });
+      return { uic: true, preview: false, findings };
+    }
   }
 
   private publicCandidate(candidate: StoredCandidate): UiCreationCandidate { const { candidatePath: _candidatePath, ...publicValue } = candidate; return publicValue; }
+}
+
+async function loadQtOnlyProfile(rootDir: string): Promise<ProjectProfile | undefined> {
+  try {
+    const raw = JSON.parse(await readFile(join(rootDir, '.qt-ui-copilot', 'project.json'), 'utf8')) as Record<string, unknown>;
+    const qt = raw.qt as Record<string, unknown> | undefined;
+    if (!qt || typeof qt.version !== 'string' || typeof qt.uic !== 'string' || typeof qt.rcc !== 'string') return undefined;
+    const resolved = (value: string): string => resolve(rootDir, value.replaceAll('${projectRoot}', rootDir));
+    return {
+      id: typeof raw.id === 'string' ? raw.id : `workspace-${createHash('sha256').update(rootDir).digest('hex').slice(0, 12)}`,
+      rootDir,
+      qt: { version: qt.version, uic: resolved(qt.uic), rcc: resolved(qt.rcc), ...(typeof qt.binDirectory === 'string' ? { binDirectory: resolved(qt.binDirectory) } : {}) },
+      build: { command: { executable: 'cmake', args: [] } },
+      run: { executable: process.platform === 'win32' ? 'cmd.exe' : 'sh', args: [], environment: {} },
+    };
+  } catch { return undefined; }
 }
 
 async function exists(path: string): Promise<boolean> { try { await access(path); return true; } catch { return false; } }
