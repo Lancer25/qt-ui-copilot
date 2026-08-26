@@ -12,8 +12,8 @@ import './styles/v3.css';
 
 type ActivityPanel = 'explorer' | 'search' | 'components' | 'settings';
 type Plan = { summary: string; riskLevel: string; operations: unknown[] };
-type IconName = 'explorer' | 'search' | 'components' | 'settings' | 'minimize' | 'maximize' | 'close' | 'folder';
-const iconPaths: Record<IconName, string> = { explorer: 'M4 5.5A1.5 1.5 0 0 1 5.5 4h4l1.7 2H18.5A1.5 1.5 0 0 1 20 7.5v9A1.5 1.5 0 0 1 18.5 18h-13A1.5 1.5 0 0 1 4 16.5z', search: 'm19 19-4.2-4.2M10.8 17a6.2 6.2 0 1 1 0-12.4 6.2 6.2 0 0 1 0 12.4Z', components: 'M5 5h5v5H5zM14 5h5v5h-5zM5 14h5v5H5zM14 14h5v5h-5z', settings: 'M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Zm0-4v2m0 9.5V18m7.5-6H22M2 12h2.5m12.8-5.3 1.4-1.4M5.3 18.7l1.4-1.4m10.6 0 1.4 1.4M5.3 5.3l1.4 1.4', minimize: 'M5 12h14', maximize: 'M6 6h12v12H6z', close: 'm6 6 12 12M18 6 6 18', folder: 'M3.5 6.5A1.5 1.5 0 0 1 5 5h4l2 2h8.5A1.5 1.5 0 0 1 21 8.5v8A1.5 1.5 0 0 1 19.5 18h-15A1.5 1.5 0 0 1 3 16.5z' };
+type IconName = 'explorer' | 'search' | 'components' | 'settings' | 'minimize' | 'maximize' | 'close' | 'folder' | 'refresh';
+const iconPaths: Record<IconName, string> = { explorer: 'M4 5.5A1.5 1.5 0 0 1 5.5 4h4l1.7 2H18.5A1.5 1.5 0 0 1 20 7.5v9A1.5 1.5 0 0 1 18.5 18h-13A1.5 1.5 0 0 1 4 16.5z', search: 'm19 19-4.2-4.2M10.8 17a6.2 6.2 0 1 1 0-12.4 6.2 6.2 0 0 1 0 12.4Z', components: 'M5 5h5v5H5zM14 5h5v5h-5zM5 14h5v5H5zM14 14h5v5h-5z', settings: 'M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Zm0-4v2m0 9.5V18m7.5-6H22M2 12h2.5m12.8-5.3 1.4-1.4M5.3 18.7l1.4-1.4m10.6 0 1.4 1.4M5.3 5.3l1.4 1.4', minimize: 'M5 12h14', maximize: 'M6 6h12v12H6z', close: 'm6 6 12 12M18 6 6 18', folder: 'M3.5 6.5A1.5 1.5 0 0 1 5 5h4l2 2h8.5A1.5 1.5 0 0 1 21 8.5v8A1.5 1.5 0 0 1 19.5 18h-15A1.5 1.5 0 0 1 3 16.5z', refresh: 'M20 11a8 8 0 1 0 1 4M20 11V5m0 6h-6' };
 function Icon({ name, size = 17 }: { name: IconName; size?: number }) { return <svg className="v3-icon" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={iconPaths[name]} /></svg>; }
 
 function V3Content({ api }: { api: DesktopApi }) {

@@ -101,7 +101,8 @@ export class UiCreationService {
 
   private async validate(rootDir: string, uiFile: string): Promise<{ uic: boolean; preview: boolean; previewDataUrl?: string; findings: Array<{ severity: 'info' | 'warning' | 'error'; code: string; message: string }> }> {
     const findings: Array<{ severity: 'info' | 'warning' | 'error'; code: string; message: string }> = [];
-    const config = loadProjectConfig(rootDir);
+    let config: ReturnType<typeof loadProjectConfig>;
+    try { config = loadProjectConfig(rootDir); } catch { config = undefined; }
     // New projects commonly have only the Qt kit persisted. Keep uic
     // validation available in that state; the enhanced PreviewHost path is
     // intentionally optional until the user configures it.

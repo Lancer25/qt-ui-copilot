@@ -25,3 +25,4 @@
 .v3-settings-overlay{right:var(--assistant-width, 360px)}
 .v3-settings-overlay .capability-check{align-items:flex-start}.v3-settings-overlay .capability-check>div{min-width:0;flex:1}.v3-settings-overlay .capability-check button{flex:0 0 auto;min-width:132px;white-space:nowrap;word-break:keep-all}.v3-settings-overlay .capability-check p{overflow-wrap:anywhere}
 .v3-create-validation .is-warning{color:#e4b56b}
+.v3-create-progress{display:flex;align-items:center;gap:7px;margin:0;padding:7px 8px;border:1px solid var(--border-default);border-radius:6px;color:var(--text-secondary);font-size:11px}.v3-progress-dot{width:7px;height:7px;border-radius:50%;background:var(--accent-primary);box-shadow:0 0 0 4px color-mix(in srgb,var(--accent-primary) 18%,transparent);animation:v3-pulse 1.2s ease-in-out infinite}@keyframes v3-pulse{50%{opacity:.35;transform:scale(.75)}}
