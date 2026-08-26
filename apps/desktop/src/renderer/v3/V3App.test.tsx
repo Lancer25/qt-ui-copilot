@@ -26,4 +26,11 @@ describe('V3App', () => {
     await user.click(screen.getByRole('button', { name: 'Explorer' }));
     expect(screen.getByRole('button', { name: /Empty/ })).toBeTruthy();
   });
+  it('switches explicitly to the new UI creation workflow', async () => {
+    const user = userEvent.setup(); render(<V3App api={api} />);
+    await user.click(screen.getByRole('button', { name: '打开文件夹' }));
+    await user.click(screen.getByRole('button', { name: '创建新界面' }));
+    expect(screen.getByRole('button', { name: '创建新界面' }).getAttribute('aria-pressed')).toBe('true');
+    expect((screen.getByLabelText('新 UI 文件名') as HTMLInputElement).value).toBe('NewWidget.ui');
+  });
 });
