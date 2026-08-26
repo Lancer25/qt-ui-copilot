@@ -13,3 +13,23 @@ export const QT_WIDGET_CLASSES = new Set([
 ]);
 
 export function isQtWidgetClass(className: string): boolean { return QT_WIDGET_CLASSES.has(className); }
+
+/**
+ * Classes which can own child widgets in a Designer form.  Keeping this
+ * metadata next to the class catalogue prevents the capability source and
+ * the XML generator from maintaining subtly different widget lists.
+ */
+export const QT_CONTAINER_CLASSES = new Set([
+  'QWidget', 'QDialog', 'QMainWindow', 'QFrame', 'QGroupBox', 'QTabWidget',
+  'QToolBox', 'QStackedWidget', 'QScrollArea', 'QSplitter', 'QDockWidget',
+  'QMdiArea', 'QMdiSubWindow', 'QWizard', 'QWizardPage', 'QScrollArea',
+]);
+
+/** Deterministic fallback classes for controls with a close Designer analogue. */
+export const QT_WIDGET_FALLBACKS: Readonly<Record<string, string>> = {
+  QCommandLinkButton: 'QPushButton',
+  QFontComboBox: 'QComboBox',
+  QKeySequenceEdit: 'QLineEdit',
+  QProgressDialog: 'QDialog',
+  QWizardPage: 'QWidget',
+};
