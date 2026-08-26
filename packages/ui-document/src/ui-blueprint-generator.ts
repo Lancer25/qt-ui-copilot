@@ -10,7 +10,7 @@ const WIDGET_CLASSES = new Set([
   'QWidget', 'QDialog', 'QMainWindow', 'QFrame', 'QLabel', 'QPushButton', 'QToolButton', 'QLineEdit',
   'QTextEdit', 'QPlainTextEdit', 'QCheckBox', 'QRadioButton', 'QComboBox', 'QSpinBox', 'QDoubleSpinBox',
   'QSlider', 'QProgressBar', 'QGroupBox', 'QTabWidget', 'QStackedWidget', 'QScrollArea', 'QTableWidget',
-  'QTreeWidget', 'QListWidget', 'QDateEdit', 'QTimeEdit', 'QDateTimeEdit', 'QLCDNumber', 'QCalendarWidget',
+  'QTreeWidget', 'QListWidget', 'QDateEdit', 'QTimeEdit', 'QDateTimeEdit', 'QLCDNumber', 'QCalendarWidget', 'QStatusBar', 'QMenuBar', 'QToolBar', 'QDockWidget',
 ]);
 const LAYOUT_CLASSES = new Set(['QHBoxLayout', 'QVBoxLayout', 'QGridLayout', 'QFormLayout']);
 const XML_NAME = /^[A-Za-z_][A-Za-z0-9_.-]*$/;

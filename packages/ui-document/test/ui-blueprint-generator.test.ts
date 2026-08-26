@@ -35,4 +35,10 @@ describe('generateUiFromBlueprint', () => {
     cyclic.layoutTree.children.push(cyclic.layoutTree);
     expect(() => generateUiFromBlueprint(cyclic as UiCreationBlueprint)).toThrow('cycle');
   });
+
+  it('accepts standard main-window support widgets such as QStatusBar', () => {
+    const blueprint = structuredClone(loginBlueprint);
+    blueprint.layoutTree.children.push({ kind: 'widget', className: 'QStatusBar', objectName: 'statusBar', properties: {}, children: [] });
+    expect(() => generateUiFromBlueprint(blueprint)).not.toThrow();
+  });
 });
