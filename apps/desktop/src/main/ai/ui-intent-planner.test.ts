@@ -1,0 +1,3 @@
+import { describe, expect, it } from 'vitest';
+import { UiIntentPlanner } from './ui-intent-planner';
+describe('UiIntentPlanner', () => { it('uses the restricted ui_intent request kind', async () => { const requests: string[] = []; const planner = new UiIntentPlanner({ generate: async (request) => { requests.push(request.kind); return { fileName: 'A.ui', rootType: 'QWidget', rootObjectName: 'a', windowTitle: 'A', tree: { kind: 'layout', role: 'main', layout: 'vertical', children: [] }, expectedResults: ['ok'] }; } }); await planner.plan({ requirement: 'settings', targetQtVersion: '5.9.6', fileName: 'A.ui', rootType: 'QWidget' }); expect(requests).toEqual(['ui_intent']); }); });

@@ -4,7 +4,7 @@
  * owns credentials or performs network I/O itself.
  */
 export interface ModelRequest {
-  kind: 'ui_plan' | 'visual_review' | 'format_repair' | 'ui_creation';
+  kind: 'ui_plan' | 'visual_review' | 'format_repair' | 'ui_creation' | 'ui_intent' | 'ui_enhancement';
   systemPrompt: string;
   input: Record<string, unknown>;
   responseSchema: string;
