@@ -19,7 +19,14 @@ const desktopApi: DesktopApi = {
     },
   },
   preview: { render: (input) => ipcRenderer.invoke('v3.preview.render', input) as ReturnType<NonNullable<DesktopApi['preview']>['render']>, cancel: (uiFile) => ipcRenderer.invoke('v3.preview.cancel', { uiFile }) as ReturnType<NonNullable<DesktopApi['preview']>['cancel']> },
-  ai: { plan: (input) => ipcRenderer.invoke('v3.ai.plan', input) as ReturnType<NonNullable<DesktopApi['ai']>['plan']>, planStream: (input) => ipcRenderer.invoke('v3.ai.planStream', input) as ReturnType<NonNullable<DesktopApi['ai']>['planStream']> },
+  ai: {
+    plan: (input) => ipcRenderer.invoke('v3.ai.plan', input) as ReturnType<NonNullable<DesktopApi['ai']>['plan']>,
+    planStream: (input) => ipcRenderer.invoke('v3.ai.planStream', input) as ReturnType<NonNullable<DesktopApi['ai']>['planStream']>,
+    createUiCandidate: (input) => ipcRenderer.invoke('v3.ai.createUiCandidate', input) as ReturnType<NonNullable<DesktopApi['ai']>['createUiCandidate']>,
+    commitUiCandidate: (candidateId) => ipcRenderer.invoke('v3.ai.commitUiCandidate', { candidateId }) as ReturnType<NonNullable<DesktopApi['ai']>['commitUiCandidate']>,
+    rejectUiCandidate: (candidateId) => ipcRenderer.invoke('v3.ai.rejectUiCandidate', { candidateId }) as ReturnType<NonNullable<DesktopApi['ai']>['rejectUiCandidate']>,
+    cancelUiCreation: (taskId) => ipcRenderer.invoke('v3.ai.cancelUiCreation', { taskId }) as ReturnType<NonNullable<DesktopApi['ai']>['cancelUiCreation']>,
+  },
   revisions: { apply: (input) => ipcRenderer.invoke('v3.revision.apply', input) as ReturnType<NonNullable<DesktopApi['revisions']>['apply']>, undo: (uiFile) => ipcRenderer.invoke('v3.revision.undo', { uiFile }) as ReturnType<NonNullable<DesktopApi['revisions']>['undo']>, redo: (uiFile) => ipcRenderer.invoke('v3.revision.redo', { uiFile }) as ReturnType<NonNullable<DesktopApi['revisions']>['redo']>, rebase: (uiFile) => ipcRenderer.invoke('v3.revision.rebase', { uiFile }) as ReturnType<NonNullable<DesktopApi['revisions']>['rebase']> },
   projects: {
     chooseDirectory: () => ipcRenderer.invoke('projects:chooseDirectory') as Promise<string | undefined>,

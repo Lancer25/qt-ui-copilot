@@ -4,10 +4,32 @@
  * owns credentials or performs network I/O itself.
  */
 export interface ModelRequest {
-  kind: 'ui_plan' | 'visual_review' | 'format_repair';
+  kind: 'ui_plan' | 'visual_review' | 'format_repair' | 'ui_creation';
   systemPrompt: string;
   input: Record<string, unknown>;
   responseSchema: string;
+}
+
+/**
+ * Convert the attachment envelope used by UI creation into a provider-safe
+ * chat message.  The model request remains JSON serialisable and carries only
+ * metadata in `attachments`; image bytes are deliberately kept in the
+ * separate private `visualAttachments` field and are never included in trace
+ * payloads.
+ */
+export function providerInputContent(input: Record<string, unknown>): unknown {
+  const visualAttachments = input.visualAttachments;
+  const images = Array.isArray(visualAttachments)
+    ? visualAttachments.filter((item): item is { dataUrl: string } => {
+      if (typeof item !== 'object' || item === null) return false;
+      const dataUrl = (item as { dataUrl?: unknown }).dataUrl;
+      return typeof dataUrl === 'string' && dataUrl.startsWith('data:image/');
+    })
+    : [];
+  const textInput = Object.fromEntries(Object.entries(input).filter(([key]) => key !== 'visualAttachments'));
+  return images.length > 0
+    ? [{ type: 'text', text: JSON.stringify(textInput) }, ...images.map((image) => ({ type: 'image_url', image_url: { url: image.dataUrl } }))]
+    : JSON.stringify(textInput);
 }
 
 export interface ModelProvider {

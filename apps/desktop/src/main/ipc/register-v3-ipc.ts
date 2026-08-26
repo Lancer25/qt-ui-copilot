@@ -12,6 +12,10 @@ import { applyOperations, parseUi } from '@qt-ui-copilot/ui-document';
 import { RevisionService } from '../revisions/revision-service';
 import { ContextService } from '../ai/context-service';
 import { ConversationService } from '../ai/conversation-service';
+import { UiCreationRequestSchema, type UiCreationRequest } from '@qt-ui-copilot/contracts';
+import { AttachmentService } from '../ai/attachment-service';
+import { UiCreationPlanner } from '../ai/ui-creation-planner';
+import { UiCreationService } from '../ai/ui-creation-service';
 
 const OpenWorkspaceSchema = z.object({ rootDir: z.string().min(1).max(4096), ignorePatterns: z.array(z.string().min(1).max(512)).max(128).optional() }).strict();
 const WorkspaceIdSchema = z.object({ workspaceId: z.string().min(1).max(128) }).strict();
@@ -22,11 +26,16 @@ const PreviewCancelSchema = z.object({ uiFile: z.string().min(1) }).strict();
 const PlanInputSchema = z.object({ requirement: z.string().min(1).max(10000), uiFile: z.string().min(1), uiContent: z.string().max(2_000_000), contextMode: z.enum(['focused_ui', 'whole_project']), workspaceId: z.string().min(1).optional() }).strict();
 const RevisionInputSchema = z.object({ uiFile: z.string().min(1), operations: z.array(z.unknown()), conversationId: z.string().min(1) }).strict();
 const RevisionFileSchema = z.object({ uiFile: z.string().min(1) }).strict();
+const UiCreationIpcSchema = UiCreationRequestSchema.extend({ taskId: z.string().min(1).max(128).optional() }).strict();
+const CandidateIdSchema = z.object({ candidateId: z.string().min(1).max(128) }).strict();
+const CancelUiCreationSchema = z.object({ taskId: z.string().min(1).max(128) }).strict();
 
 /** Registers the sandboxed V3 workspace boundary and returns its lifecycle cleanup. */
 export function registerV3Ipc(window: BrowserWindow, service = new WorkspaceService(), preview = new PreviewSessionService(), modelProvider?: ModelProvider): { dispose(): void } {
   const watchers = new Map<string, WorkspaceWatcher>();
   const revisionServices = new Map<string, RevisionService>();
+  const creationTasks = new Map<string, AbortController>();
+  const creationService = modelProvider ? new UiCreationService({ workspace: service, planner: new UiCreationPlanner(modelProvider), attachments: new AttachmentService(), preview }) : undefined;
   const publish = (change: WorkspaceChange): void => {
     if (!window.isDestroyed?.()) window.webContents.send('v3.workspace.onChange', change);
   };
@@ -61,6 +70,20 @@ export function registerV3Ipc(window: BrowserWindow, service = new WorkspaceServ
   ipcMain.handle('v3.preview.cancel', (_event, input: unknown) => { preview.cancel(PreviewCancelSchema.parse(input).uiFile); });
   ipcMain.handle('v3.ai.plan', async (_event, input: unknown) => { if (!modelProvider) throw new Error('模型服务尚未配置'); const request = PlanInputSchema.parse(input); let context: Record<string, unknown> = { uiFile: request.uiFile, uiContent: request.uiContent }; if (request.contextMode === 'whole_project' && request.workspaceId) { const files = await service.listFiles(request.workspaceId); context = { ...context, projectSearch: await new ContextService((filePath) => service.readText(request.workspaceId!, filePath)).searchWholeProject(request.requirement, files as never[]) }; } return new UiPlanner(modelProvider).plan({ requirement: request.requirement, targetSemanticTree: context, runtimeFacts: { contextMode: request.contextMode } }); });
   ipcMain.handle('v3.ai.planStream', async (_event, input: unknown) => { if (!modelProvider) throw new Error('模型服务尚未配置'); const request = PlanInputSchema.parse(input); let targetSemanticTree: Record<string, unknown> = { uiFile: request.uiFile, uiContent: request.uiContent }; if (request.workspaceId) { const files = await service.listFiles(request.workspaceId); const contextService = new ContextService((filePath) => service.readText(request.workspaceId!, filePath)); if (request.contextMode === 'whole_project') targetSemanticTree = { ...targetSemanticTree, projectSearch: await contextService.searchWholeProject(request.requirement, files as never[]) }; else { const uiFile = files.find((file) => file.absolutePath === request.uiFile || file.relativePath === request.uiFile); if (uiFile) targetSemanticTree = { ...(await contextService.buildFocusedUiContext(uiFile as never, files as never[])) as unknown as Record<string, unknown> }; } } const events = []; const context = { requirement: request.requirement, targetSemanticTree, runtimeFacts: { contextMode: request.contextMode } }; for await (const event of new ConversationService(modelProvider).plan(`v3-${request.uiFile}`, context)) events.push(event); return events; });
+  ipcMain.handle('v3.ai.createUiCandidate', async (_event, input: unknown) => {
+    if (!creationService) throw new Error('模型服务尚未配置');
+    const parsed = UiCreationIpcSchema.parse(input);
+    const taskId = parsed.taskId ?? `ui-create-${Date.now()}`;
+    const controller = new AbortController(); creationTasks.set(taskId, controller);
+    try {
+      if (controller.signal.aborted) throw new Error('UI creation cancelled');
+      const { taskId: _taskId, ...request } = parsed;
+      return await creationService.createCandidate(request as UiCreationRequest);
+    } finally { creationTasks.delete(taskId); }
+  });
+  ipcMain.handle('v3.ai.commitUiCandidate', async (_event, input: unknown) => { if (!creationService) throw new Error('UI creation service unavailable'); return creationService.commit(CandidateIdSchema.parse(input).candidateId); });
+  ipcMain.handle('v3.ai.rejectUiCandidate', (_event, input: unknown) => { if (!creationService) throw new Error('UI creation service unavailable'); creationService.reject(CandidateIdSchema.parse(input).candidateId); });
+  ipcMain.handle('v3.ai.cancelUiCreation', (_event, input: unknown) => { const taskId = CancelUiCreationSchema.parse(input).taskId; creationTasks.get(taskId)?.abort(); });
   ipcMain.handle('v3.revision.apply', async (_event, input: unknown) => {
     const request = RevisionInputSchema.parse(input);
     const revision = revisionServices.get(request.uiFile) ?? new RevisionService({
@@ -97,6 +120,12 @@ export function registerV3Ipc(window: BrowserWindow, service = new WorkspaceServ
       ipcMain.removeHandler?.('v3.preview.cancel');
       ipcMain.removeHandler?.('v3.ai.plan');
       ipcMain.removeHandler?.('v3.ai.planStream');
+      for (const controller of creationTasks.values()) controller.abort();
+      creationTasks.clear();
+      ipcMain.removeHandler?.('v3.ai.createUiCandidate');
+      ipcMain.removeHandler?.('v3.ai.commitUiCandidate');
+      ipcMain.removeHandler?.('v3.ai.rejectUiCandidate');
+      ipcMain.removeHandler?.('v3.ai.cancelUiCreation');
       ipcMain.removeHandler?.('v3.revision.apply');
       ipcMain.removeHandler?.('v3.revision.undo'); ipcMain.removeHandler?.('v3.revision.redo'); ipcMain.removeHandler?.('v3.revision.rebase');
     },

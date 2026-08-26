@@ -23,5 +23,17 @@ describe('V3 workspace IPC', () => {
     const handler = calls.find(([channel]) => channel === 'v3.workspace.open')?.[1];
     await expect(handler?.({}, { rootDir: '' })).rejects.toThrow();
   });
-});
 
+  it('registers UI creation methods and rejects malformed attachment envelopes at the IPC boundary', async () => {
+    const window = { webContents: { send: vi.fn() }, isDestroyed: () => false } as unknown as BrowserWindow;
+    const provider = { generate: vi.fn() };
+    const lifecycle = registerV3Ipc(window, new WorkspaceService(), undefined, provider);
+    const calls = (ipcMain.handle as unknown as { mock: { calls: Array<[string, Function]> } }).mock.calls;
+    expect(calls.some(([channel]) => channel === 'v3.ai.createUiCandidate')).toBe(true);
+    expect(calls.some(([channel]) => channel === 'v3.ai.commitUiCandidate')).toBe(true);
+    const handler = calls.find(([channel]) => channel === 'v3.ai.createUiCandidate')?.[1];
+    expect(handler).toBeDefined();
+    await expect(handler?.({}, { workspaceId: 'w', requirement: 'x', attachments: [{ name: 'bad.exe' }], fileName: 'x.ui', rootType: 'QWidget', directory: 'ui', qtKitId: '5.9.6' })).rejects.toThrow();
+    lifecycle.dispose();
+  });
+});

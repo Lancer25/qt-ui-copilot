@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { ArtifactStore, loadProjectConfig, prepareBuild, profileFromConfig, runProcess, RuntimeSession, scanProject, validateUiWithUic } from '@qt-ui-copilot/project-core';
 import { openDatabase, SettingsRepository, TaskRepository, V3Repository } from '@qt-ui-copilot/task-store';
 import { ComponentCatalog } from '@qt-ui-copilot/component-library';
-import { classifyVisualReviewUnavailable, TaskRepositoryWorkflowStore, UiPlanner, VisualCritic, WorkflowMachine, type ModelProvider, type ModelRequest, type WorkflowNode, type WorkflowState } from '@qt-ui-copilot/agent-workflow';
+import { classifyVisualReviewUnavailable, TaskRepositoryWorkflowStore, UiPlanner, VisualCritic, WorkflowMachine, providerInputContent, type ModelProvider, type ModelRequest, type WorkflowNode, type WorkflowState } from '@qt-ui-copilot/agent-workflow';
 import type { ProjectConfig, ProjectProfile, UiPlan } from '@qt-ui-copilot/contracts';
 import { applyOperations, CandidateFile, parseUi } from '@qt-ui-copilot/ui-document';
 import { PreviewClient, PreviewHostBuilder } from '@qt-ui-copilot/preview-client';
@@ -243,9 +243,11 @@ export class OpenAiCompatibleProvider implements ModelProvider {
         .filter((item): item is { key: string; value: string } => typeof item.value === 'string' && item.value.startsWith('data:image/'))
       : [];
     const textInput = Object.fromEntries(Object.entries(request.input).filter(([key]) => !['beforeImage', 'afterImage', 'referenceImage'].includes(key)));
-    const userContent = visualImages.length > 0
-      ? [{ type: 'text', text: JSON.stringify(textInput) }, ...visualImages.map((image) => ({ type: 'image_url', image_url: { url: image.value } }))]
-      : JSON.stringify(request.input);
+    const userContent = request.kind === 'ui_creation'
+      ? providerInputContent(request.input)
+      : visualImages.length > 0
+        ? [{ type: 'text', text: JSON.stringify(textInput) }, ...visualImages.map((image) => ({ type: 'image_url', image_url: { url: image.value } }))]
+        : JSON.stringify(request.input);
     try {
       const response = await this.fetchImpl(`${this.settings.baseUrl.replace(/\/$/, '')}/chat/completions`, {
         method: 'POST',
