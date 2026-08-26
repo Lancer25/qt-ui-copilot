@@ -222,7 +222,9 @@ export class OpenAiCompatibleProvider implements ModelProvider {
     try { this.traceLogger(event); } catch { /* ignore logging failures */ }
   }
 
-  async generate(request: ModelRequest): Promise<unknown> {
+  async generate(request: ModelRequest): Promise<unknown> { return this.generateAttempt(request, 0); }
+
+  private async generateAttempt(request: ModelRequest, attempt: number): Promise<unknown> {
     const startedAt = Date.now();
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
@@ -266,6 +268,12 @@ export class OpenAiCompatibleProvider implements ModelProvider {
         this.trace({ phase: 'response', kind: request.kind, model: this.settings.model, inputJsonBytes, elapsedMs, httpStatus: response.status, errorCode: `http_${response.status}` });
         let providerMessage = '';
         try { const errorBody = await response.clone().json() as { error?: { message?: unknown }; message?: unknown }; providerMessage = String(errorBody.error?.message ?? errorBody.message ?? '').trim(); } catch { /* some gateways return an empty/non-JSON 429 body */ }
+        if (response.status === 429 && attempt < 2) {
+          const retryAfter = Number(response.headers.get('retry-after'));
+          const delayMs = Number.isFinite(retryAfter) && retryAfter > 0 ? Math.min(retryAfter * 1000, 15_000) : 800 * (attempt + 1);
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+          return this.generateAttempt(request, attempt + 1);
+        }
         throw new Error(`Model request failed: HTTP ${response.status}${providerMessage ? ` — ${providerMessage.slice(0, 300)}` : ''}`);
       }
       const body = await response.json() as { choices?: Array<{ finish_reason?: unknown; message?: { content?: unknown; reasoning_content?: unknown } }> };
