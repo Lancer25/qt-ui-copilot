@@ -2,9 +2,10 @@ import { createHash } from 'node:crypto';
 import type { CanonicalUiIntent, UiCapabilityCandidate, VisualEnhancementPlan, VisualEnhancementOperation } from '@qt-ui-copilot/contracts';
 import { generateBaseUi, normalizeUiIntent, applyEnhancement } from '@qt-ui-copilot/ui-document';
 
-export type UiCreationStage = 'preparing_context' | 'generating_intent' | 'normalizing_intent' | 'building_base_ui' | 'validating_base_ui' | 'generating_enhancements' | 'applying_enhancements' | 'validating_preview' | 'waiting_approval' | 'failed' | 'cancelled';
+export type UiCreationStage = 'preparing_context' | 'generating_intent' | 'normalizing_intent' | 'building_base_ui' | 'validating_base_ui' | 'base_candidate_ready' | 'generating_enhancements' | 'applying_enhancements' | 'validating_preview' | 'waiting_approval' | 'failed' | 'cancelled';
 export interface UiCreationProgress { stage: UiCreationStage; message: string; warnings: Array<{ code: string; message: string }>; }
 export interface UiCreationTaskInput { requirement: string; targetQtVersion: string; fileName: string; rootType: CanonicalUiIntent['rootType']; referenceImages?: Array<{ name: string; mimeType: string; dataUrl: string }>; capabilityCandidates?: UiCapabilityCandidate[]; }
+export interface UiCreationBaseResult { baseSource: string; baseHash: string; intent: CanonicalUiIntent; warnings: Array<{ code: string; message: string }>; stage: 'base_candidate_ready'; }
 export interface UiCreationTaskResult { baseSource: string; enhancedSource: string; baseHash: string; enhancedHash: string; intent: CanonicalUiIntent; warnings: Array<{ code: string; message: string }>; stage: UiCreationStage; }
 export interface UiCreationTaskDeps {
   planIntent(input: UiCreationTaskInput): Promise<CanonicalUiIntent>;
@@ -17,7 +18,35 @@ export interface UiCreationTaskDeps {
 export class UiCreationTaskService {
   constructor(private readonly deps: UiCreationTaskDeps) {}
 
+  /**
+   * Runs only the authoritative generation lane. The returned source has
+   * passed uic and is safe to stage/save while visual enhancement and native
+   * preview continue in a separate lane.
+   */
+  async runBase(input: UiCreationTaskInput, onProgress?: (progress: UiCreationProgress) => void): Promise<UiCreationBaseResult> {
+    const { intent, source, warnings, report } = await this.prepareBase(input, onProgress);
+    report('base_candidate_ready', '基础 UI 已通过 uic 校验，可立即保存');
+    return { baseSource: source, baseHash: hash(source), intent, warnings, stage: 'base_candidate_ready' };
+  }
+
   async run(input: UiCreationTaskInput, onProgress?: (progress: UiCreationProgress) => void): Promise<UiCreationTaskResult> {
+    const base = await this.prepareBase(input, onProgress);
+    const { intent: sanitizedIntent, source: baseSource, warnings, report } = base;
+    let enhancedSource = baseSource;
+    report('generating_enhancements', '正在规划视觉增强');
+    const plan = await this.deps.planEnhancements({ requirement: input.requirement, baseUi: baseSource, objectNames: collectObjectNames(sanitizedIntent), referenceImage: input.referenceImages?.[0] });
+    for (const operation of plan.operations) {
+      report('applying_enhancements', `正在应用视觉增强：${operation.op}`);
+      const applied = applyEnhancement(enhancedSource, operation as VisualEnhancementOperation);
+      if (!applied.applied || !await this.deps.validateUic(applied.source)) { warnings.push({ code: 'enhancement_skipped', message: applied.warning?.message ?? `增强操作未通过校验：${operation.op}` }); continue; }
+      enhancedSource = applied.source;
+    }
+    report('validating_preview', '基础版本和增强版本均已准备');
+    report('waiting_approval', '等待用户审批保存');
+    return { baseSource, enhancedSource, intent: sanitizedIntent, baseHash: hash(baseSource), enhancedHash: hash(enhancedSource), warnings, stage: 'waiting_approval' };
+  }
+
+  private async prepareBase(input: UiCreationTaskInput, onProgress?: (progress: UiCreationProgress) => void): Promise<{ intent: CanonicalUiIntent; source: string; warnings: Array<{ code: string; message: string }>; report: (stage: UiCreationStage, message: string) => void }> {
     const warnings: Array<{ code: string; message: string }> = [];
     const report = (stage: UiCreationStage, message: string) => onProgress?.({ stage, message, warnings: [...warnings] });
     report('preparing_context', '正在准备项目上下文');
@@ -36,21 +65,10 @@ export class UiCreationTaskService {
     const generatedBase = generateBaseUi(sanitizedIntent).source;
     const materialized = this.deps.applyCapabilities?.({ source: generatedBase, intent: sanitizedIntent, candidates: (input.capabilityCandidates ?? []).slice(0, 20) }) ?? { source: generatedBase };
     if (materialized.warnings) warnings.push(...materialized.warnings);
-    const baseSource = materialized.source;
+    const source = materialized.source;
     report('validating_base_ui', '正在执行基础 UI 校验');
-    if (!await this.deps.validateUic(baseSource)) { report('failed', '基础 UI 未通过 uic 校验'); throw new Error('base_ui_uic_failed'); }
-    let enhancedSource = baseSource;
-    report('generating_enhancements', '正在规划视觉增强');
-    const plan = await this.deps.planEnhancements({ requirement: input.requirement, baseUi: baseSource, objectNames: collectObjectNames(normalized.intent), referenceImage: input.referenceImages?.[0] });
-    for (const operation of plan.operations) {
-      report('applying_enhancements', `正在应用视觉增强：${operation.op}`);
-      const applied = applyEnhancement(enhancedSource, operation as VisualEnhancementOperation);
-      if (!applied.applied || !await this.deps.validateUic(applied.source)) { warnings.push({ code: 'enhancement_skipped', message: applied.warning?.message ?? `增强操作未通过校验：${operation.op}` }); continue; }
-      enhancedSource = applied.source;
-    }
-    report('validating_preview', '基础版本和增强版本均已准备');
-    report('waiting_approval', '等待用户审批保存');
-    return { baseSource, enhancedSource, intent: sanitizedIntent, baseHash: hash(baseSource), enhancedHash: hash(enhancedSource), warnings, stage: 'waiting_approval' };
+    if (!await this.deps.validateUic(source)) { report('failed', '基础 UI 未通过 uic 校验'); throw new Error('base_ui_uic_failed'); }
+    return { intent: sanitizedIntent, source, warnings, report };
   }
 }
 
