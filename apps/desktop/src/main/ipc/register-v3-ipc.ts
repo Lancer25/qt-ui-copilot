@@ -17,6 +17,7 @@ import { AttachmentService } from '../ai/attachment-service';
 import { UiCreationPlanner } from '../ai/ui-creation-planner';
 import { UiCreationService } from '../ai/ui-creation-service';
 import { UiCreationTaskService } from '../ai/ui-creation-task-service';
+import type { UiCreationProgress } from '../ai/ui-creation-task-service';
 import { UiIntentPlanner } from '../ai/ui-intent-planner';
 import { UiEnhancementPlanner } from '../ai/ui-enhancement-planner';
 
@@ -93,7 +94,9 @@ export function registerV3Ipc(window: BrowserWindow, service = new WorkspaceServ
     try {
       if (controller.signal.aborted) throw new Error('UI creation cancelled');
       const { taskId: _taskId, ...request } = parsed;
-      return await creationService.createCandidate(request as UiCreationRequest);
+      return await creationService.createCandidate(request as UiCreationRequest, (progress: UiCreationProgress) => {
+        if (!window.isDestroyed?.()) window.webContents.send('v3.ai.creationProgress', { taskId, progress });
+      });
     } finally { creationTasks.delete(taskId); }
   });
   ipcMain.handle('v3.ai.commitUiCandidate', async (_event, input: unknown) => { if (!creationService) throw new Error('UI creation service unavailable'); return creationService.commit(CandidateIdSchema.parse(input).candidateId); });

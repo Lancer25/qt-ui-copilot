@@ -23,6 +23,11 @@ const desktopApi: DesktopApi = {
     plan: (input) => ipcRenderer.invoke('v3.ai.plan', input) as ReturnType<NonNullable<DesktopApi['ai']>['plan']>,
     planStream: (input) => ipcRenderer.invoke('v3.ai.planStream', input) as ReturnType<NonNullable<DesktopApi['ai']>['planStream']>,
     createUiCandidate: (input) => ipcRenderer.invoke('v3.ai.createUiCandidate', input) as ReturnType<NonNullable<DesktopApi['ai']>['createUiCandidate']>,
+    onCreationProgress: (listener) => {
+      const handler = (_event: Electron.IpcRendererEvent, payload: Parameters<typeof listener>[0]) => listener(payload);
+      ipcRenderer.on('v3.ai.creationProgress', handler);
+      return () => ipcRenderer.removeListener('v3.ai.creationProgress', handler);
+    },
     commitUiCandidate: (candidateId) => ipcRenderer.invoke('v3.ai.commitUiCandidate', { candidateId }) as ReturnType<NonNullable<DesktopApi['ai']>['commitUiCandidate']>,
     rejectUiCandidate: (candidateId) => ipcRenderer.invoke('v3.ai.rejectUiCandidate', { candidateId }) as ReturnType<NonNullable<DesktopApi['ai']>['rejectUiCandidate']>,
     cancelUiCreation: (taskId) => ipcRenderer.invoke('v3.ai.cancelUiCreation', { taskId }) as ReturnType<NonNullable<DesktopApi['ai']>['cancelUiCreation']>,

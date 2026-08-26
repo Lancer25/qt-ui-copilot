@@ -10,7 +10,7 @@ import type { PreviewSessionService, V3PreviewInput } from '../preview/preview-s
 import type { AttachmentService, ValidatedAttachment } from './attachment-service';
 import type { UiCreationPlanner } from './ui-creation-planner';
 import type { UiCreationTaskService } from './ui-creation-task-service';
-import type { UiCreationTaskResult } from './ui-creation-task-service';
+import type { UiCreationProgress, UiCreationTaskResult } from './ui-creation-task-service';
 
 export interface UiCreationServiceDeps {
   workspace: WorkspaceService;
@@ -30,7 +30,7 @@ export class UiCreationService {
   private readonly candidates = new Map<string, StoredCandidate>();
   constructor(private readonly deps: UiCreationServiceDeps) {}
 
-  async createCandidate(raw: UiCreationRequest): Promise<UiCreationCandidate> {
+  async createCandidate(raw: UiCreationRequest, onProgress?: (progress: UiCreationProgress) => void): Promise<UiCreationCandidate> {
     const request = UiCreationRequestSchema.parse(raw);
     const rootDir = resolve(this.deps.workspace.getRoot(request.workspaceId));
     const targetPath = this.resolveTarget(rootDir, request.directory, request.fileName);
@@ -46,7 +46,7 @@ export class UiCreationService {
           fileName: request.fileName,
           rootType: request.rootType,
           referenceImages: attachments.filter((item) => item.kind === 'image' && item.dataUrl).map((item) => ({ name: item.name, mimeType: item.mimeType, dataUrl: item.dataUrl! })),
-        });
+        }, onProgress);
         if (result.intent.fileName.toLowerCase() !== request.fileName.toLowerCase()) throw new Error('planner returned a different file name');
         if (result.intent.rootType !== request.rootType) throw new Error('planner returned a different root type');
         blueprint = intentToBlueprint(result.intent);
