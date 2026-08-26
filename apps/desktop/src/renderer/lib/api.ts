@@ -1,4 +1,5 @@
 import type { ComponentCandidate } from '@qt-ui-copilot/component-library';
+import type { UiCapabilityCandidate } from '@qt-ui-copilot/contracts';
 import type { AiAttachment, UiCreationBlueprint, UiCreationCandidate, UiPlan } from '@qt-ui-copilot/contracts';
 
 export type WorkflowUiStatus = 'running' | 'waiting_approval' | 'failed' | 'cancelled' | 'completed';
@@ -135,6 +136,14 @@ export type UiCreationRequest = { workspaceId: string; contextMode?: 'focused_ui
 export type UiCreationResult = UiCreationCandidate & { blueprint: UiCreationBlueprint };
 export type V3UiCreationStage = 'preparing_context' | 'generating_intent' | 'normalizing_intent' | 'building_base_ui' | 'validating_base_ui' | 'generating_enhancements' | 'applying_enhancements' | 'validating_preview' | 'waiting_approval' | 'failed' | 'cancelled';
 export interface V3UiCreationProgress { stage: V3UiCreationStage; message: string; warnings: Array<{ code: string; message: string }>; }
+export interface V3CapabilitySearchInput {
+  workspaceId: string;
+  text?: string;
+  limit?: number;
+  kind?: 'qt_widget' | 'ui_fragment' | 'promoted_widget';
+  tags?: string[];
+  kit?: { id?: string; version: string; modules: string[] };
+}
 export interface V3RevisionResult { id: string; uiFile: string; conversationId: string; operations: unknown[]; beforeHash: string; afterHash: string; validation: { xml: boolean; semantic: boolean; uic: boolean; preview: boolean; findings: unknown[]; validatedAt: number }; }
 export type V3ConversationEvent = { type: 'started'; conversationId: string } | { type: 'message_delta'; content: string } | { type: 'tool_request'; requestId: string; path: string; reason: string } | { type: 'plan'; plan: V3UiPlan } | { type: 'error'; message: string } | { type: 'done' };
 
@@ -151,6 +160,7 @@ export interface DesktopApi {
     writeText(workspaceId: string, filePath: string, content: string): Promise<void>;
     onChange(listener: (change: WorkspaceChange) => void): () => void;
   };
+  capabilities?: { search(input: V3CapabilitySearchInput): Promise<UiCapabilityCandidate[]> };
   preview?: { render(input: V3PreviewRequest): Promise<V3PreviewResult>; cancel(uiFile: string): Promise<void> };
   ai?: { plan(input: { requirement: string; uiFile: string; uiContent: string; contextMode: 'focused_ui' | 'whole_project'; workspaceId?: string }): Promise<V3UiPlan>; planStream(input: { requirement: string; uiFile: string; uiContent: string; contextMode: 'focused_ui' | 'whole_project'; workspaceId?: string }): Promise<V3ConversationEvent[]>; createUiCandidate(input: UiCreationRequest): Promise<UiCreationResult>; onCreationProgress(listener: (event: { taskId: string; progress: V3UiCreationProgress }) => void): () => void; commitUiCandidate(candidateId: string): Promise<{ uiFile: string }>; rejectUiCandidate(candidateId: string): Promise<void>; cancelUiCreation(taskId: string): Promise<void> };
   revisions?: { apply(input: { uiFile: string; operations: unknown[]; conversationId: string }): Promise<V3RevisionResult>; undo(uiFile: string): Promise<void>; redo(uiFile: string): Promise<void>; rebase(uiFile: string): Promise<void> };

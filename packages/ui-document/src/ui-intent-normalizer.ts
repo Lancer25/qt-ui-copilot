@@ -84,6 +84,7 @@ export function normalizeUiIntent(input: CanonicalUiIntent): { intent: Canonical
     };
     if (widget) result.widget = widget;
     if (layout) result.layout = layout;
+    if (typeof node.capabilityId === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(node.capabilityId)) result.capabilityId = node.capabilityId;
     if (typeof node.text === 'string') result.text = node.text.slice(0, 2048);
     if (typeof node.placeholder === 'string') result.placeholder = node.placeholder.slice(0, 2048);
     if (typeof node.stretch === 'number' && Number.isFinite(node.stretch)) {

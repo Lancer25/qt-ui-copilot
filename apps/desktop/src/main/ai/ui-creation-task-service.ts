@@ -1,12 +1,18 @@
 import { createHash } from 'node:crypto';
-import type { CanonicalUiIntent, VisualEnhancementPlan, VisualEnhancementOperation } from '@qt-ui-copilot/contracts';
+import type { CanonicalUiIntent, UiCapabilityCandidate, VisualEnhancementPlan, VisualEnhancementOperation } from '@qt-ui-copilot/contracts';
 import { generateBaseUi, normalizeUiIntent, applyEnhancement } from '@qt-ui-copilot/ui-document';
 
 export type UiCreationStage = 'preparing_context' | 'generating_intent' | 'normalizing_intent' | 'building_base_ui' | 'validating_base_ui' | 'generating_enhancements' | 'applying_enhancements' | 'validating_preview' | 'waiting_approval' | 'failed' | 'cancelled';
 export interface UiCreationProgress { stage: UiCreationStage; message: string; warnings: Array<{ code: string; message: string }>; }
-export interface UiCreationTaskInput { requirement: string; targetQtVersion: string; fileName: string; rootType: CanonicalUiIntent['rootType']; referenceImages?: Array<{ name: string; mimeType: string; dataUrl: string }>; }
+export interface UiCreationTaskInput { requirement: string; targetQtVersion: string; fileName: string; rootType: CanonicalUiIntent['rootType']; referenceImages?: Array<{ name: string; mimeType: string; dataUrl: string }>; capabilityCandidates?: UiCapabilityCandidate[]; }
 export interface UiCreationTaskResult { baseSource: string; enhancedSource: string; baseHash: string; enhancedHash: string; intent: CanonicalUiIntent; warnings: Array<{ code: string; message: string }>; stage: UiCreationStage; }
-export interface UiCreationTaskDeps { planIntent(input: UiCreationTaskInput): Promise<CanonicalUiIntent>; planEnhancements(input: { requirement: string; baseUi: string; objectNames: string[]; referenceImage?: { name: string; mimeType: string; dataUrl: string } }): Promise<VisualEnhancementPlan>; validateUic(source: string): Promise<boolean>; }
+export interface UiCreationTaskDeps {
+  planIntent(input: UiCreationTaskInput): Promise<CanonicalUiIntent>;
+  planEnhancements(input: { requirement: string; baseUi: string; objectNames: string[]; referenceImage?: { name: string; mimeType: string; dataUrl: string } }): Promise<VisualEnhancementPlan>;
+  validateUic(source: string): Promise<boolean>;
+  /** Optional deterministic application-owned capability materializer. */
+  applyCapabilities?(input: { source: string; intent: CanonicalUiIntent; candidates: UiCapabilityCandidate[] }): { source: string; warnings?: Array<{ code: string; message: string }> };
+}
 
 export class UiCreationTaskService {
   constructor(private readonly deps: UiCreationTaskDeps) {}
@@ -22,8 +28,15 @@ export class UiCreationTaskService {
     // layout but must not rename or change the requested root window.
     const normalized = normalizeUiIntent({ ...rawIntent, fileName: input.fileName, rootType: input.rootType });
     warnings.push(...normalized.warnings.map((warning) => ({ code: warning.code, message: warning.message })));
+    const allowedCapabilities = new Set((input.capabilityCandidates ?? []).slice(0, 20).map((candidate) => candidate.capabilityId));
+    const unknownCapabilities: string[] = [];
+    const sanitizedIntent = stripUnknownCapabilities(normalized.intent, allowedCapabilities, unknownCapabilities);
+    for (const capabilityId of unknownCapabilities) warnings.push({ code: 'capability_unknown', message: `未注册或未提供的能力“${capabilityId}”已降级为语义控件。` });
     report('building_base_ui', '正在生成基础 .ui');
-    const baseSource = generateBaseUi(normalized.intent).source;
+    const generatedBase = generateBaseUi(sanitizedIntent).source;
+    const materialized = this.deps.applyCapabilities?.({ source: generatedBase, intent: sanitizedIntent, candidates: (input.capabilityCandidates ?? []).slice(0, 20) }) ?? { source: generatedBase };
+    if (materialized.warnings) warnings.push(...materialized.warnings);
+    const baseSource = materialized.source;
     report('validating_base_ui', '正在执行基础 UI 校验');
     if (!await this.deps.validateUic(baseSource)) { report('failed', '基础 UI 未通过 uic 校验'); throw new Error('base_ui_uic_failed'); }
     let enhancedSource = baseSource;
@@ -37,9 +50,21 @@ export class UiCreationTaskService {
     }
     report('validating_preview', '基础版本和增强版本均已准备');
     report('waiting_approval', '等待用户审批保存');
-    return { baseSource, enhancedSource, intent: normalized.intent, baseHash: hash(baseSource), enhancedHash: hash(enhancedSource), warnings, stage: 'waiting_approval' };
+    return { baseSource, enhancedSource, intent: sanitizedIntent, baseHash: hash(baseSource), enhancedHash: hash(enhancedSource), warnings, stage: 'waiting_approval' };
   }
 }
 
 function hash(source: string): string { return createHash('sha256').update(source).digest('hex'); }
 function collectObjectNames(intent: CanonicalUiIntent): string[] { const names = [intent.rootObjectName]; const visit = (node: CanonicalUiIntent['tree']): void => { if (node.objectName) names.push(node.objectName); node.children.forEach(visit); }; visit(intent.tree); return names; }
+
+function stripUnknownCapabilities(intent: CanonicalUiIntent, allowed: ReadonlySet<string>, unknown: string[]): CanonicalUiIntent {
+  const visit = (node: CanonicalUiIntent['tree']): CanonicalUiIntent['tree'] => {
+    const copy = { ...node, children: node.children.map(visit) };
+    if (copy.capabilityId && !allowed.has(copy.capabilityId)) {
+      unknown.push(copy.capabilityId);
+      delete copy.capabilityId;
+    }
+    return copy;
+  };
+  return { ...intent, tree: visit(intent.tree) };
+}

@@ -14,6 +14,8 @@ export type CanonicalUiNode = {
   text?: string;
   placeholder?: string;
   objectName?: string;
+  /** Optional ID from the application-owned capability registry. */
+  capabilityId?: string;
   stretch?: number;
   children: CanonicalUiNode[];
 };
@@ -26,6 +28,7 @@ export const CanonicalUiNodeSchema: z.ZodType<CanonicalUiNode> = z.lazy(() => z.
   text: z.string().max(2048).optional(),
   placeholder: z.string().max(2048).optional(),
   objectName: z.string().max(128).optional(),
+  capabilityId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/).optional(),
   stretch: z.number().int().min(0).max(100).optional(),
   children: z.array(CanonicalUiNodeSchema).max(256).default([]),
 }).strict());
@@ -52,4 +55,3 @@ export const CanonicalUiIntentSchema: z.ZodType<CanonicalUiIntent> = z.object({
   tree: CanonicalUiNodeSchema,
   expectedResults: z.array(z.string().min(1).max(2048)).min(1).max(128),
 }).strict();
-

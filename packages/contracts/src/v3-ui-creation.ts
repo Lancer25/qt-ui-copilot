@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { UiValueSchema } from './ui-document.js';
+import { UiCapabilityCandidateSchema } from './ui-capability.js';
 
 const IMAGE_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml']);
 const ATTACHMENT_KINDS = ['image', 'ui', 'qss', 'qrc', 'source'] as const;
@@ -82,6 +83,8 @@ export const UiCreationRequestSchema = z.object({
   qtKitId: z.string().min(1),
   useProjectResources: z.boolean().default(true),
   useComponentLibrary: z.boolean().default(true),
+  /** Bounded, non-sensitive capability summaries supplied by the application. */
+  capabilityCandidates: z.array(UiCapabilityCandidateSchema).max(20).default([]),
 }).strict().superRefine((value, context) => {
   const images = value.attachments.filter((attachment) => attachment.kind === 'image');
   if (images.length > 4) context.addIssue({ code: 'custom', path: ['attachments'], message: 'at most four image attachments are allowed' });
