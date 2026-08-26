@@ -20,7 +20,7 @@ describe('V3App', () => {
     const emptyApi = { ...api, workspace: { ...api.workspace, open: async () => ({ id: 'empty', name: 'Empty', rootDir: 'D:/empty', fileCount: 0, lastOpenedAt: 1, createdAt: 1, updatedAt: 1, files: [] }) } } as unknown as DesktopApi;
     const user = userEvent.setup(); render(<V3App api={emptyApi} />);
     await user.click(screen.getByRole('button', { name: '打开文件夹' }));
-    expect(screen.getByText('未发现 .ui 文件，可先创建新界面')).toBeTruthy();
+    expect(screen.getByText(/未发现 \.ui 文件，可先创建新界面/)).toBeTruthy();
     await user.click(screen.getByRole('button', { name: '搜索' }));
     expect(screen.getByLabelText('搜索项目')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Explorer' }));
