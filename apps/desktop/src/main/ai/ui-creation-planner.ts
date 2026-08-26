@@ -53,6 +53,10 @@ function normalizeFontValues(value: unknown): unknown {
   const object = value as Record<string, unknown>;
   return Object.fromEntries(Object.entries(object).map(([key, item]) => {
     if (key === 'font' && item && typeof item === 'object' && !Array.isArray(item) && !('kind' in (item as Record<string, unknown>))) return [key, { kind: 'font', ...(normalizeFontValues(item) as Record<string, unknown>) }];
+    if (['minimumSize', 'maximumSize'].includes(key) && item && typeof item === 'object' && !Array.isArray(item) && !('kind' in (item as Record<string, unknown>))) {
+      const normalized = normalizeFontValues(item) as Record<string, unknown>;
+      if (typeof normalized.width === 'number' && typeof normalized.height === 'number') return [key, { kind: 'size', width: normalized.width, height: normalized.height }];
+    }
     return [key, normalizeFontValues(item)];
   }));
 }
