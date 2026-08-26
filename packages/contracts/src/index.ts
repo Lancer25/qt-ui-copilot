@@ -8,3 +8,4 @@ export * from './v3.js';
 export * from './v3-ui-creation.js';
 export * from './v3-ui-intent.js';
 export * from './v3-ui-enhancement.js';
+export * from './ui-capability.js';
