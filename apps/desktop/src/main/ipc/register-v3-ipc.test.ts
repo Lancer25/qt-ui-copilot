@@ -16,6 +16,16 @@ describe('V3 workspace IPC', () => {
     lifecycle.dispose();
   });
 
+  it('exposes version-filtered Qt capability candidates', async () => {
+    const window = { webContents: { send: vi.fn() }, isDestroyed: () => false } as unknown as BrowserWindow;
+    const lifecycle = registerV3Ipc(window, new WorkspaceService());
+    const calls = (ipcMain.handle as unknown as { mock: { calls: Array<[string, Function]> } }).mock.calls;
+    const handler = calls.find(([channel]) => channel === 'v3.capabilities.search')?.[1];
+    const result = await handler?.({}, { workspaceId: 'w', text: 'status', kit: { version: '5.9.6', modules: ['Widgets'] } });
+    expect(result.some((item: { capabilityId: string }) => item.capabilityId === 'qt.widgets.QStatusBar')).toBe(true);
+    lifecycle.dispose();
+  });
+
   it('rejects malformed open input before invoking the service', async () => {
     const window = { webContents: { send: vi.fn() }, isDestroyed: () => false } as unknown as BrowserWindow;
     registerV3Ipc(window, new WorkspaceService());
