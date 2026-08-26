@@ -98,7 +98,7 @@ export function normalizeUiIntent(input: CanonicalUiIntent): { intent: Canonical
   const fileName = typeof source.fileName === 'string' && source.fileName.toLowerCase().endsWith('.ui') ? source.fileName : 'Untitled.ui';
   const tree = normalizeNode(source.tree, 'tree', 0);
   const expectedResults = Array.isArray(source.expectedResults)
-    ? source.expectedResults.filter((item): item is string => typeof item === 'string' && item.trim()).slice(0, 128)
+    ? source.expectedResults.filter((item): item is string => typeof item === 'string' && Boolean(item.trim())).slice(0, 128)
     : ['基础界面结构已生成'];
 
   return {
