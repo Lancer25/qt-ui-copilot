@@ -18,7 +18,9 @@ export class UiCreationTaskService {
     report('generating_intent', '正在生成基础界面意图');
     const rawIntent = await this.deps.planIntent(input);
     report('normalizing_intent', '正在规范化控件和布局');
-    const normalized = normalizeUiIntent(rawIntent);
+    // The form owns the destination identity; the model may describe the
+    // layout but must not rename or change the requested root window.
+    const normalized = normalizeUiIntent({ ...rawIntent, fileName: input.fileName, rootType: input.rootType });
     warnings.push(...normalized.warnings.map((warning) => ({ code: warning.code, message: warning.message })));
     report('building_base_ui', '正在生成基础 .ui');
     const baseSource = generateBaseUi(normalized.intent).source;
