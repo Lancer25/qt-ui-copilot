@@ -264,7 +264,9 @@ export class OpenAiCompatibleProvider implements ModelProvider {
       if (!response.ok) {
         const elapsedMs = Date.now() - startedAt;
         this.trace({ phase: 'response', kind: request.kind, model: this.settings.model, inputJsonBytes, elapsedMs, httpStatus: response.status, errorCode: `http_${response.status}` });
-        throw new Error(`Model request failed: HTTP ${response.status}`);
+        let providerMessage = '';
+        try { const errorBody = await response.clone().json() as { error?: { message?: unknown }; message?: unknown }; providerMessage = String(errorBody.error?.message ?? errorBody.message ?? '').trim(); } catch { /* some gateways return an empty/non-JSON 429 body */ }
+        throw new Error(`Model request failed: HTTP ${response.status}${providerMessage ? ` — ${providerMessage.slice(0, 300)}` : ''}`);
       }
       const body = await response.json() as { choices?: Array<{ finish_reason?: unknown; message?: { content?: unknown; reasoning_content?: unknown } }> };
       const choice = body.choices?.[0];

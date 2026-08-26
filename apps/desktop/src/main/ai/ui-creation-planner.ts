@@ -62,6 +62,10 @@ export class UiCreationPlanner {
     try {
       return parseBlueprint(await this.model.generate(this.request(requestInput)));
     } catch (firstError) {
+      // A provider rate limit/auth/server error is not a malformed blueprint;
+      // do not immediately send a second repair request and make the outage
+      // worse.
+      if (firstError instanceof Error && /HTTP\s+(?:401|403|404|408|429|5\d\d)/i.test(firstError.message)) throw firstError;
       const repaired = await this.model.generate(this.request({
         ...requestInput,
         visualAttachments: [],
