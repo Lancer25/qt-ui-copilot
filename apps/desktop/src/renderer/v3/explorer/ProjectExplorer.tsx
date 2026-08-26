@@ -3,6 +3,9 @@ import type { DesktopApi, WorkspaceFile, WorkspaceSummary } from '../../lib/api'
 import type { WorkspaceTreeNode, WorkspaceTreeSnapshot } from '@qt-ui-copilot/contracts';
 
 interface TreeProps { node: WorkspaceTreeNode; expanded: Set<string>; toggle: (id: string) => void; filter: string; onOpen: (node: WorkspaceTreeNode) => void; onMenu: (event: React.MouseEvent, node: WorkspaceTreeNode) => void; }
+type ExplorerIconName = 'new-file' | 'new-folder' | 'refresh' | 'collapse';
+const explorerIconPaths: Record<ExplorerIconName, string> = { 'new-file': 'M6 3.5h8l4 4v13H6zM14 3.5v4h4M9 12h6M12 9v6', 'new-folder': 'M3.5 6.5A1.5 1.5 0 0 1 5 5h4l2 2h8.5A1.5 1.5 0 0 1 21 8.5v8A1.5 1.5 0 0 1 19.5 18h-15A1.5 1.5 0 0 1 3 16.5z', refresh: 'M20 11a8 8 0 1 0 1 4M20 11V5m0 6h-6', collapse: 'M5 9h14M5 15h14' };
+function ExplorerIcon({ name }: { name: ExplorerIconName }) { return <svg className="v3-explorer-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={explorerIconPaths[name]} /></svg>; }
 function TreeNode({ node, expanded, toggle, filter, onOpen, onMenu }: TreeProps) {
   if (isInternalPath(node.relativePath)) return null;
   const children = node.children ?? []; const lower = filter.toLowerCase(); const matches = !filter || node.name.toLowerCase().includes(lower) || node.relativePath.toLowerCase().includes(lower); const visible = children.filter((child) => matches || child.name.toLowerCase().includes(lower) || child.relativePath.toLowerCase().includes(lower)); if (!matches && !visible.length) return null;
