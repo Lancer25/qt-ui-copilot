@@ -5,3 +5,4 @@ export * from './apply-operations.js';
 export * from './candidate-file.js';
 export * from './ui-blueprint-generator.js';
 export * from './ui-intent-normalizer.js';
+export * from './base-ui-generator.js';
