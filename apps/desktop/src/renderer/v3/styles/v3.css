@@ -24,3 +24,4 @@
 :root[data-density="compact"] .v3-settings-overlay .settings-layout{gap:12px;padding-top:12px}:root[data-density="compact"] .v3-settings-overlay .settings-nav__item{padding:8px 10px}:root[data-density="compact"] .v3-settings-overlay .settings-card{padding:14px}
 .v3-settings-overlay{right:var(--assistant-width, 360px)}
 .v3-settings-overlay .capability-check{align-items:flex-start}.v3-settings-overlay .capability-check>div{min-width:0;flex:1}.v3-settings-overlay .capability-check button{flex:0 0 auto;min-width:132px;white-space:nowrap;word-break:keep-all}.v3-settings-overlay .capability-check p{overflow-wrap:anywhere}
+.v3-create-validation .is-warning{color:#e4b56b}
