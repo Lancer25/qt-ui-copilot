@@ -211,6 +211,8 @@ const defaultModelTraceLogger: ModelTraceLogger = (event) => {
   console.info('[model-trace]', JSON.stringify(event));
 };
 
+const MODEL_REQUEST_TIMEOUT_MS = 180_000;
+
 export class OpenAiCompatibleProvider implements ModelProvider {
   constructor(
     private readonly settings: { baseUrl: string; model: string; imagePayloadMode?: 'base64_data_url' | 'remote_url'; apiKey?: string },
@@ -392,7 +394,7 @@ export function createLocalBackend(options: LocalBackendOptions = {}): DesktopBa
     }
   }
   const fetchImpl = options.fetchImpl ?? fetch;
-  const provider = (): ModelProvider => options.modelProvider ?? new OpenAiCompatibleProvider(configured!, fetchImpl, 60_000, options.modelTraceLogger);
+  const provider = (): ModelProvider => options.modelProvider ?? new OpenAiCompatibleProvider(configured!, fetchImpl, MODEL_REQUEST_TIMEOUT_MS, options.modelTraceLogger);
   const modelSettings = () => ModelSettingsSchema.parse({
     baseUrl: configured?.baseUrl ?? 'http://localhost:11434/v1',
     model: configured?.model ?? 'gpt-4o-mini',
