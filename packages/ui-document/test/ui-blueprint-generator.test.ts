@@ -21,13 +21,13 @@ describe('generateUiFromBlueprint', () => {
     expect(first.objectNames).toEqual(['loginDialog', 'mainLayout', 'titleLabel', 'userEdit', 'submitButton']);
   });
 
-  it('rejects duplicate objects and non-whitelisted Qt classes', () => {
+  it('rejects duplicate objects but accepts Qt 5/Qt 6/custom class names', () => {
     const duplicate = structuredClone(loginBlueprint);
     duplicate.layoutTree.children[1].objectName = 'titleLabel';
     expect(() => generateUiFromBlueprint(duplicate)).toThrow('duplicate objectName');
-    const unknown = structuredClone(loginBlueprint);
-    unknown.layoutTree.children[0].className = 'QQuickView';
-    expect(() => generateUiFromBlueprint(unknown)).toThrow('unsupported Qt class');
+    const custom = structuredClone(loginBlueprint);
+    custom.layoutTree.children[0].className = 'QQuickView';
+    expect(() => generateUiFromBlueprint(custom)).not.toThrow();
   });
 
   it('rejects cyclic trees before schema parsing', () => {

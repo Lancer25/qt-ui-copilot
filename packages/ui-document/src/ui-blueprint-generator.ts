@@ -1,13 +1,11 @@
 import { UiBlueprintNodeSchema, UiCreationBlueprintSchema, type UiBlueprintNode, type UiCreationBlueprint, type UiValue } from '@qt-ui-copilot/contracts';
 import { parseUi } from './parse-ui.js';
-import { isQtWidgetClass } from './qt-widget-catalog.js';
 
 export interface GeneratedUi {
   source: string;
   objectNames: string[];
 }
 
-const LAYOUT_CLASSES = new Set(['QHBoxLayout', 'QVBoxLayout', 'QGridLayout', 'QFormLayout']);
 const XML_NAME = /^[A-Za-z_][A-Za-z0-9_.-]*$/;
 
 function escapeXml(value: string): string {
@@ -59,9 +57,6 @@ function collectAndValidate(blueprint: UiCreationBlueprint): string[] {
   const visit = (node: UiBlueprintNode): void => {
     if (names.has(node.objectName)) throw new Error(`duplicate objectName "${node.objectName}"`);
     names.add(node.objectName);
-    if (node.kind === 'layout' && !LAYOUT_CLASSES.has(node.className)) throw new Error(`unsupported Qt class "${node.className}"`);
-    if (node.kind === 'widget' && !isQtWidgetClass(node.className)) throw new Error(`unsupported Qt class "${node.className}"`);
-    if (node.kind === 'spacer' && node.className !== 'QSpacerItem') throw new Error(`unsupported Qt class "${node.className}"`);
     for (const child of node.children) visit(child);
   };
   if (blueprint.layoutTree.kind !== 'layout') throw new Error('layoutTree root must be a layout');
