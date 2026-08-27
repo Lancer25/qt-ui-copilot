@@ -41,4 +41,13 @@ describe('generateUiFromBlueprint', () => {
     blueprint.layoutTree.children.push({ kind: 'widget', className: 'QStatusBar', objectName: 'statusBar', properties: {}, children: [] });
     expect(() => generateUiFromBlueprint(blueprint)).not.toThrow();
   });
+
+  it('drops tab stops that reference omitted or renamed widgets', () => {
+    const blueprint = structuredClone(loginBlueprint);
+    blueprint.tabOrder = ['missingEdit', 'userEdit', 'anotherMissing'] as string[];
+    const result = generateUiFromBlueprint(blueprint);
+    expect(result.source).toContain('<tabstop>userEdit</tabstop>');
+    expect(result.source).not.toContain('missingEdit');
+    expect(result.source).not.toContain('anotherMissing');
+  });
 });

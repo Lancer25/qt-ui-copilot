@@ -67,7 +67,6 @@ function collectAndValidate(blueprint: UiCreationBlueprint): string[] {
   if (blueprint.layoutTree.kind !== 'layout') throw new Error('layoutTree root must be a layout');
   visit(blueprint.layoutTree);
   const allNames = new Set(names);
-  for (const name of blueprint.tabOrder) if (!allNames.has(name)) throw new Error(`unknown tab order object "${name}"`);
   for (const connection of blueprint.connections) {
     if (!allNames.has(connection.sender) || !allNames.has(connection.receiver)) throw new Error(`connection references unknown object`);
   }
@@ -137,7 +136,8 @@ export function generateUiFromBlueprint(input: UiCreationBlueprint): GeneratedUi
   assertAcyclic(input);
   const blueprint = UiCreationBlueprintSchema.parse(input);
   const objectNames = collectAndValidate(blueprint);
-  const source = emitDesignerDocument(blueprint);
+  const validNames = new Set(objectNames);
+  const source = emitDesignerDocument({ ...blueprint, tabOrder: blueprint.tabOrder.filter((name) => validNames.has(name)) });
   parseUi(source, blueprint.fileName);
   return { source, objectNames };
 }
