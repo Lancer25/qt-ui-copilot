@@ -157,7 +157,7 @@ export class UiCreationService {
     // New projects commonly have only the Qt kit persisted. Keep uic
     // validation available in that state; the enhanced PreviewHost path is
     // intentionally optional until the user configures it.
-    const qtOnlyProfile = config ? undefined : await loadQtOnlyProfile(rootDir);
+    const qtOnlyProfile = config?.qt ? undefined : await loadQtOnlyProfile(rootDir);
     const uic = this.deps.validateUic
       ? await this.deps.validateUic(rootDir, uiFile)
         : config
@@ -183,7 +183,7 @@ export class UiCreationService {
   private async validateBase(rootDir: string, uiFile: string): Promise<{ uic: boolean; preview: boolean; findings: Array<{ severity: 'info' | 'warning' | 'error'; code: string; message: string }> }> {
     let config: ReturnType<typeof loadProjectConfig>;
     try { config = loadProjectConfig(rootDir); } catch { config = undefined; }
-    const qtOnlyProfile = config ? undefined : await loadQtOnlyProfile(rootDir);
+    const qtOnlyProfile = config?.qt ? undefined : await loadQtOnlyProfile(rootDir);
     const uic = this.deps.validateUic
       ? await this.deps.validateUic(rootDir, uiFile)
       : config ? await validateUiWithUic(profileFromConfig(rootDir, config), uiFile)
