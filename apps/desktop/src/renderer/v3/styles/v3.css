@@ -38,3 +38,4 @@
 .v3-explorer-tool--primary::before{display:block;content:'+';width:auto;height:auto;background:none;color:var(--accent-primary);font-size:18px;line-height:1}
 .v3-explorer-tool::before{display:none!important}.v3-explorer-tool{font-size:14px}.v3-explorer-tool--primary{gap:6px}.v3-explorer-tool--primary em{font-size:11px}
 .v3-explorer-tool--primary em{display:none}.v3-explorer-tool--primary{min-width:30px;padding:0}.v3-explorer-tool{width:30px;padding:0}
+.v3-create-candidate{min-height:300px;padding:14px;gap:10px}.v3-create-candidate img{min-height:210px;max-height:340px;border-radius:6px}

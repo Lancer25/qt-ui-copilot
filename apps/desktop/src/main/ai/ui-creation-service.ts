@@ -166,8 +166,11 @@ export class UiCreationService {
         ? await validateUiWithUic(qtOnlyProfile, uiFile)
         : { valid: false, stderr: '请先在项目设置中选择 Qt Kit（需要 uic）' };
     if (!uic.valid) { findings.push({ severity: 'error', code: 'uic_failed', message: (uic.stderr || uic.stdout || 'uic validation failed').slice(0, 1000) }); return { uic: false, preview: false, findings }; }
-    if (!this.deps.preview || !config) return { uic: true, preview: false, findings: [{ severity: 'info', code: 'preview_not_configured', message: 'PreviewHost 未配置，已完成 UI XML 与 uic 校验。' }] };
-    const qt = config.qt; const p = config.preview;
+    if (!this.deps.preview) return { uic: true, preview: false, findings: [{ severity: 'info', code: 'preview_not_configured', message: 'PreviewHost 未配置，已完成 UI XML 与 uic 校验。' }] };
+    const qtOnly = qtOnlyProfile?.qt;
+    if (!config && !qtOnly) return { uic: true, preview: false, findings: [{ severity: 'info', code: 'preview_not_configured', message: '未找到 Qt Kit，已完成 UI XML 校验。' }] };
+    const qt = config?.qt ?? { version: qtOnly!.version, compilerAbi: 'unknown', architecture: process.arch, binDirectory: qtOnly!.binDirectory ?? dirname(qtOnly!.uic), uic: qtOnly!.uic, rcc: qtOnly!.rcc, cmake: 'cmake', cmakePrefixPath: dirname(dirname(qtOnly!.uic)) };
+    const p = config?.preview ?? { sourceDirectory: rootDir, cacheDirectory: join(rootDir, '.qt-ui-copilot', 'preview-cache'), width: 900, height: 640, locale: 'zh_CN', style: 'Fusion', qrcFiles: [], stylesheets: [], fonts: [], pluginPaths: [] };
     try {
       const result = await this.deps.preview.render({ uiFile, profile: { qtKitId: qt.version, mode: 'enhanced', width: p.width, height: p.height, locale: p.locale, style: p.style, qrcFiles: p.qrcFiles, stylesheets: p.stylesheets, fonts: p.fonts, pluginPaths: p.pluginPaths, highDpiMode: 'project-default' }, qt: { version: qt.version, compilerAbi: qt.compilerAbi, architecture: qt.architecture, binDirectory: qt.binDirectory, uic: qt.uic, rcc: qt.rcc, cmake: qt.cmake, cmakePrefixPath: qt.cmakePrefixPath, ...(qt.cmakeGenerator ? { cmakeGenerator: qt.cmakeGenerator } : {}) }, sourceDirectory: p.sourceDirectory, cacheDirectory: p.cacheDirectory, outputImage: join(dirname(uiFile), 'candidate.png') } as V3PreviewInput);
       return { uic: true, preview: true, previewDataUrl: result.imageDataUrl, findings };
