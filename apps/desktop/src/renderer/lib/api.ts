@@ -59,6 +59,7 @@ export interface ReportRequest {
 export interface ModelSettings {
   baseUrl: string;
   model: string;
+  imagePayloadMode: 'base64_data_url' | 'remote_url';
   hasApiKey: boolean;
   hasPersistentApiKey?: boolean;
   storageWarning?: string;
@@ -191,7 +192,7 @@ export interface DesktopApi {
   reports: { export(input: ReportRequest): Promise<{ path?: string; cancelled: boolean }> };
   settings: {
     getModel(): Promise<ModelSettings>;
-    configureModel(input: { baseUrl: string; model: string; apiKey?: string }): Promise<ModelSettings>;
+    configureModel(input: { baseUrl: string; model: string; apiKey?: string; imagePayloadMode?: 'base64_data_url' | 'remote_url' }): Promise<ModelSettings>;
     testModel(): Promise<ModelConnectionResult>;
     testModelCapability(input: { capability: ModelCapability }): Promise<ModelCapabilityResult>;
     qtKits?: {

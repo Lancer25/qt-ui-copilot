@@ -17,15 +17,18 @@ export interface ModelRequest {
  * separate private `visualAttachments` field and are never included in trace
  * payloads.
  */
-export function providerInputContent(input: Record<string, unknown>): unknown {
+export function providerInputContent(input: Record<string, unknown>, imagePayloadMode: 'base64_data_url' | 'remote_url' = 'base64_data_url'): unknown {
   const visualAttachments = input.visualAttachments;
   const images = Array.isArray(visualAttachments)
     ? visualAttachments.filter((item): item is { dataUrl: string } => {
       if (typeof item !== 'object' || item === null) return false;
       const dataUrl = (item as { dataUrl?: unknown }).dataUrl;
-      return typeof dataUrl === 'string' && dataUrl.startsWith('data:image/');
+      return typeof dataUrl === 'string' && (imagePayloadMode === 'base64_data_url' ? dataUrl.startsWith('data:image/') : /^https?:\/\//i.test(dataUrl));
     })
     : [];
+  if (imagePayloadMode === 'remote_url' && Array.isArray(visualAttachments) && visualAttachments.length > 0 && images.length === 0) {
+    throw new Error('图片发送格式已设为远程图片 URL，但附件没有可用的 http(s) URL');
+  }
   const textInput = Object.fromEntries(Object.entries(input).filter(([key]) => key !== 'visualAttachments'));
   return images.length > 0
     ? [{ type: 'text', text: JSON.stringify(textInput) }, ...images.map((image) => ({ type: 'image_url', image_url: { url: image.dataUrl } }))]

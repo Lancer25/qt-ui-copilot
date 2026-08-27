@@ -80,7 +80,7 @@ describe('TaskRepository', () => {
 
       const reopened = openDatabase(databasePath);
       expect(new TaskRepository(reopened).getModelSettings()).toEqual({
-        baseUrl: 'https://models.example/v1', model: 'demo-model', encryptedApiKey: Buffer.from([7, 9, 11]), updatedAt: expect.any(Number),
+        baseUrl: 'https://models.example/v1', model: 'demo-model', imagePayloadMode: 'base64_data_url', encryptedApiKey: Buffer.from([7, 9, 11]), updatedAt: expect.any(Number),
       });
       const raw = reopened.prepare('SELECT encrypted_api_key FROM model_settings WHERE id = 1').get() as { encrypted_api_key: Buffer | Uint8Array };
       expect(Buffer.from(raw.encrypted_api_key).equals(Buffer.from([7, 9, 11]))).toBe(true);

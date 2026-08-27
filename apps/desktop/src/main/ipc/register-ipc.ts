@@ -24,7 +24,8 @@ const TaskIdSchema = z.object({ taskId: z.string().min(1) }).strict();
 const ApprovalSchema = TaskIdSchema.extend({ approved: z.boolean() }).strict();
 const ComponentSearchSchema = z.object({ projectId: z.string().min(1), query: z.string().max(10_000) }).strict();
 const TaskListSchema = z.object({ projectId: z.string().min(1).optional(), status: z.enum(['started', 'completed', 'failed', 'cancelled']).optional() }).strict().optional();
-const ModelSettingsInputSchema = z.object({ baseUrl: z.string().url().max(2048), model: z.string().min(1).max(256), apiKey: z.string().min(1).max(4096).optional() }).strict();
+const ImagePayloadModeSchema = z.enum(['base64_data_url', 'remote_url']);
+const ModelSettingsInputSchema = z.object({ baseUrl: z.string().url().max(2048), model: z.string().min(1).max(256), apiKey: z.string().min(1).max(4096).optional(), imagePayloadMode: ImagePayloadModeSchema.default('base64_data_url') }).strict();
 const TestModelInputSchema = z.undefined();
 const TestModelCapabilityInputSchema = z.object({ capability: ModelCapabilitySchema }).strict();
 const QtKitSchema = z.object({ id: z.string().min(1), displayName: z.string().min(1), version: z.string().min(1), qtMajor: z.union([z.literal(5), z.literal(6)]), rootDir: z.string().min(1), binDirectory: z.string().min(1), uic: z.string().min(1), rcc: z.string().min(1), qmake: z.string().optional(), cmakePrefixPath: z.string().optional(), compilerAbi: z.string().optional(), architecture: z.string().optional() }).strict();
@@ -33,6 +34,7 @@ const ProjectBindingSchema = z.object({ projectId: z.string().min(1), qtKitId: z
 export const ModelSettingsSchema = z.object({
   baseUrl: z.string().url(),
   model: z.string().min(1),
+  imagePayloadMode: ImagePayloadModeSchema,
   hasApiKey: z.boolean(),
   hasPersistentApiKey: z.boolean(),
   storageWarning: z.string().max(512).optional(),
@@ -62,7 +64,7 @@ export interface DesktopBackend {
   rollbackTask(input: z.infer<typeof TaskIdSchema>): Promise<unknown>;
   searchComponents(input: z.infer<typeof ComponentSearchSchema>): Promise<unknown>;
   getModelSettings(): Promise<z.infer<typeof ModelSettingsSchema>>;
-  configureModelSettings(input: z.infer<typeof ModelSettingsInputSchema>): Promise<z.infer<typeof ModelSettingsSchema>>;
+  configureModelSettings(input: { baseUrl: string; model: string; apiKey?: string; imagePayloadMode?: 'base64_data_url' | 'remote_url' }): Promise<z.infer<typeof ModelSettingsSchema>>;
   testModelConnection(): Promise<z.infer<typeof ModelConnectionResultSchema>>;
   testModelCapability(input: { capability: z.infer<typeof ModelCapabilitySchema> }): Promise<z.infer<typeof ModelCapabilityResultSchema>>;
   listQtKits(): Promise<QtKit[]>;
@@ -211,7 +213,7 @@ const defaultModelTraceLogger: ModelTraceLogger = (event) => {
 
 export class OpenAiCompatibleProvider implements ModelProvider {
   constructor(
-    private readonly settings: { baseUrl: string; model: string; apiKey?: string },
+    private readonly settings: { baseUrl: string; model: string; imagePayloadMode?: 'base64_data_url' | 'remote_url'; apiKey?: string },
     private readonly fetchImpl: typeof fetch,
     private readonly timeoutMs = 60_000,
     private readonly traceLogger: ModelTraceLogger = defaultModelTraceLogger,
@@ -242,11 +244,14 @@ export class OpenAiCompatibleProvider implements ModelProvider {
     const visualImages = request.kind === 'visual_review'
       ? ['beforeImage', 'afterImage', 'referenceImage']
         .map((key) => ({ key, value: request.input[key] }))
-        .filter((item): item is { key: string; value: string } => typeof item.value === 'string' && item.value.startsWith('data:image/'))
+        .filter((item): item is { key: string; value: string } => typeof item.value === 'string' && (this.settings.imagePayloadMode === 'remote_url' ? /^https?:\/\//i.test(item.value) : item.value.startsWith('data:image/')))
       : [];
+    if (request.kind === 'visual_review' && this.settings.imagePayloadMode === 'remote_url' && ['beforeImage', 'afterImage', 'referenceImage'].some((key) => typeof request.input[key] === 'string' && String(request.input[key]).startsWith('data:image/')) && visualImages.length === 0) {
+      throw new Error('图片发送格式已设为远程图片 URL，但当前图片没有可用的 http(s) URL');
+    }
     const textInput = Object.fromEntries(Object.entries(request.input).filter(([key]) => !['beforeImage', 'afterImage', 'referenceImage'].includes(key)));
     const userContent = request.kind === 'ui_creation'
-      ? providerInputContent(request.input)
+      ? providerInputContent(request.input, this.settings.imagePayloadMode ?? 'base64_data_url')
       : visualImages.length > 0
         ? [{ type: 'text', text: JSON.stringify(textInput) }, ...visualImages.map((image) => ({ type: 'image_url', image_url: { url: image.value } }))]
         : JSON.stringify(request.input);
@@ -370,9 +375,10 @@ export function createLocalBackend(options: LocalBackendOptions = {}): DesktopBa
   const workflowStore = new TaskRepositoryWorkflowStore(repository);
   const storedModel = repository.getModelSettings();
   let storageWarning: string | undefined;
-  let configured: { baseUrl: string; model: string; apiKey?: string } | undefined = storedModel && {
+  let configured: { baseUrl: string; model: string; imagePayloadMode: 'base64_data_url' | 'remote_url'; apiKey?: string } | undefined = storedModel && {
     baseUrl: storedModel.baseUrl,
     model: storedModel.model,
+    imagePayloadMode: storedModel.imagePayloadMode ?? 'base64_data_url',
   };
   if (storedModel?.encryptedApiKey) {
     if (!options.secureStorage?.isEncryptionAvailable()) {
@@ -390,6 +396,7 @@ export function createLocalBackend(options: LocalBackendOptions = {}): DesktopBa
   const modelSettings = () => ModelSettingsSchema.parse({
     baseUrl: configured?.baseUrl ?? 'http://localhost:11434/v1',
     model: configured?.model ?? 'gpt-4o-mini',
+    imagePayloadMode: configured?.imagePayloadMode ?? 'base64_data_url',
     hasApiKey: Boolean(configured?.apiKey),
     hasPersistentApiKey: Boolean(configured?.apiKey && options.secureStorage?.isEncryptionAvailable()),
     ...(storageWarning ? { storageWarning } : {}),
@@ -693,10 +700,11 @@ export function createLocalBackend(options: LocalBackendOptions = {}): DesktopBa
       } else if (nextApiKey && !options.secureStorage?.isEncryptionAvailable()) {
         storageWarning = '系统安全存储不可用；API Key 只在当前会话内保存。';
       }
-      configured = { baseUrl: input.baseUrl, model: input.model, ...(nextApiKey ? { apiKey: nextApiKey } : {}) };
+      const nextConfigured = { baseUrl: input.baseUrl, model: input.model, imagePayloadMode: input.imagePayloadMode ?? 'base64_data_url', ...(nextApiKey ? { apiKey: nextApiKey } : {}) };
+      configured = nextConfigured;
       // Only ciphertext reaches SQLite. If no new key was supplied, preserve a
       // prior ciphertext rather than accidentally clearing it in an insecure session.
-      repository.saveModelSettings({ baseUrl: configured.baseUrl, model: configured.model, ...(encryptedApiKey ? { encryptedApiKey } : {}) });
+      repository.saveModelSettings({ baseUrl: nextConfigured.baseUrl, model: nextConfigured.model, imagePayloadMode: nextConfigured.imagePayloadMode, ...(encryptedApiKey ? { encryptedApiKey } : {}) });
       return modelSettings();
     },
     async testModelConnection() {

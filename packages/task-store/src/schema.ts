@@ -63,6 +63,7 @@ export const DATABASE_SCHEMA = `
     id INTEGER PRIMARY KEY CHECK (id = 1),
     base_url TEXT NOT NULL,
     model TEXT NOT NULL,
+    image_payload_mode TEXT NOT NULL DEFAULT 'base64_data_url',
     encrypted_api_key BLOB,
     updated_at INTEGER NOT NULL
   );

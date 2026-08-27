@@ -47,6 +47,7 @@ export interface StoredArtifact {
 export interface StoredModelSettings {
   baseUrl: string;
   model: string;
+  imagePayloadMode: 'base64_data_url' | 'remote_url';
   /** Opaque ciphertext created by Electron safeStorage, never plaintext. */
   encryptedApiKey?: Buffer;
   updatedAt: number;
@@ -203,23 +204,24 @@ export class TaskRepository {
     return row && parseJson(row.route_json);
   }
 
-  public saveModelSettings(settings: { baseUrl: string; model: string; encryptedApiKey?: Buffer }): void {
+  public saveModelSettings(settings: { baseUrl: string; model: string; imagePayloadMode?: 'base64_data_url' | 'remote_url'; encryptedApiKey?: Buffer }): void {
     this.database.prepare(`
-      INSERT INTO model_settings (id, base_url, model, encrypted_api_key, updated_at)
-      VALUES (1, ?, ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET base_url = excluded.base_url, model = excluded.model,
+      INSERT INTO model_settings (id, base_url, model, image_payload_mode, encrypted_api_key, updated_at)
+      VALUES (1, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET base_url = excluded.base_url, model = excluded.model, image_payload_mode = excluded.image_payload_mode,
         encrypted_api_key = COALESCE(excluded.encrypted_api_key, model_settings.encrypted_api_key), updated_at = excluded.updated_at
-    `).run(settings.baseUrl, settings.model, settings.encryptedApiKey ?? null, Date.now());
+    `).run(settings.baseUrl, settings.model, settings.imagePayloadMode ?? 'base64_data_url', settings.encryptedApiKey ?? null, Date.now());
   }
 
   public getModelSettings(): StoredModelSettings | undefined {
     const row = this.database.prepare(
-      'SELECT base_url, model, encrypted_api_key, updated_at FROM model_settings WHERE id = 1',
-    ).get() as { base_url: string; model: string; encrypted_api_key: Buffer | Uint8Array | null; updated_at: number } | undefined;
+      'SELECT base_url, model, image_payload_mode, encrypted_api_key, updated_at FROM model_settings WHERE id = 1',
+    ).get() as { base_url: string; model: string; image_payload_mode?: string; encrypted_api_key: Buffer | Uint8Array | null; updated_at: number } | undefined;
     if (!row) return undefined;
     return {
       baseUrl: row.base_url,
       model: row.model,
+      imagePayloadMode: row.image_payload_mode === 'remote_url' ? 'remote_url' : 'base64_data_url',
       ...(row.encrypted_api_key ? { encryptedApiKey: Buffer.from(row.encrypted_api_key) } : {}),
       updatedAt: row.updated_at,
     };

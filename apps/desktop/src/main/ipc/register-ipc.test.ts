@@ -337,14 +337,14 @@ describe('local workflow backend', () => {
     try {
       const first = createLocalBackend({ databasePath, secureStorage: encryptedStorage() });
       await expect(first.configureModelSettings({ baseUrl: 'https://models.example/v1', model: 'demo-model', apiKey })).resolves.toEqual({
-        baseUrl: 'https://models.example/v1', model: 'demo-model', hasApiKey: true, hasPersistentApiKey: true,
+        baseUrl: 'https://models.example/v1', model: 'demo-model', imagePayloadMode: 'base64_data_url', hasApiKey: true, hasPersistentApiKey: true,
       });
       expect(readFileSync(databasePath).includes(Buffer.from(apiKey, 'utf8'))).toBe(false);
       first.dispose?.();
 
       const reopened = createLocalBackend({ databasePath, secureStorage: encryptedStorage() });
       await expect(reopened.getModelSettings()).resolves.toEqual({
-        baseUrl: 'https://models.example/v1', model: 'demo-model', hasApiKey: true, hasPersistentApiKey: true,
+        baseUrl: 'https://models.example/v1', model: 'demo-model', imagePayloadMode: 'base64_data_url', hasApiKey: true, hasPersistentApiKey: true,
       });
       reopened.dispose?.();
     } finally {
@@ -359,7 +359,7 @@ describe('local workflow backend', () => {
     try {
       const first = createLocalBackend({ databasePath, secureStorage: unavailableStorage });
       await expect(first.configureModelSettings({ baseUrl: 'https://models.example/v1', model: 'demo-model', apiKey })).resolves.toEqual({
-        baseUrl: 'https://models.example/v1', model: 'demo-model', hasApiKey: true, hasPersistentApiKey: false,
+        baseUrl: 'https://models.example/v1', model: 'demo-model', imagePayloadMode: 'base64_data_url', hasApiKey: true, hasPersistentApiKey: false,
         storageWarning: '系统安全存储不可用；API Key 只在当前会话内保存。',
       });
       expect(readFileSync(databasePath).includes(Buffer.from(apiKey, 'utf8'))).toBe(false);
@@ -367,7 +367,7 @@ describe('local workflow backend', () => {
 
       const reopened = createLocalBackend({ databasePath, secureStorage: unavailableStorage });
       await expect(reopened.getModelSettings()).resolves.toEqual({
-        baseUrl: 'https://models.example/v1', model: 'demo-model', hasApiKey: false, hasPersistentApiKey: false,
+        baseUrl: 'https://models.example/v1', model: 'demo-model', imagePayloadMode: 'base64_data_url', hasApiKey: false, hasPersistentApiKey: false,
       });
       reopened.dispose?.();
     } finally {
