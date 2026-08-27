@@ -20,5 +20,16 @@ describe('UiCreationPlanner', () => {
     expect(provider.requests[0].kind).toBe('ui_creation');
     expect(provider.requests[0].responseSchema).toContain('layoutTree');
   });
-});
 
+  it('normalizes common table list shorthand and drops invalid properties', async () => {
+    const provider = new FakeProvider();
+    const malformed = structuredClone(blueprint) as Record<string, unknown>;
+    malformed.layoutTree = { kind: 'layout', className: 'QVBoxLayout', objectName: 'mainLayout', properties: {}, children: [{ kind: 'widget', className: 'QTableWidget', objectName: 'table', properties: { items: ['A', 'B'], horizontalHeaderLabels: ['Name'], font: { family: 'Segoe UI' }, broken: { nope: true } }, children: [] }] };
+    provider.generate = async (request) => { provider.requests.push(request); return malformed; };
+    const result = await new UiCreationPlanner(provider).plan({ requirement: 'Create table', attachments: [], targetQtVersion: '5.9.6', fileName: 'Login.ui', rootType: 'QDialog' });
+    const properties = result.layoutTree.children[0]?.properties ?? {};
+    expect(properties.items).toEqual({ kind: 'stringList', values: ['A', 'B'] });
+    expect(properties.horizontalHeaderLabels).toEqual({ kind: 'stringList', values: ['Name'] });
+    expect(properties.broken).toBeUndefined();
+  });
+});

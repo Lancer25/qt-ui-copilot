@@ -1,4 +1,4 @@
-import { UiCreationBlueprintSchema, type AiAttachment, type UiCreationBlueprint } from '@qt-ui-copilot/contracts';
+import { UiCreationBlueprintSchema, UiValueSchema, type AiAttachment, type UiCreationBlueprint } from '@qt-ui-copilot/contracts';
 import { asJsonValue, type ModelProvider, type ModelRequest } from '@qt-ui-copilot/agent-workflow';
 import { ZodError } from 'zod';
 
@@ -38,10 +38,34 @@ function errorText(error: unknown): string {
 }
 
 function parseBlueprint(value: unknown): UiCreationBlueprint {
-  const parsed = normalizeFontValues(asJsonValue(value));
+  const parsed = normalizeBlueprintProperties(normalizeFontValues(asJsonValue(value)));
   const result = UiCreationBlueprintSchema.safeParse(parsed);
   if (!result.success) throw new UiCreationOutputInvalidError(errorText(result.error));
   return result.data;
+}
+
+/** Keep compatibility with common model shorthand while preserving the strict
+ * blueprint boundary. Table/list properties are represented as stringList in
+ * the protocol; unknown or malformed properties are omitted rather than
+ * invalidating an otherwise usable layout. */
+function normalizeBlueprintProperties(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(normalizeBlueprintProperties);
+  if (!value || typeof value !== 'object') return value;
+  const object = value as Record<string, unknown>;
+  const result: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(object)) {
+    if (key === 'properties' && item && typeof item === 'object' && !Array.isArray(item)) {
+      const properties: Record<string, unknown> = {};
+      for (const [name, raw] of Object.entries(item as Record<string, unknown>)) {
+        const normalized = name === 'items' || name === 'horizontalHeaderLabels'
+          ? Array.isArray(raw) && raw.every((entry) => typeof entry === 'string') ? { kind: 'stringList', values: raw } : raw
+          : normalizeBlueprintProperties(raw);
+        if (UiValueSchema.safeParse(normalized).success) properties[name] = normalized;
+      }
+      result[key] = properties;
+    } else result[key] = normalizeBlueprintProperties(item);
+  }
+  return result;
 }
 
 /** Qwen and other vision models often emit Qt font values without the
