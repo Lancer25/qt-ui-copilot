@@ -54,6 +54,7 @@ function normalizeBlueprintProperties(value: unknown): unknown {
   const object = value as Record<string, unknown>;
   const result: Record<string, unknown> = {};
   for (const [key, item] of Object.entries(object)) {
+    if (key === 'layoutTree') { result[key] = normalizeBlueprintNode(item, 'mainLayout'); continue; }
     if (key === 'properties' && item && typeof item === 'object' && !Array.isArray(item)) {
       const properties: Record<string, unknown> = {};
       for (const [name, raw] of Object.entries(item as Record<string, unknown>)) {
@@ -66,6 +67,19 @@ function normalizeBlueprintProperties(value: unknown): unknown {
     } else result[key] = normalizeBlueprintProperties(item);
   }
   return result;
+}
+
+function normalizeBlueprintNode(value: unknown, fallbackName: string): Record<string, unknown> {
+  const object = value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+  const rawKind = object.kind ?? object.type;
+  const kind = rawKind === 'layout' || rawKind === 'spacer' || rawKind === 'widget' ? rawKind : 'widget';
+  const rawClass = object.className ?? object.class ?? object.widgetClass ?? object.typeName;
+  const className = typeof rawClass === 'string' && rawClass.trim() ? rawClass.trim() : kind === 'layout' ? 'QVBoxLayout' : kind === 'spacer' ? 'QSpacerItem' : 'QWidget';
+  const rawName = object.objectName ?? object.name ?? object.id;
+  const objectName = typeof rawName === 'string' && /^[A-Za-z_][A-Za-z0-9_]*$/.test(rawName) ? rawName : fallbackName;
+  const children = Array.isArray(object.children) ? object.children.map((child, index) => normalizeBlueprintNode(child, `${fallbackName}_${index + 1}`)) : [];
+  const properties = object.properties && typeof object.properties === 'object' && !Array.isArray(object.properties) ? normalizeBlueprintProperties({ properties: object.properties }) as Record<string, unknown> : {};
+  return { kind, className, objectName, properties: properties.properties ?? {}, children };
 }
 
 /** Qwen and other vision models often emit Qt font values without the
