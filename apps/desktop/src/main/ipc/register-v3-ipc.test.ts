@@ -46,4 +46,42 @@ describe('V3 workspace IPC', () => {
     await expect(handler?.({}, { workspaceId: 'w', requirement: 'x', attachments: [{ name: 'bad.exe' }], fileName: 'x.ui', rootType: 'QWidget', directory: 'ui', qtKitId: '5.9.6' })).rejects.toThrow();
     lifecycle.dispose();
   });
+
+  it('streams model events to the window before the asynchronous task finishes', async () => {
+    let resolveModel: ((value: { summary: string; riskLevel: 'low'; operations: Array<{ op: 'setProperty'; target: string; name: string; value: string }>; expectedResults: []; componentIds: [] }) => void) | undefined;
+    const provider = { generate: vi.fn(() => new Promise((resolve) => { resolveModel = resolve; })) };
+    const send = vi.fn();
+    const window = { webContents: { send }, isDestroyed: () => false } as unknown as BrowserWindow;
+    const lifecycle = registerV3Ipc(window, new WorkspaceService(), undefined, provider);
+    const calls = (ipcMain.handle as unknown as { mock: { calls: Array<[string, Function]> } }).mock.calls;
+    const start = calls.find(([channel]) => channel === 'v3.ai.startTaskStream')?.[1];
+
+    const result = await start?.({}, { kind: 'modify', taskId: 'stream-1', request: { requirement: '增加按钮', uiFile: 'D:/demo/Main.ui', uiContent: '<ui/>', contextMode: 'focused_ui' } });
+    expect(result).toEqual({ taskId: 'stream-1' });
+    await vi.waitFor(() => expect(send).toHaveBeenCalledWith('v3.ai.taskEvent', expect.objectContaining({ taskId: 'stream-1', type: 'status', status: 'running' })));
+    await vi.waitFor(() => expect(provider.generate).toHaveBeenCalled());
+
+    resolveModel?.({ summary: '已生成修改方案', riskLevel: 'low', operations: [{ op: 'setProperty', target: 'titleLabel', name: 'text', value: '新标题' }], expectedResults: [], componentIds: [] });
+    await vi.waitFor(() => expect(send).toHaveBeenCalledWith('v3.ai.taskEvent', expect.objectContaining({ taskId: 'stream-1', type: 'message_delta', detail: '已生成修改方案' })));
+    lifecycle.dispose();
+  });
+
+  it('cancels a running stream in Main and records a cancellation event', async () => {
+    const provider = { generate: vi.fn(() => new Promise(() => undefined)) };
+    const send = vi.fn();
+    const window = { webContents: { send }, isDestroyed: () => false } as unknown as BrowserWindow;
+    const lifecycle = registerV3Ipc(window, new WorkspaceService(), undefined, provider);
+    const calls = (ipcMain.handle as unknown as { mock: { calls: Array<[string, Function]> } }).mock.calls;
+    const start = calls.find(([channel]) => channel === 'v3.ai.startTaskStream')?.[1];
+    const cancel = calls.find(([channel]) => channel === 'v3.ai.cancelTaskStream')?.[1];
+    const snapshot = calls.find(([channel]) => channel === 'v3.ai.getTaskSnapshot')?.[1];
+
+    await start?.({}, { kind: 'modify', taskId: 'stream-cancel', request: { requirement: '增加按钮', uiFile: 'D:/demo/Main.ui', uiContent: '<ui/>', contextMode: 'focused_ui' } });
+    await vi.waitFor(() => expect(provider.generate).toHaveBeenCalled());
+    await cancel?.({}, { taskId: 'stream-cancel' });
+
+    expect(await snapshot?.({}, { taskId: 'stream-cancel' })).toMatchObject({ status: 'cancelled' });
+    expect(send).toHaveBeenCalledWith('v3.ai.taskEvent', expect.objectContaining({ type: 'cancelled', taskId: 'stream-cancel' }));
+    lifecycle.dispose();
+  });
 });

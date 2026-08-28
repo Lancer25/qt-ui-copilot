@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { UiCreationCandidateSchema } from './v3-ui-creation.js';
+import { UiCreationCandidateSchema, UiCreationRequestSchema } from './v3-ui-creation.js';
 
 export const V3TaskArtifactSchema = z.object({
   kind: z.enum(['candidate', 'preview', 'source', 'diff', 'output']),
@@ -50,3 +50,19 @@ export const V3TaskSnapshotSchema = z.object({
 }).strict();
 
 export type V3TaskSnapshot = z.infer<typeof V3TaskSnapshotSchema>;
+
+export const V3TaskStreamModifyRequestSchema = z.object({
+  requirement: z.string().min(1).max(10_000),
+  uiFile: z.string().min(1).max(4096),
+  uiContent: z.string().max(2_000_000),
+  contextMode: z.enum(['focused_ui', 'whole_project']),
+  workspaceId: z.string().min(1).max(128).optional(),
+}).strict();
+
+/** The two existing V3 AI flows behind one Main-process streaming boundary. */
+export const V3StartTaskInputSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('create'), taskId: z.string().min(1).max(128).optional(), request: UiCreationRequestSchema }).strict(),
+  z.object({ kind: z.literal('modify'), taskId: z.string().min(1).max(128).optional(), request: V3TaskStreamModifyRequestSchema }).strict(),
+]);
+
+export type V3StartTaskInput = z.infer<typeof V3StartTaskInputSchema>;

@@ -29,6 +29,14 @@ const desktopApi: DesktopApi = {
   ai: {
     plan: (input) => ipcRenderer.invoke('v3.ai.plan', input) as ReturnType<NonNullable<DesktopApi['ai']>['plan']>,
     planStream: (input) => ipcRenderer.invoke('v3.ai.planStream', input) as ReturnType<NonNullable<DesktopApi['ai']>['planStream']>,
+    startTaskStream: (input) => ipcRenderer.invoke('v3.ai.startTaskStream', input) as ReturnType<NonNullable<DesktopApi['ai']>['startTaskStream']>,
+    getTaskSnapshot: (taskId) => ipcRenderer.invoke('v3.ai.getTaskSnapshot', { taskId }) as ReturnType<NonNullable<DesktopApi['ai']>['getTaskSnapshot']>,
+    onTaskEvent: (listener) => {
+      const handler = (_event: Electron.IpcRendererEvent, payload: Parameters<typeof listener>[0]) => listener(payload);
+      ipcRenderer.on('v3.ai.taskEvent', handler);
+      return () => ipcRenderer.removeListener('v3.ai.taskEvent', handler);
+    },
+    cancelTaskStream: (taskId) => ipcRenderer.invoke('v3.ai.cancelTaskStream', { taskId }) as ReturnType<NonNullable<DesktopApi['ai']>['cancelTaskStream']>,
     createUiCandidate: (input) => ipcRenderer.invoke('v3.ai.createUiCandidate', input) as ReturnType<NonNullable<DesktopApi['ai']>['createUiCandidate']>,
     onCreationProgress: (listener) => {
       const handler = (_event: Electron.IpcRendererEvent, payload: Parameters<typeof listener>[0]) => listener(payload);

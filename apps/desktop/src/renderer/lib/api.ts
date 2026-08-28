@@ -1,7 +1,7 @@
 import type { ComponentCandidate } from '@qt-ui-copilot/component-library';
 import type { UiCapabilityCandidate } from '@qt-ui-copilot/contracts';
 import type { WorkspaceTreeSnapshot } from '@qt-ui-copilot/contracts';
-import type { AiAttachment, UiCreationBlueprint, UiCreationCandidate, UiPlan } from '@qt-ui-copilot/contracts';
+import type { AiAttachment, UiCreationBlueprint, UiCreationCandidate, UiPlan, V3StartTaskInput, V3TaskEvent, V3TaskSnapshot } from '@qt-ui-copilot/contracts';
 
 export type WorkflowUiStatus = 'running' | 'waiting_approval' | 'failed' | 'cancelled' | 'completed';
 
@@ -170,7 +170,7 @@ export interface DesktopApi {
   };
   capabilities?: { search(input: V3CapabilitySearchInput): Promise<UiCapabilityCandidate[]> };
   preview?: { render(input: V3PreviewRequest): Promise<V3PreviewResult>; cancel(uiFile: string): Promise<void> };
-  ai?: { plan(input: { requirement: string; uiFile: string; uiContent: string; contextMode: 'focused_ui' | 'whole_project'; workspaceId?: string }): Promise<V3UiPlan>; planStream(input: { requirement: string; uiFile: string; uiContent: string; contextMode: 'focused_ui' | 'whole_project'; workspaceId?: string }): Promise<V3ConversationEvent[]>; createUiCandidate(input: UiCreationRequest): Promise<UiCreationResult>; onCreationProgress(listener: (event: { taskId: string; progress: V3UiCreationProgress }) => void): () => void; commitUiCandidate(candidateId: string): Promise<{ uiFile: string }>; rejectUiCandidate(candidateId: string): Promise<void>; cancelUiCreation(taskId: string): Promise<void> };
+  ai?: { plan(input: { requirement: string; uiFile: string; uiContent: string; contextMode: 'focused_ui' | 'whole_project'; workspaceId?: string }): Promise<V3UiPlan>; planStream(input: { requirement: string; uiFile: string; uiContent: string; contextMode: 'focused_ui' | 'whole_project'; workspaceId?: string }): Promise<V3ConversationEvent[]>; startTaskStream(input: V3StartTaskInput): Promise<{ taskId: string }>; getTaskSnapshot(taskId: string): Promise<V3TaskSnapshot | undefined>; onTaskEvent(listener: (event: V3TaskEvent) => void): () => void; cancelTaskStream(taskId: string): Promise<void>; createUiCandidate(input: UiCreationRequest): Promise<UiCreationResult>; onCreationProgress(listener: (event: { taskId: string; progress: V3UiCreationProgress }) => void): () => void; commitUiCandidate(candidateId: string): Promise<{ uiFile: string }>; rejectUiCandidate(candidateId: string): Promise<void>; cancelUiCreation(taskId: string): Promise<void> };
   revisions?: { apply(input: { uiFile: string; operations: unknown[]; conversationId: string }): Promise<V3RevisionResult>; undo(uiFile: string): Promise<void>; redo(uiFile: string): Promise<void>; rebase(uiFile: string): Promise<void> };
   projects: {
     /** Opens the native directory chooser in the Main process. Undefined means the user cancelled. */

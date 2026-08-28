@@ -2,6 +2,7 @@ import { ipcMain, type BrowserWindow } from 'electron';
 import { existsSync } from 'node:fs';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, parse, resolve } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { WorkspaceService } from '../workspace/workspace-service';
 import { WorkspaceTreeService } from '../workspace/workspace-tree-service';
@@ -14,7 +15,7 @@ import { applyOperations, parseUi } from '@qt-ui-copilot/ui-document';
 import { RevisionService } from '../revisions/revision-service';
 import { ContextService } from '../ai/context-service';
 import { ConversationService } from '../ai/conversation-service';
-import { UiCreationRequestSchema, type UiCreationRequest } from '@qt-ui-copilot/contracts';
+import { UiCreationRequestSchema, V3StartTaskInputSchema, type UiCreationRequest, type V3StartTaskInput, type V3TaskEvent, type V3TaskPreview } from '@qt-ui-copilot/contracts';
 import { AttachmentService } from '../ai/attachment-service';
 import { UiCreationPlanner } from '../ai/ui-creation-planner';
 import { UiCreationService } from '../ai/ui-creation-service';
@@ -23,6 +24,7 @@ import { UiCreationTaskService } from '../ai/ui-creation-task-service';
 import type { UiCreationProgress } from '../ai/ui-creation-task-service';
 import { UiIntentPlanner } from '../ai/ui-intent-planner';
 import { UiEnhancementPlanner } from '../ai/ui-enhancement-planner';
+import { V3TaskEventService } from '../ai/v3-task-event-service';
 
 const OpenWorkspaceSchema = z.object({ rootDir: z.string().min(1).max(4096), ignorePatterns: z.array(z.string().min(1).max(512)).max(128).optional() }).strict();
 const WorkspaceIdSchema = z.object({ workspaceId: z.string().min(1).max(128) }).strict();
@@ -48,6 +50,8 @@ export function registerV3Ipc(window: BrowserWindow, service = new WorkspaceServ
   const watchers = new Map<string, WorkspaceWatcher>();
   const revisionServices = new Map<string, RevisionService>();
   const creationTasks = new Map<string, AbortController>();
+  const taskStreams = new Map<string, AbortController>();
+  const taskEvents = new V3TaskEventService();
   const qtCapabilitySource = new QtWidgetCapabilitySource();
   const treeService = new WorkspaceTreeService(service);
   const fileOperations = new WorkspaceFileOperations(service);
@@ -67,6 +71,10 @@ export function registerV3Ipc(window: BrowserWindow, service = new WorkspaceServ
   const publish = (change: WorkspaceChange): void => {
     if (!window.isDestroyed?.()) window.webContents.send('v3.workspace.onChange', change);
   };
+  const publishTaskEvent = (event: V3TaskEvent): void => {
+    if (!window.isDestroyed?.()) window.webContents.send('v3.ai.taskEvent', event);
+  };
+  const unsubscribeTaskEvents = taskEvents.subscribe(publishTaskEvent);
   const openHandler = async (_event: unknown, input: unknown) => {
     const parsed = OpenWorkspaceSchema.parse(input);
     const summary = await service.open(parsed.rootDir, parsed);
@@ -90,6 +98,62 @@ export function registerV3Ipc(window: BrowserWindow, service = new WorkspaceServ
       current = parent;
     }
   };
+  const buildPlanContext = async (request: { requirement: string; uiFile: string; uiContent: string; contextMode: 'focused_ui' | 'whole_project'; workspaceId?: string }): Promise<Record<string, unknown>> => {
+    let targetSemanticTree: Record<string, unknown> = { uiFile: request.uiFile, uiContent: request.uiContent };
+    if (!request.workspaceId) return targetSemanticTree;
+    const files = await service.listFiles(request.workspaceId);
+    const contextService = new ContextService((filePath) => service.readText(request.workspaceId!, filePath));
+    if (request.contextMode === 'whole_project') return { ...targetSemanticTree, projectSearch: await contextService.searchWholeProject(request.requirement, files as never[]) };
+    const uiFile = files.find((file) => file.absolutePath === request.uiFile || file.relativePath === request.uiFile);
+    if (uiFile) targetSemanticTree = { ...(await contextService.buildFocusedUiContext(uiFile as never, files as never[])) as unknown as Record<string, unknown> };
+    return targetSemanticTree;
+  };
+  const appendCreationProgress = (taskId: string, progress: UiCreationProgress): void => {
+    if (taskEvents.snapshot(taskId)?.status === 'cancelled') return;
+    const previewStatuses: Record<NonNullable<UiCreationProgress['previewStatus']>, V3TaskPreview['status']> = { ready: 'completed', warning: 'warning', failed: 'failed' };
+    const terminal = progress.stage === 'failed' ? 'failed' : progress.stage === 'cancelled' ? 'cancelled' : progress.stage === 'preview_ready' || progress.stage === 'base_candidate_ready' ? 'completed' : 'running';
+    const type = terminal === 'failed' ? 'error' : terminal === 'cancelled' ? 'cancelled' : progress.warnings.length ? 'warning' : 'status';
+    taskEvents.append(taskId, { lane: progress.stage.includes('preview') ? 'preview' : 'generation', type, status: terminal, stage: progress.stage, title: progress.message, ...(progress.warnings.length ? { detail: progress.warnings.map((warning) => warning.message).join('\n') } : {}) });
+    if (progress.previewStatus) {
+      const previewStatus = previewStatuses[progress.previewStatus];
+      taskEvents.setPreview(taskId, { status: previewStatus, ...(progress.previewDataUrl ? { imageDataUrl: progress.previewDataUrl, mode: 'enhanced' } : {}), ...(progress.warnings[0] ? { error: progress.warnings[0].message } : {}) });
+      taskEvents.updateCandidate(taskId, (candidate) => ({ ...candidate, ...(progress.previewDataUrl ? { previewDataUrl: progress.previewDataUrl } : {}), validation: { ...candidate.validation, preview: previewStatus === 'completed' } }));
+    }
+    if (progress.stage === 'preview_ready') {
+      taskEvents.append(taskId, { lane: 'approval', type: 'done', status: 'completed', stage: 'waiting_approval', title: '等待用户审批保存' });
+      taskStreams.delete(taskId);
+    }
+  };
+  const runTaskStream = async (taskId: string, input: V3StartTaskInput, controller: AbortController): Promise<void> => {
+    let previewContinuesInBackground = false;
+    try {
+      taskEvents.append(taskId, { lane: 'conversation', type: 'status', status: 'running', stage: 'started', title: input.kind === 'create' ? '正在创建新界面' : '正在分析当前界面' });
+      if (input.kind === 'modify') {
+        if (!modelProvider) throw new Error('模型服务尚未配置');
+        const context = { requirement: input.request.requirement, targetSemanticTree: await buildPlanContext(input.request), runtimeFacts: { contextMode: input.request.contextMode } };
+        for await (const event of new ConversationService(modelProvider).plan(taskId, context)) {
+          if (controller.signal.aborted) throw new Error('task cancelled');
+          if (event.type === 'message_delta') taskEvents.append(taskId, { lane: 'conversation', type: 'message_delta', status: 'running', title: 'AI 正在分析', detail: event.content });
+          else if (event.type === 'plan') taskEvents.append(taskId, { lane: 'generation', type: 'artifact', status: 'completed', title: '修改方案已生成', artifact: { kind: 'diff', id: taskId } });
+          else if (event.type === 'error') throw new Error(event.message);
+        }
+        taskEvents.append(taskId, { lane: 'conversation', type: 'done', status: 'completed', stage: 'waiting_approval', title: '等待用户审批' });
+        return;
+      }
+      if (!creationService) throw new Error('模型服务尚未配置');
+      const candidate = await creationService.createCandidate(input.request, (progress) => appendCreationProgress(taskId, progress), controller.signal, taskId);
+      taskEvents.setCandidate(taskId, candidate);
+      taskEvents.append(taskId, { lane: 'generation', type: 'artifact', status: 'completed', stage: 'base_candidate_ready', title: '基础 UI 已生成', artifact: { kind: 'candidate', id: candidate.id, filePath: candidate.targetPath } });
+      // UiCreationService continues the PreviewHost lane in the background;
+      // its real progress callback completes this task when preview resolves.
+      previewContinuesInBackground = true;
+    } catch (error) {
+      const cancelled = controller.signal.aborted || (error instanceof Error && /cancelled/i.test(error.message));
+      taskEvents.append(taskId, { lane: 'generation', type: cancelled ? 'cancelled' : 'error', status: cancelled ? 'cancelled' : 'failed', stage: cancelled ? 'cancelled' : 'failed', title: cancelled ? '任务已取消' : '任务执行失败', ...(error instanceof Error ? { detail: error.message } : {}) });
+    } finally {
+      if (!previewContinuesInBackground) taskStreams.delete(taskId);
+    }
+  };
   ipcMain.handle('v3.workspace.open', openHandler);
   ipcMain.handle('v3.workspace.listFiles', listFilesHandler);
   ipcMain.handle('v3.workspace.readText', (_event, input: unknown) => { const parsed = ReadWorkspaceFileSchema.parse(input); return service.readText(parsed.workspaceId, parsed.filePath); });
@@ -104,7 +168,25 @@ export function registerV3Ipc(window: BrowserWindow, service = new WorkspaceServ
   ipcMain.handle('v3.preview.render', (_event, input: unknown) => preview.render(PreviewInputSchema.parse(input) as V3PreviewInput));
   ipcMain.handle('v3.preview.cancel', (_event, input: unknown) => { preview.cancel(PreviewCancelSchema.parse(input).uiFile); });
   ipcMain.handle('v3.ai.plan', async (_event, input: unknown) => { if (!modelProvider) throw new Error('模型服务尚未配置'); const request = PlanInputSchema.parse(input); let context: Record<string, unknown> = { uiFile: request.uiFile, uiContent: request.uiContent }; if (request.contextMode === 'whole_project' && request.workspaceId) { const files = await service.listFiles(request.workspaceId); context = { ...context, projectSearch: await new ContextService((filePath) => service.readText(request.workspaceId!, filePath)).searchWholeProject(request.requirement, files as never[]) }; } return new UiPlanner(modelProvider).plan({ requirement: request.requirement, targetSemanticTree: context, runtimeFacts: { contextMode: request.contextMode } }); });
-  ipcMain.handle('v3.ai.planStream', async (_event, input: unknown) => { if (!modelProvider) throw new Error('模型服务尚未配置'); const request = PlanInputSchema.parse(input); let targetSemanticTree: Record<string, unknown> = { uiFile: request.uiFile, uiContent: request.uiContent }; if (request.workspaceId) { const files = await service.listFiles(request.workspaceId); const contextService = new ContextService((filePath) => service.readText(request.workspaceId!, filePath)); if (request.contextMode === 'whole_project') targetSemanticTree = { ...targetSemanticTree, projectSearch: await contextService.searchWholeProject(request.requirement, files as never[]) }; else { const uiFile = files.find((file) => file.absolutePath === request.uiFile || file.relativePath === request.uiFile); if (uiFile) targetSemanticTree = { ...(await contextService.buildFocusedUiContext(uiFile as never, files as never[])) as unknown as Record<string, unknown> }; } } const events = []; const context = { requirement: request.requirement, targetSemanticTree, runtimeFacts: { contextMode: request.contextMode } }; for await (const event of new ConversationService(modelProvider).plan(`v3-${request.uiFile}`, context)) events.push(event); return events; });
+  ipcMain.handle('v3.ai.planStream', async (_event, input: unknown) => { if (!modelProvider) throw new Error('模型服务尚未配置'); const request = PlanInputSchema.parse(input); const events = []; const context = { requirement: request.requirement, targetSemanticTree: await buildPlanContext(request), runtimeFacts: { contextMode: request.contextMode } }; for await (const event of new ConversationService(modelProvider).plan(`v3-${request.uiFile}`, context)) events.push(event); return events; });
+  ipcMain.handle('v3.ai.startTaskStream', (_event, input: unknown) => {
+    const request = V3StartTaskInputSchema.parse(input);
+    const taskId = request.taskId ?? `v3-task-${randomUUID()}`;
+    if (taskStreams.has(taskId)) return { taskId };
+    const controller = new AbortController();
+    taskStreams.set(taskId, controller);
+    void runTaskStream(taskId, request, controller);
+    return { taskId };
+  });
+  ipcMain.handle('v3.ai.getTaskSnapshot', (_event, input: unknown) => taskEvents.snapshot(CancelUiCreationSchema.parse(input).taskId));
+  ipcMain.handle('v3.ai.cancelTaskStream', (_event, input: unknown) => {
+    const taskId = CancelUiCreationSchema.parse(input).taskId;
+    const controller = taskStreams.get(taskId);
+    if (!controller) return;
+    controller.abort();
+    taskStreams.delete(taskId);
+    taskEvents.append(taskId, { lane: 'conversation', type: 'cancelled', status: 'cancelled', stage: 'cancelled', title: '任务已取消' });
+  });
   ipcMain.handle('v3.ai.createUiCandidate', async (_event, input: unknown) => {
     if (!creationService) throw new Error('模型服务尚未配置');
     const parsed = UiCreationIpcSchema.parse(input);
@@ -149,6 +231,9 @@ export function registerV3Ipc(window: BrowserWindow, service = new WorkspaceServ
     dispose() {
       for (const watcher of watchers.values()) watcher.stop();
       watchers.clear();
+      unsubscribeTaskEvents();
+      for (const controller of taskStreams.values()) controller.abort();
+      taskStreams.clear();
       ipcMain.removeHandler?.('v3.workspace.open');
       ipcMain.removeHandler?.('v3.workspace.listFiles');
       ipcMain.removeHandler?.('v3.workspace.readText');
@@ -159,6 +244,9 @@ export function registerV3Ipc(window: BrowserWindow, service = new WorkspaceServ
       ipcMain.removeHandler?.('v3.preview.cancel');
       ipcMain.removeHandler?.('v3.ai.plan');
       ipcMain.removeHandler?.('v3.ai.planStream');
+      ipcMain.removeHandler?.('v3.ai.startTaskStream');
+      ipcMain.removeHandler?.('v3.ai.getTaskSnapshot');
+      ipcMain.removeHandler?.('v3.ai.cancelTaskStream');
       for (const controller of creationTasks.values()) controller.abort();
       creationTasks.clear();
       ipcMain.removeHandler?.('v3.ai.createUiCandidate');
