@@ -11,5 +11,4 @@ export * from './v3-ui-enhancement.js';
 export * from './ui-capability.js';
 export * from './ui-creation-stream.js';
 export * from './workspace-tree.js';
-export * from './workspace-tree.js';
-export * from './ui-creation-stream.js';
+export * from './v3-task-conversation.js';
