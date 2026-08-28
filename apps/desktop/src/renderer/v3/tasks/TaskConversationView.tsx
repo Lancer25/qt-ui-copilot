@@ -43,9 +43,12 @@ export function TaskConversationView({ taskId, createTaskInput, onOpenPreview, o
 }
 
 function TaskFeed({ task, onOpenPreview, onOpenDiff, onCommit, onReject }: { task: TaskStreamTask; onOpenPreview?: (candidate: UiCreationCandidate) => void; onOpenDiff?: (candidate: UiCreationCandidate) => void; onCommit?: (candidateId: string) => Promise<void> | void; onReject?: (candidateId: string) => Promise<void> | void }) {
-  const latestMessage = task.messages.at(-1);
+  const messagesByFinalDelta = new Map(task.messages.map((message) => [message.sequence, message]));
   return <>{task.events.map((event) => {
-    if (event.type === 'message_delta') return latestMessage?.sequence === event.sequence ? <TaskMessage key={`message-${event.sequence}`} message={latestMessage} /> : null;
+    if (event.type === 'message_delta') {
+      const message = messagesByFinalDelta.get(event.sequence);
+      return message ? <TaskMessage key={`message-${event.sequence}`} message={message} /> : null;
+    }
     return visibleStatus(event) ? <TaskStatusLine key={event.sequence} event={event} /> : null;
   })}{task.candidate ? <TaskArtifactCard candidate={task.candidate} onOpenPreview={onOpenPreview} onOpenDiff={onOpenDiff} onCommit={onCommit} onReject={onReject} /> : null}</>;
 }

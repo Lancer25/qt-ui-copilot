@@ -54,7 +54,10 @@ export function acceptTaskEvent(task: TaskStreamTask, event: V3TaskEvent): TaskS
   const messages = event.type === 'message_delta' && event.detail
     ? (() => {
       const last = task.messages.at(-1);
-      return last
+      // A status/artifact boundary starts a new assistant turn; only adjacent
+      // deltas belong to the same streamed message.
+      const continuesPreviousTurn = task.events.at(-1)?.type === 'message_delta';
+      return last && continuesPreviousTurn
         ? [...task.messages.slice(0, -1), { ...last, content: `${last.content}${event.detail}`, sequence: event.sequence }]
         : [...task.messages, { role: 'assistant' as const, content: event.detail, sequence: event.sequence }];
     })()

@@ -14,13 +14,14 @@ const api = {
     getTaskSnapshot: vi.fn(async () => ({
       taskId,
       status: 'running',
-      lastSequence: 3,
+      lastSequence: 4,
       createdAt: 1,
-      updatedAt: 3,
+      updatedAt: 4,
       events: [
         { taskId, sequence: 1, timestamp: 1, lane: 'conversation', type: 'message_delta', title: 'AI 回复', detail: '我已理解你的需求。' },
         { taskId, sequence: 2, timestamp: 2, lane: 'generation', type: 'status', status: 'completed', title: '基础 UI 已生成', detail: 'uic 校验通过' },
         { taskId, sequence: 3, timestamp: 3, lane: 'preview', type: 'status', status: 'running', title: '正在生成实际预览…', detail: 'PreviewHost 正在启动' },
+        { taskId, sequence: 4, timestamp: 4, lane: 'conversation', type: 'message_delta', title: 'AI 回复', detail: '基础界面已准备好，接下来完成预览。' },
       ],
     })),
     startTaskStream: vi.fn(async () => ({ taskId })),
@@ -38,6 +39,8 @@ describe('TaskConversationView', () => {
   it('renders readable streamed messages and hides technical details by default', async () => {
     renderView();
     expect(await screen.findByText('基础 UI 已生成')).toBeTruthy();
+    expect(screen.getByText('我已理解你的需求。')).toBeTruthy();
+    expect(screen.getByText('基础界面已准备好，接下来完成预览。')).toBeTruthy();
     expect(screen.getByText('正在生成实际预览…').closest('.v3-task-status')?.className.includes('is-running')).toBe(true);
     expect(screen.queryByText('PreviewHost 正在启动')).toBeNull();
     await userEvent.setup().click(screen.getByRole('button', { name: '查看详情：正在生成实际预览…' }));

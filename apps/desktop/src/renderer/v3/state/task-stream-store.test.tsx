@@ -48,6 +48,24 @@ describe('TaskStreamStore', () => {
     expect(result.current.task?.preview?.status).toBe('completed');
   });
 
+  it('preserves earlier assistant turns when a status separates streamed deltas', async () => {
+    const api = { ai: { onTaskEvent: vi.fn(() => () => undefined), getTaskSnapshot: vi.fn(async () => snapshot([
+      event(1, { lane: 'conversation', type: 'message_delta', title: 'AI 回复', detail: '先分析布局。' }),
+      event(2, { lane: 'conversation', type: 'message_delta', title: 'AI 回复', detail: '然后创建控件。' }),
+      event(3, { type: 'status', status: 'completed', title: '基础 UI 已生成' }),
+      event(4, { lane: 'conversation', type: 'message_delta', title: 'AI 回复', detail: '接下来验证预览。' }),
+      event(5, { lane: 'conversation', type: 'message_delta', title: 'AI 回复', detail: '预览将稍后显示。' }),
+    ])) } } as unknown as DesktopApi;
+    const wrapper = ({ children }: { children: React.ReactNode }) => <TaskStreamProvider api={api}>{children}</TaskStreamProvider>;
+    const { result } = renderHook(() => useTaskStream('task-1'), { wrapper });
+
+    await waitFor(() => expect(result.current.task?.lastSequence).toBe(5));
+    expect(result.current.task?.messages).toEqual([
+      { role: 'assistant', content: '先分析布局。然后创建控件。', sequence: 2 },
+      { role: 'assistant', content: '接下来验证预览。预览将稍后显示。', sequence: 5 },
+    ]);
+  });
+
   it('queues a new request while running, starts it after done, and cancels through the API', async () => {
     let emit: ((value: V3TaskEvent) => void) | undefined;
     const startTaskStream = vi.fn(async () => ({ taskId: 'task-1' }));
