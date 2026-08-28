@@ -9,7 +9,7 @@ import './task-conversation.css';
 
 export interface TaskConversationViewProps {
   taskId: string;
-  createTaskInput?: (input: TaskComposerInput) => V3StartTaskInput;
+  createTaskInput?: (input: TaskComposerInput) => V3StartTaskInput | Promise<V3StartTaskInput>;
   onOpenPreview?: (candidate: UiCreationCandidate) => void;
   onOpenDiff?: (candidate: UiCreationCandidate) => void;
   onCommitCandidate?: (candidateId: string) => Promise<void> | void;
@@ -26,7 +26,7 @@ export function TaskConversationView({ taskId, createTaskInput, onOpenPreview, o
   const submit = async (input: TaskComposerInput) => {
     if (!createTaskInput) { setComposerError('当前任务尚未配置发送方式。'); return; }
     try {
-      const request = createTaskInput(input);
+      const request = await createTaskInput(input);
       if (running) await controller.queueMessage(request);
       else await controller.startTask(request);
       setComposerError(undefined);
