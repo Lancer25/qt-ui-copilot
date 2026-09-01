@@ -18,4 +18,13 @@ describe('artifactTabsReducer', () => {
     expect(reopened.tabs).toHaveLength(2);
     expect(reopened.tabs[1]).toMatchObject({ id: 'source:d:/demo/main.ui', title: 'Main.ui 源码' });
   });
+
+  it('opens settings as one unique central workspace tab', () => {
+    const first = artifactTabsReducer(initialArtifactTabsState, { type: 'openSettings' });
+    const second = artifactTabsReducer(first, { type: 'openSettings' });
+
+    expect(second.tabs).toHaveLength(2);
+    expect(second.tabs[1]).toMatchObject({ id: 'settings:app', kind: 'settings', title: '设置' });
+    expect(second.activeTabId).toBe('settings:app');
+  });
 });

@@ -47,6 +47,7 @@ function ArtifactContent({ api, tab, workspace, selectedFile, candidate, onOpenP
     const uiContent = await api.workspace?.readText(workspace.id, selectedFile.absolutePath) ?? '';
     return { kind: 'modify', taskId: tab.taskId, request: { workspaceId: workspace.id, contextMode: input.contextMode, requirement: input.text, attachments: input.attachments, uiFile: selectedFile.absolutePath, uiContent } };
   }} onOpenPreview={onOpenPreview} onOpenDiff={onOpenDiff} onCommitCandidate={onCommit} onRejectCandidate={onReject} />;
+  if (tab.kind === 'settings') return <main aria-label="设置"><SettingsPage api={api} workspace={workspace} /></main>;
   if (tab.kind === 'preview') return <UiPreviewTab api={api} filePath={tab.filePath} candidate={candidate} buildPreviewRequest={(mode) => {
     const request = previewRequest(workspace, tab.filePath, mode);
     if (!request) throw new Error('当前项目尚未配置可用的 Qt Kit。');
@@ -90,8 +91,15 @@ function V3Content({ api }: { api: DesktopApi }) {
     if (tab) dispatchTabs({ type: 'close', id: tab.id });
     setMessage('已放弃界面草稿。');
   };
-  const sidebar = activity === 'explorer' ? (!workspace ? <button className="v3-open-folder" onClick={() => void openFolder()}>打开文件夹</button> : <ProjectExplorer api={api} workspace={{ ...workspace, files }} revealPath={revealPath} onOpen={openFile} onMessage={setMessage} />) : activity === 'tasks' ? <TaskHistoryPanel api={api} projectId={workspace?.id} onOpenTask={openTask} /> : activity === 'settings' ? <SettingsPage api={api} workspace={workspace} /> : <div className="v3-activity-placeholder"><b>{activity === 'search' ? '搜索' : '组件库'}</b>{activity === 'search' ? <input aria-label="搜索项目" placeholder="搜索项目文件…" /> : <p>组件库候选会在这里显示。</p>}</div>;
-  return <WorkspaceShell titlebar={<Titlebar api={api} workspace={workspace} />} activity={activity} onActivityChange={setActivity} sidebar={sidebar} workspace={<ArtifactTabs tabs={tabs.tabs} activeTabId={tabs.activeTabId} onActivate={(id) => dispatchTabs({ type: 'activate', id })} onClose={(id) => dispatchTabs({ type: 'close', id })} renderTab={(tab) => <ArtifactContent api={api} tab={tab} workspace={workspace} selectedFile={selectedFile} candidate={candidateForTab(tab, candidates)} onOpenPreview={openCandidate} onOpenDiff={openDiff} onOpenSource={openSource} onCommit={commit} onReject={reject} />} />}>{message ? <div role="status" className="v3-toast">{message}</div> : null}</WorkspaceShell>;
+  const sidebar = activity === 'explorer' ? (!workspace ? <button className="v3-open-folder" onClick={() => void openFolder()}>打开文件夹</button> : <ProjectExplorer api={api} workspace={{ ...workspace, files }} revealPath={revealPath} onOpen={openFile} onMessage={setMessage} />) : activity === 'tasks' ? <TaskHistoryPanel api={api} projectId={workspace?.id} onOpenTask={openTask} /> : <div className="v3-activity-placeholder"><b>{activity === 'search' ? '搜索' : '组件库'}</b>{activity === 'search' ? <input aria-label="搜索项目" placeholder="搜索项目文件…" /> : <p>组件库候选会在这里显示。</p>}</div>;
+  const changeActivity = (next: WorkspaceActivity) => {
+    if (next === 'settings') {
+      dispatchTabs({ type: 'openSettings' });
+      return;
+    }
+    setActivity(next);
+  };
+  return <WorkspaceShell titlebar={<Titlebar api={api} workspace={workspace} />} activity={activity} onActivityChange={changeActivity} sidebar={sidebar} workspace={<ArtifactTabs tabs={tabs.tabs} activeTabId={tabs.activeTabId} onActivate={(id) => dispatchTabs({ type: 'activate', id })} onClose={(id) => dispatchTabs({ type: 'close', id })} renderTab={(tab) => <ArtifactContent api={api} tab={tab} workspace={workspace} selectedFile={selectedFile} candidate={candidateForTab(tab, candidates)} onOpenPreview={openCandidate} onOpenDiff={openDiff} onOpenSource={openSource} onCommit={commit} onReject={reject} />} />}>{message ? <div role="status" className="v3-toast">{message}</div> : null}</WorkspaceShell>;
 }
 
 export function V3App({ api }: { api: DesktopApi }) { return <TaskStreamProvider api={api}><V3Content api={api} /></TaskStreamProvider>; }

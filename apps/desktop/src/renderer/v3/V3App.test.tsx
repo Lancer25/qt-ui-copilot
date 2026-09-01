@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { V3App } from './V3App';
 import type { DesktopApi } from '../lib/api';
 
-const api = { workspace: { open: async () => ({ id: 'w', name: 'Demo', rootDir: 'D:/demo', fileCount: 1, lastOpenedAt: 1, createdAt: 1, updatedAt: 1, profile: { qt: { version: '6.10.2' }, preview: {} }, files: [{ absolutePath: 'D:/demo/Settings.ui', relativePath: 'ui/Settings.ui', kind: 'ui' as const, size: 1, modifiedAt: 1, contentHash: 'x' }] }), listFiles: async () => [], onChange: () => () => {} }, projects: { chooseDirectory: async () => 'D:/demo' }, preview: { render: async () => ({ imageDataUrl: 'data:image/png;base64,AA==', mode: 'enhanced' as const, imagePath: 'preview.png', findings: [], degradedFeatures: [], confidence: 0.9 }) }, } as unknown as DesktopApi;
+const api = { workspace: { open: async () => ({ id: 'w', name: 'Demo', rootDir: 'D:/demo', fileCount: 1, lastOpenedAt: 1, createdAt: 1, updatedAt: 1, profile: { qt: { version: '6.10.2' }, preview: {} }, files: [{ absolutePath: 'D:/demo/Settings.ui', relativePath: 'ui/Settings.ui', kind: 'ui' as const, size: 1, modifiedAt: 1, contentHash: 'x' }] }), listFiles: async () => [], onChange: () => () => {} }, projects: { chooseDirectory: async () => 'D:/demo' }, preview: { render: async () => ({ imageDataUrl: 'data:image/png;base64,AA==', mode: 'enhanced' as const, imagePath: 'preview.png', findings: [], degradedFeatures: [], confidence: 0.9 }) }, settings: { getModel: async () => ({ baseUrl: 'http://localhost:11434/v1', model: 'fake', imagePayloadMode: 'base64_data_url' as const, hasApiKey: false }), configureModel: async () => ({ baseUrl: 'http://localhost:11434/v1', model: 'fake', imagePayloadMode: 'base64_data_url' as const, hasApiKey: false }), testModel: async () => ({ ok: true, elapsedMs: 1, model: 'fake' }), testModelCapability: async ({ capability }: { capability: 'text' | 'json' | 'vision' }) => ({ capability, ok: true, elapsedMs: 1, model: 'fake' }), getProjectBinding: async () => undefined, saveProjectBinding: async () => ({ projectId: 'w', qtKitId: 'kit', config: {} }), checkProjectBinding: async () => ({ ok: true, blocking: [] }) } } as unknown as DesktopApi;
 afterEach(cleanup);
 describe('V3App', () => {
   it('uses the central AI workspace and opens a UI file in a preview tab', async () => {
@@ -32,5 +32,15 @@ describe('V3App', () => {
     const user = userEvent.setup(); render(<V3App api={api} />);
     await user.click(screen.getByRole('button', { name: '任务' }));
     expect(screen.getByRole('heading', { name: '任务历史' })).toBeTruthy();
+  });
+
+  it('opens settings in one central tab and preserves the project sidebar', async () => {
+    const user = userEvent.setup(); render(<V3App api={api} />);
+
+    await user.click(screen.getByRole('button', { name: '设置' }));
+
+    expect(screen.getByRole('tab', { name: '设置' })).toBeTruthy();
+    expect(screen.getByRole('complementary', { name: '项目文件' })).toBeTruthy();
+    expect(screen.getByRole('main', { name: '设置' })).toBeTruthy();
   });
 });

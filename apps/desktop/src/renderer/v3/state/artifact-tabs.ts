@@ -1,5 +1,6 @@
 export type ArtifactTab =
   | { id: string; kind: 'task'; taskId: string; title: string }
+  | { id: string; kind: 'settings'; title: string }
   | { id: string; kind: 'preview'; filePath: string; title: string; temporary: boolean; candidateId?: string }
   | { id: string; kind: 'source' | 'diff' | 'output'; filePath?: string; taskId?: string; title: string };
 
@@ -10,6 +11,7 @@ export interface ArtifactTabsState {
 
 export type ArtifactTabsAction =
   | { type: 'openTask'; taskId: string; title: string }
+  | { type: 'openSettings' }
   | { type: 'openPreview'; filePath: string; title?: string; temporary: boolean; candidateId?: string }
   | { type: 'openArtifact'; kind: 'source' | 'diff' | 'output'; title: string; filePath?: string; taskId?: string }
   | { type: 'activate'; id: string }
@@ -36,6 +38,9 @@ export function artifactTabsReducer(state: ArtifactTabsState, action: ArtifactTa
   if (action.type === 'openTask') {
     const tab: ArtifactTab = { id: artifactTabId('task', action.taskId), kind: 'task', taskId: action.taskId, title: action.title };
     return openTab(state, tab);
+  }
+  if (action.type === 'openSettings') {
+    return openTab(state, { id: artifactTabId('settings', 'app'), kind: 'settings', title: '设置' });
   }
   if (action.type === 'openPreview') {
     const tab: ArtifactTab = {
