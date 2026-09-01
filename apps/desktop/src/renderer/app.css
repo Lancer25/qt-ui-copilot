@@ -64,7 +64,22 @@ header p, .muted { color: var(--text-muted); font-size: 13px; }
 .capability-check p, .kit-row p { margin: 3px 0 0; }
 .kit-list { display: grid; gap: 8px; }
 .settings-error { color: var(--status-error); font-size: 12px; }
+.settings-model { display: grid; gap: var(--space-4); }
+.settings-model .settings-card { min-height: 0; }
+.settings-connection-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
+.settings-connection-grid__key { grid-column: 1 / -1; }
+.settings-save-bar { position: sticky; bottom: 0; display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-top: var(--space-5); padding-top: var(--space-4); background: linear-gradient(transparent, var(--surface-1) 36%); }
+.settings-save-bar [role="status"] { min-width: 0; color: var(--text-secondary); font-size: 12px; }
+.settings-image-card .ui-field { max-width: 440px; }
+.capability-check { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; }
+.capability-check__actions { display: flex; flex-direction: column; align-items: end; gap: 6px; }
+.settings-link-button { padding: 0; border: 0; background: transparent; color: var(--accent-primary); font-size: 12px; }
+.settings-capability--ok { color: var(--status-success); }
+.settings-capability--error { color: var(--status-error); overflow-wrap: anywhere; }
+.settings-capability__detail { max-height: 140px; overflow: auto; margin: var(--space-2) 0 0; padding: 8px; border-radius: var(--radius-sm); background: var(--surface-0); color: var(--text-secondary); font: 11px/1.5 ui-monospace, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+.settings-project-group { margin-top: var(--space-5); padding-top: var(--space-4); border-top: 1px solid var(--border-subtle); }
+.settings-project-group h3 { margin: 0 0 var(--space-4); color: var(--text-primary); font-size: 14px; }
 @media (min-width: 900px) { .settings-layout { grid-template-columns: 220px minmax(0, 1fr); } }
 @media (min-width: 640px) and (max-width: 899px) { .settings-page--central { padding: 20px 24px 32px; } .settings-layout { grid-template-columns: 1fr; gap: var(--space-4); } .settings-nav--desktop { display: none; } .settings-nav--compact { display: flex; overflow-x: auto; padding-bottom: 2px; } .settings-nav--compact .settings-nav__item { display: block; flex: 0 0 auto; white-space: nowrap; } }
-@media (max-width: 639px) { .settings-page--central { padding: 16px; } .settings-page__header { padding-top: 0; padding-bottom: var(--space-4); } .settings-page__header h1 { font-size: 24px; } .settings-layout { grid-template-columns: 1fr; gap: var(--space-4); padding-top: var(--space-4); } .settings-nav--desktop, .settings-nav--compact { display: none; } .settings-nav-select { display: grid; gap: 6px; color: var(--text-secondary); font-size: 12px; font-weight: 650; } .settings-nav-select select { width: 100%; } .settings-form-grid { grid-template-columns: 1fr; } .settings-form-grid .ui-field:last-child { grid-column: auto; } }
+@media (max-width: 639px) { .settings-page--central { padding: 16px; } .settings-page__header { padding-top: 0; padding-bottom: var(--space-4); } .settings-page__header h1 { font-size: 24px; } .settings-layout { grid-template-columns: 1fr; gap: var(--space-4); padding-top: var(--space-4); } .settings-nav--desktop, .settings-nav--compact { display: none; } .settings-nav-select { display: grid; gap: 6px; color: var(--text-secondary); font-size: 12px; font-weight: 650; } .settings-nav-select select { width: 100%; } .settings-form-grid, .settings-connection-grid { grid-template-columns: 1fr; } .settings-form-grid .ui-field:last-child, .settings-connection-grid__key { grid-column: auto; } .capability-check { grid-template-columns: 1fr; } .capability-check__actions { align-items: stretch; } .capability-check__actions .ui-button { width: 100%; } .settings-save-bar { align-items: stretch; flex-direction: column-reverse; } }
 @media (max-width: 1050px) { .workbench { grid-template-columns: 230px 1fr; } .timeline { grid-column: span 2; } .request { grid-template-columns: 1fr auto; } .request textarea { grid-column: 1 / -1; } }
