@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { DesktopApi, QtKitHealth, UiProject, WorkspaceSummary } from '../../lib/api';
 import type { SettingsSection } from '../../app/tabs/tab-model';
 import { ModelSettingsPanel } from './ModelSettingsPanel';
@@ -27,11 +27,15 @@ export interface SettingsPageProps {
 }
 
 const isDetailSection = (section: SettingsSection): section is Exclude<SettingsSection, 'model' | 'qt-kits' | 'project-binding'> => section !== 'model' && section !== 'qt-kits' && section !== 'project-binding';
+type SettingsNavigationMode = 'desktop' | 'compact' | 'select';
+const navigationModeForWidth = (width: number): SettingsNavigationMode => width >= 900 ? 'desktop' : width >= 640 ? 'compact' : 'select';
 
 export function SettingsPage({ api, initialSection = 'model', central = false, workspace, onProjectImported }: SettingsPageProps) {
   const [section, setSection] = useState<SettingsSection>(initialSection);
   const [visitedSections, setVisitedSections] = useState<Set<SettingsSection>>(() => new Set([initialSection]));
   const [kitHealth, setKitHealth] = useState<Record<string, QtKitHealth>>({});
+  const [navigationMode, setNavigationMode] = useState<SettingsNavigationMode>(() => navigationModeForWidth(typeof window === 'undefined' ? 1024 : window.innerWidth));
+  useEffect(() => { const updateNavigation = () => setNavigationMode(navigationModeForWidth(window.innerWidth)); updateNavigation(); window.addEventListener('resize', updateNavigation); return () => window.removeEventListener('resize', updateNavigation); }, []);
   const selectSection = (next: SettingsSection) => {
     setSection(next);
     setVisitedSections((current) => current.has(next) ? current : new Set([...current, next]));
@@ -45,5 +49,6 @@ export function SettingsPage({ api, initialSection = 'model', central = false, w
     return isDetailSection(id) ? <SettingsDetailPanel api={api} section={id} workspace={workspace} /> : null;
   };
 
-  return <div className={`settings-page${central ? ' settings-page--central' : ''}`}><header className="settings-page__header"><div><p className="eyebrow">应用配置</p><h1>设置</h1><p className="muted">集中管理模型、Qt 环境与项目运行方式。{workspace ? ` 当前项目：${workspace.name}` : ''}</p></div></header><div className="settings-layout"><nav className="settings-nav settings-nav--desktop" aria-label="设置分类">{navItems('desktop')}</nav><nav className="settings-nav settings-nav--compact" aria-label="设置分类（紧凑）">{navItems('compact')}</nav><label className="settings-nav-select"><span>设置分类</span><select aria-label="设置分类" value={section} onChange={(event) => selectSection(event.target.value as SettingsSection)}>{sections.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label><section className="settings-content" aria-live="polite">{sections.map((item) => <div key={item.id} className="settings-content__panel" hidden={item.id !== section}>{sectionContent(item.id)}</div>)}</section></div></div>;
+  const navigation = navigationMode === 'desktop' ? <nav className="settings-nav settings-nav--desktop" aria-label="设置分类">{navItems('desktop')}</nav> : navigationMode === 'compact' ? <nav className="settings-nav settings-nav--compact" aria-label="设置分类">{navItems('compact')}</nav> : <label className="settings-nav-select"><span>设置分类</span><select aria-label="设置分类" value={section} onChange={(event) => selectSection(event.target.value as SettingsSection)}>{sections.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>;
+  return <div className={`settings-page${central ? ' settings-page--central' : ''}`}><header className="settings-page__header"><div><p className="eyebrow">应用配置</p><h1>设置</h1><p className="muted">集中管理模型、Qt 环境与项目运行方式。{workspace ? ` 当前项目：${workspace.name}` : ''}</p></div></header><div className={`settings-layout settings-layout--${navigationMode}`}>{navigation}<section className="settings-content" aria-live="polite">{sections.map((item) => <div key={item.id} className="settings-content__panel" hidden={item.id !== section}>{sectionContent(item.id)}</div>)}</section></div></div>;
 }
