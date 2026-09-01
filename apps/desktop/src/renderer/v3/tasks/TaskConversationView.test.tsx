@@ -72,4 +72,26 @@ describe('TaskConversationView', () => {
     expect(onOpenPreview).toHaveBeenCalledOnce();
     expect(onCommit).toHaveBeenCalledWith('candidate-1');
   });
+
+  it('automatically opens a restored candidate in the full preview tab', async () => {
+    const candidate = {
+      id: 'candidate-auto', workspaceId: 'workspace', targetPath: 'D:/demo/ui/NewWidget.ui', source: '<ui/>', sourceHash: 'a'.repeat(64), createdAt: 1,
+      blueprint: { fileName: 'NewWidget.ui', rootType: 'QWidget' as const, rootObjectName: 'widget', windowTitle: 'Demo', size: { width: 320, height: 240 }, layoutTree: { kind: 'widget' as const, className: 'QWidget', objectName: 'widget', properties: {}, children: [] }, tabOrder: [], connections: [], resourceRefs: [], componentIds: [], expectedResults: ['可以显示窗口'] },
+      validation: { xml: true, semantic: true, uic: true, preview: false, findings: [] },
+    };
+    const candidateApi = {
+      ai: {
+        ...api.ai,
+        getTaskSnapshot: vi.fn(async () => ({
+          taskId, status: 'running' as const, lastSequence: 1, createdAt: 1, updatedAt: 1,
+          events: [{ taskId, sequence: 1, timestamp: 1, lane: 'generation' as const, type: 'artifact' as const, status: 'completed' as const, title: '基础 UI 已生成', artifact: { kind: 'candidate' as const, id: candidate.id, filePath: candidate.targetPath } }],
+          candidate,
+        })),
+      },
+    } as unknown as DesktopApi;
+    const onOpenPreview = vi.fn();
+    render(<TaskStreamProvider api={candidateApi}><TaskConversationView taskId={taskId} onOpenPreview={onOpenPreview} /></TaskStreamProvider>);
+    await screen.findByText('NewWidget.ui');
+    expect(onOpenPreview).toHaveBeenCalledWith(expect.objectContaining({ id: 'candidate-auto' }));
+  });
 });

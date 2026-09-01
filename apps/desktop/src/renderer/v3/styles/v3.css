@@ -39,6 +39,7 @@
 .v3-explorer-tool::before{display:none!important}.v3-explorer-tool{font-size:14px}.v3-explorer-tool--primary{gap:6px}.v3-explorer-tool--primary em{font-size:11px}
 .v3-explorer-tool--primary em{display:none}.v3-explorer-tool--primary{min-width:30px;padding:0}.v3-explorer-tool{width:30px;padding:0}
 .v3-create-candidate{min-height:300px;padding:14px;gap:10px}.v3-create-candidate img{min-height:210px;max-height:340px;border-radius:6px}
+.v3-tree-row.is-revealed{background:color-mix(in srgb,var(--accent-primary) 20%,transparent);color:var(--text-primary)}
 
 /* Codex-style workspace shell: the task conversation now owns the central canvas. */
 .v3-workspace-shell{display:grid;grid-template-columns:46px 260px minmax(0,1fr);height:100%;min-height:0;background:var(--surface-0);color:var(--text-primary)}

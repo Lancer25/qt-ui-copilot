@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { UiCreationCandidate, V3StartTaskInput, V3TaskEvent } from '@qt-ui-copilot/contracts';
 import { useTaskStream, type TaskStreamTask } from '../state/task-stream-store';
 import { TaskArtifactCard } from './TaskArtifactCard';
@@ -23,6 +23,7 @@ export function TaskConversationView({ taskId, createTaskInput, onOpenPreview, o
   const [composerError, setComposerError] = useState<string>();
   const task = controller.task;
   const running = task?.status === 'running' || task?.status === 'pending';
+  useEffect(() => { if (task?.candidate) onOpenPreview?.(task.candidate); }, [task?.candidate?.id, onOpenPreview]);
   const submit = async (input: TaskComposerInput) => {
     if (!createTaskInput) { setComposerError('当前任务尚未配置发送方式。'); return; }
     try {

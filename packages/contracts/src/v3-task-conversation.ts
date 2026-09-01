@@ -5,6 +5,7 @@ export const V3TaskArtifactSchema = z.object({
   kind: z.enum(['candidate', 'preview', 'source', 'diff', 'output']),
   id: z.string().min(1).max(256),
   filePath: z.string().min(1).max(4096).optional(),
+  candidate: UiCreationCandidateSchema.optional(),
 }).strict();
 
 export type V3TaskArtifact = z.infer<typeof V3TaskArtifactSchema>;

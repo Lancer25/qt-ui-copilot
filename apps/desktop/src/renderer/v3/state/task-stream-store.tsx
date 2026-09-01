@@ -62,7 +62,7 @@ export function acceptTaskEvent(task: TaskStreamTask, event: V3TaskEvent): TaskS
         : [...task.messages, { role: 'assistant' as const, content: event.detail, sequence: event.sequence }];
     })()
     : task.messages;
-  return { ...task, lastSequence: event.sequence, events, messages, artifacts, status: statusAfter(task.status, event), updatedAt: event.timestamp };
+  return { ...task, lastSequence: event.sequence, events, messages, artifacts, ...(event.artifact?.candidate ? { candidate: event.artifact.candidate } : {}), status: statusAfter(task.status, event), updatedAt: event.timestamp };
 }
 
 function applySnapshot(current: TaskStreamTask | undefined, snapshot: V3TaskSnapshot): TaskStreamTask {

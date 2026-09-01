@@ -143,7 +143,7 @@ export function registerV3Ipc(window: BrowserWindow, service = new WorkspaceServ
       if (!creationService) throw new Error('模型服务尚未配置');
       const candidate = await creationService.createCandidate(input.request, (progress) => appendCreationProgress(taskId, progress), controller.signal, taskId);
       taskEvents.setCandidate(taskId, candidate);
-      taskEvents.append(taskId, { lane: 'generation', type: 'artifact', status: 'completed', stage: 'base_candidate_ready', title: '基础 UI 已生成', artifact: { kind: 'candidate', id: candidate.id, filePath: candidate.targetPath } });
+      taskEvents.append(taskId, { lane: 'generation', type: 'artifact', status: 'completed', stage: 'base_candidate_ready', title: '基础 UI 已生成', artifact: { kind: 'candidate', id: candidate.id, filePath: candidate.targetPath, candidate } });
       // UiCreationService continues the PreviewHost lane in the background;
       // its real progress callback completes this task when preview resolves.
       previewContinuesInBackground = true;
