@@ -1,6 +1,0 @@
-import { useState } from 'react';
-
-export function BottomPanel({ findings = [], diff, onUndo, onRedo }: { findings?: string[]; diff?: string; onUndo?: () => void; onRedo?: () => void }) {
-  const [tab, setTab] = useState<'problems' | 'resources' | 'output' | 'diff' | 'runtime'>('problems');
-  return <section className="v3-bottom-panel" aria-label="底部辅助面板"><nav>{(['problems', 'resources', 'output', 'diff', 'runtime'] as const).map((id) => <button key={id} className={tab === id ? 'is-active' : ''} onClick={() => setTab(id)}>{id === 'problems' ? 'Problems' : id === 'resources' ? 'Resources' : id === 'output' ? 'Output' : id === 'diff' ? 'Diff' : 'Runtime'}</button>)}</nav><div>{tab === 'problems' && (findings.length ? findings.map((finding) => <p key={finding}>{finding}</p>) : <p className="muted">没有问题</p>)}{tab === 'resources' && <p className="muted">增强预览后显示 QSS、QRC、字体和插件加载结果。</p>}{tab === 'output' && <p className="muted">PreviewHost 和 AI 请求日志将在这里显示。</p>}{tab === 'diff' && <><div className="v3-revision-actions"><button onClick={onUndo} disabled={!onUndo}>撤销</button><button onClick={onRedo} disabled={!onRedo}>重做</button></div><pre className="v3-diff">{diff ?? '尚无候选修改。'}</pre></>}{tab === 'runtime' && <p className="muted">运行验证需在项目配置中提供可执行文件与 QtUiProbe 路由。</p>}</div></section>;
-}
