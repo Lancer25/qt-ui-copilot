@@ -22,4 +22,17 @@ describe('SettingsPage', () => {
     await user.click(screen.getByRole('button', { name: '健康检查' }));
     await waitFor(() => expect(screen.getByText(/rcc 检测失败/)).not.toBeNull());
   });
+
+  it('keeps unsaved model fields when changing settings categories in central mode', async () => {
+    const user = userEvent.setup();
+    render(<SettingsPage api={new FakeDesktopApi()} central />);
+
+    await waitFor(() => expect((screen.getByLabelText('Base URL') as HTMLInputElement).value).toBe('http://localhost:11434/v1'));
+    await user.clear(screen.getByLabelText('Base URL'));
+    await user.type(screen.getByLabelText('Base URL'), 'https://example.test/v1');
+    await user.click(screen.getByRole('button', { name: /^Qt Kits$/ }));
+    await user.click(screen.getByRole('button', { name: /^模型服务$/ }));
+
+    expect((screen.getByLabelText('Base URL') as HTMLInputElement).value).toBe('https://example.test/v1');
+  });
 });

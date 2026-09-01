@@ -47,7 +47,7 @@ function ArtifactContent({ api, tab, workspace, selectedFile, candidate, onOpenP
     const uiContent = await api.workspace?.readText(workspace.id, selectedFile.absolutePath) ?? '';
     return { kind: 'modify', taskId: tab.taskId, request: { workspaceId: workspace.id, contextMode: input.contextMode, requirement: input.text, attachments: input.attachments, uiFile: selectedFile.absolutePath, uiContent } };
   }} onOpenPreview={onOpenPreview} onOpenDiff={onOpenDiff} onCommitCandidate={onCommit} onRejectCandidate={onReject} />;
-  if (tab.kind === 'settings') return <main aria-label="设置"><SettingsPage api={api} workspace={workspace} /></main>;
+  if (tab.kind === 'settings') return <main aria-label="设置"><SettingsPage api={api} workspace={workspace} central /></main>;
   if (tab.kind === 'preview') return <UiPreviewTab api={api} filePath={tab.filePath} candidate={candidate} buildPreviewRequest={(mode) => {
     const request = previewRequest(workspace, tab.filePath, mode);
     if (!request) throw new Error('当前项目尚未配置可用的 Qt Kit。');
