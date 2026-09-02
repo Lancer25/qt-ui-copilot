@@ -17,6 +17,13 @@ import './styles/v3.css';
 
 const emptyTaskId = (workspace?: WorkspaceSummary) => workspace ? `workspace:${workspace.id}` : 'default';
 const leafName = (path: string) => path.split(/[\\/]/).filter(Boolean).at(-1) ?? path;
+export const nextUiFileName = (workspace: WorkspaceSummary): string => {
+  const existing = new Set(workspace.files.filter((file) => file.kind === 'ui').map((file) => leafName(file.relativePath).toLowerCase()));
+  if (!existing.has('newwidget.ui')) return 'NewWidget.ui';
+  let index = 2;
+  while (existing.has(`newwidget_${index}.ui`)) index += 1;
+  return `NewWidget_${index}.ui`;
+};
 const candidateForTab = (tab: ArtifactTab, candidates: Record<string, UiCreationCandidate | undefined>): UiCreationCandidate | undefined => {
   if (tab.kind === 'preview') return candidates[tab.candidateId ?? ''];
   const filePath = 'filePath' in tab ? tab.filePath : undefined;
@@ -43,7 +50,7 @@ function ArtifactContent({ api, tab, workspace, selectedFile, candidate, onOpenP
   const stream = useTaskStream(tab.kind === 'task' || tab.kind === 'output' ? tab.taskId : undefined);
   if (tab.kind === 'task') return <TaskConversationView taskId={tab.taskId} createTaskInput={async (input) => {
     if (!workspace) throw new Error('请先打开一个 Qt 项目文件夹。');
-    if (!selectedFile) return { kind: 'create', taskId: tab.taskId, request: { workspaceId: workspace.id, contextMode: input.contextMode, requirement: input.text, attachments: input.attachments, fileName: 'NewWidget.ui', rootType: 'QWidget', directory: 'ui', qtKitId: String((workspace.profile?.qt as { id?: unknown; version?: unknown } | undefined)?.id ?? (workspace.profile?.qt as { version?: unknown } | undefined)?.version ?? 'project-kit'), useProjectResources: true, useComponentLibrary: true, capabilityCandidates: [] } };
+    if (!selectedFile) return { kind: 'create', taskId: tab.taskId, request: { workspaceId: workspace.id, contextMode: input.contextMode, requirement: input.text, attachments: input.attachments, fileName: nextUiFileName(workspace), rootType: 'QWidget', directory: 'ui', qtKitId: String((workspace.profile?.qt as { id?: unknown; version?: unknown } | undefined)?.id ?? (workspace.profile?.qt as { version?: unknown } | undefined)?.version ?? 'project-kit'), useProjectResources: true, useComponentLibrary: true, capabilityCandidates: [] } };
     const uiContent = await api.workspace?.readText(workspace.id, selectedFile.absolutePath) ?? '';
     return { kind: 'modify', taskId: tab.taskId, request: { workspaceId: workspace.id, contextMode: input.contextMode, requirement: input.text, attachments: input.attachments, uiFile: selectedFile.absolutePath, uiContent } };
   }} onOpenPreview={onOpenPreview} onOpenDiff={onOpenDiff} onCommitCandidate={onCommit} onRejectCandidate={onReject} />;
