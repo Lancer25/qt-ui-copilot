@@ -64,6 +64,7 @@ header p, .muted { color: var(--text-muted); font-size: 13px; }
 .capability-check p, .kit-row p { margin: 3px 0 0; }
 .kit-list { display: grid; gap: 8px; }
 .settings-error { color: var(--status-error); font-size: 12px; }
+.settings-inline-hint { margin: 0 0 var(--space-4); padding: 10px 12px; border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); background: var(--surface-2); color: var(--text-muted); font-size: 12px; }
 .settings-model { display: grid; gap: var(--space-4); }
 .settings-model .settings-card { min-height: 0; }
 .settings-connection-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
