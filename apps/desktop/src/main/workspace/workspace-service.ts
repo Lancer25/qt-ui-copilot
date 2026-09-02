@@ -29,7 +29,7 @@ export interface WorkspaceScanOptions {
   ignorePatterns?: string[];
 }
 
-const ignoredDirectories = new Set(['.git', '.svn', 'node_modules', 'build']);
+const ignoredDirectories = new Set(['.git', '.svn', 'node_modules', 'build', '.qt-ui-copilot']);
 const sourceExtensions = new Set(['.c', '.cc', '.cpp', '.cxx', '.mm']);
 const headerExtensions = new Set(['.h', '.hh', '.hpp', '.hxx']);
 const cmakeExtensions = new Set(['.cmake', '.pri', '.pro', '.qmake']);

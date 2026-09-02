@@ -18,17 +18,20 @@ const fixture = async (): Promise<string> => {
   await writeFile(join(root, 'ui', 'MainWindow.ui'), '<ui version="4.0"/>');
   await writeFile(join(root, 'build', 'ignored.ui'), '<ui/>');
   await writeFile(join(root, '.git', 'ignored.cpp'), 'ignored');
+  await mkdir(join(root, '.qt-ui-copilot', 'candidates'), { recursive: true });
+  await writeFile(join(root, '.qt-ui-copilot', 'candidates', 'draft.ui'), '<ui/>');
   return root;
 };
 
 describe('WorkspaceService', () => {
-  it('indexes ui, qss, qrc and source files while excluding build and git directories', async () => {
+  it('indexes project files while excluding build, git and internal candidate directories', async () => {
     const service = new WorkspaceService();
     const workspace = await service.open(await fixture());
     expect(workspace.files.map((file) => file.relativePath)).toEqual([
       'resources/common.qrc', 'resources/dark.qss', 'src/MainWindow.cpp', 'src/MainWindow.h', 'ui/MainWindow.ui',
     ]);
     expect(workspace.files.some((file) => file.relativePath.includes('build/'))).toBe(false);
+    expect(workspace.files.some((file) => file.relativePath.includes('.qt-ui-copilot/'))).toBe(false);
     expect(workspace.files.every((file) => file.contentHash.length === 64)).toBe(true);
   });
 
@@ -43,7 +46,7 @@ describe('WorkspaceService', () => {
     expect(first.files.some((file) => file.relativePath.startsWith('generated/'))).toBe(false);
   });
   it('only permits Settings to write the project profile', async () => {
-    const root = await fixture(); await mkdir(join(root, '.qt-ui-copilot')); await writeFile(join(root, '.qt-ui-copilot', 'project.json'), '{"id":"demo"}');
+    const root = await fixture(); await writeFile(join(root, '.qt-ui-copilot', 'project.json'), '{"id":"demo"}');
     const service = new WorkspaceService(); const workspace = await service.open(root);
     await service.writeText(workspace.id, '.qt-ui-copilot/project.json', '{"id":"updated"}');
     await expect(service.readText(workspace.id, '.qt-ui-copilot/project.json')).resolves.toBe('{"id":"updated"}');
