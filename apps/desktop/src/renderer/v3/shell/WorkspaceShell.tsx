@@ -24,7 +24,7 @@ export function WorkspaceShell({ titlebar, activity, onActivityChange, sidebar, 
   return <div className="v3-root">
     {titlebar}
     <div className="v3-workspace-shell">
-      <aside className="v3-activity" aria-label="活动栏"><strong>Q</strong>{activityLabels.map((item) => <button key={item.id} type="button" aria-label={item.label} aria-pressed={activity === item.id} className={activity === item.id ? 'is-active' : ''} onClick={() => onActivityChange(item.id)}>{item.glyph}</button>)}</aside>
+      <aside className="v3-activity" aria-label="活动栏">{activityLabels.map((item) => <button key={item.id} type="button" aria-label={item.label} aria-pressed={activity === item.id} className={activity === item.id ? 'is-active' : ''} onClick={() => onActivityChange(item.id)}>{item.glyph}</button>)}</aside>
       <aside className="v3-sidebar" aria-label={activity === 'tasks' ? '任务历史' : '项目文件'}>{sidebar}</aside>
       <div className="v3-workspace-main">{workspace}</div>
       {children}

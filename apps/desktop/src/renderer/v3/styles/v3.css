@@ -39,7 +39,7 @@
 
 /* Codex-style workspace shell: the task conversation now owns the central canvas. */
 .v3-workspace-shell{display:grid;grid-template-columns:46px 260px minmax(0,1fr);height:100%;min-height:0;background:var(--surface-0);color:var(--text-primary)}
-.v3-workspace-shell .v3-activity{display:grid;align-content:start;justify-items:center;gap:12px;padding-top:18px;border-right:1px solid var(--border-subtle);background:var(--surface-1)}
+.v3-workspace-shell .v3-activity{display:grid;align-content:start;justify-items:center;gap:10px;padding-top:12px;border-right:1px solid var(--border-subtle);background:var(--surface-1)}
 .v3-workspace-shell .v3-activity strong{color:var(--accent-primary);font-size:20px}.v3-workspace-shell .v3-activity button{width:34px;height:34px;padding:0;border:1px solid transparent;border-radius:7px;background:transparent;color:var(--text-muted);font-size:17px}.v3-workspace-shell .v3-activity button:hover,.v3-workspace-shell .v3-activity button.is-active{border-color:var(--border-default);background:var(--surface-2);color:var(--text-primary)}
 .v3-sidebar{min-width:0;min-height:0;overflow:auto;padding:12px;background:var(--surface-1);border-right:1px solid var(--border-subtle)}
 .v3-workspace-main{min-width:0;min-height:0;overflow:hidden;background:var(--surface-0)}.v3-workspace-main .v3-task-conversation{height:100%}
