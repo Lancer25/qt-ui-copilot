@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ipcMain } from 'electron';
 import type { BrowserWindow } from 'electron';
-import { registerV3Ipc } from './register-v3-ipc';
+import { registerV3Ipc, resolvePreviewHostSource } from './register-v3-ipc';
 import { WorkspaceService } from '../workspace/workspace-service';
 
 describe('V3 workspace IPC', () => {
@@ -14,6 +14,11 @@ describe('V3 workspace IPC', () => {
     expect(calls.some(([channel]) => channel === 'v3.workspace.open')).toBe(true);
     expect(calls.some(([channel]) => channel === 'v3.workspace.listFiles')).toBe(true);
     lifecycle.dispose();
+  });
+
+  it('resolves the bundled PreviewHost when a project root is not a CMake source', () => {
+    const resolved = resolvePreviewHostSource('C:/Users/Lancer/Desktop/qtDemo');
+    expect(resolved.replaceAll('\\', '/')).toContain('native/qt-ui-preview-host');
   });
 
   it('exposes version-filtered Qt capability candidates', async () => {

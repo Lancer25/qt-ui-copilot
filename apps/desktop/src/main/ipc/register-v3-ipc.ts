@@ -43,6 +43,17 @@ const TreeRequestSchema = z.object({ workspaceId: z.string().min(1), showInterna
 const CreateEntrySchema = z.object({ workspaceId: z.string().min(1), parentPath: z.string().max(4096), name: z.string().min(1).max(255) }).strict();
 const RenameEntrySchema = z.object({ workspaceId: z.string().min(1), sourcePath: z.string().min(1).max(4096), newName: z.string().min(1).max(255) }).strict();
 const DeleteEntrySchema = z.object({ workspaceId: z.string().min(1), relativePath: z.string().min(1).max(4096) }).strict();
+export function resolvePreviewHostSource(requested: string): string {
+  const resourcesPath = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
+  const candidates = [
+    requested,
+    resourcesPath ? join(resourcesPath, 'qt-ui-copilot-assets', 'preview-host') : undefined,
+    resolve(process.cwd(), 'native', 'qt-ui-preview-host'),
+    resolve(process.cwd(), '..', '..', 'native', 'qt-ui-preview-host'),
+    resolve(__dirname, '../../../../../native/qt-ui-preview-host'),
+  ].filter((value): value is string => Boolean(value));
+  return candidates.find((candidate) => existsSync(join(candidate, 'CMakeLists.txt'))) ?? requested;
+}
 const PermanentDeleteSchema = DeleteEntrySchema.extend({ confirmation: z.string().min(1).max(255) }).strict();
 
 /** Registers the sandboxed V3 workspace boundary and returns its lifecycle cleanup. */
@@ -165,7 +176,7 @@ export function registerV3Ipc(window: BrowserWindow, service = new WorkspaceServ
   ipcMain.handle('v3.workspace.renameEntry', (_event, input: unknown) => { const request = RenameEntrySchema.parse(input); return fileOperations.renameEntry(request.workspaceId, request.sourcePath, request.newName); });
   ipcMain.handle('v3.workspace.trashEntry', (_event, input: unknown) => { const request = DeleteEntrySchema.parse(input); return fileOperations.trashEntry(request.workspaceId, request.relativePath); });
   ipcMain.handle('v3.workspace.deleteEntryPermanently', (_event, input: unknown) => { const request = PermanentDeleteSchema.parse(input); return fileOperations.deleteEntryPermanently(request.workspaceId, request.relativePath, request.confirmation); });
-  ipcMain.handle('v3.preview.render', (_event, input: unknown) => preview.render(PreviewInputSchema.parse(input) as V3PreviewInput));
+  ipcMain.handle('v3.preview.render', (_event, input: unknown) => { const request = PreviewInputSchema.parse(input); return preview.render({ ...request, sourceDirectory: resolvePreviewHostSource(request.sourceDirectory) } as V3PreviewInput); });
   ipcMain.handle('v3.preview.cancel', (_event, input: unknown) => { preview.cancel(PreviewCancelSchema.parse(input).uiFile); });
   ipcMain.handle('v3.ai.plan', async (_event, input: unknown) => { if (!modelProvider) throw new Error('模型服务尚未配置'); const request = PlanInputSchema.parse(input); let context: Record<string, unknown> = { uiFile: request.uiFile, uiContent: request.uiContent }; if (request.contextMode === 'whole_project' && request.workspaceId) { const files = await service.listFiles(request.workspaceId); context = { ...context, projectSearch: await new ContextService((filePath) => service.readText(request.workspaceId!, filePath)).searchWholeProject(request.requirement, files as never[]) }; } return new UiPlanner(modelProvider).plan({ requirement: request.requirement, targetSemanticTree: context, runtimeFacts: { contextMode: request.contextMode } }); });
   ipcMain.handle('v3.ai.planStream', async (_event, input: unknown) => { if (!modelProvider) throw new Error('模型服务尚未配置'); const request = PlanInputSchema.parse(input); const events = []; const context = { requirement: request.requirement, targetSemanticTree: await buildPlanContext(request), runtimeFacts: { contextMode: request.contextMode } }; for await (const event of new ConversationService(modelProvider).plan(`v3-${request.uiFile}`, context)) events.push(event); return events; });
