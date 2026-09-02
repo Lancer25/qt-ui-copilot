@@ -50,6 +50,10 @@ function TaskFeed({ task, onOpenPreview, onOpenDiff, onCommit, onReject }: { tas
       const message = messagesByFinalDelta.get(event.sequence);
       return message ? <TaskMessage key={`message-${event.sequence}`} message={message} /> : null;
     }
-    return visibleStatus(event) ? <TaskStatusLine key={event.sequence} event={event} /> : null;
+    if (!visibleStatus(event)) return null;
+    const projected = task.status === 'cancelled' && event.status !== 'completed'
+      ? { ...event, status: 'cancelled' as const, title: event.title.startsWith('已取消') ? event.title : `已取消：${event.title}` }
+      : event;
+    return <TaskStatusLine key={event.sequence} event={projected} />;
   })}{task.candidate ? <TaskArtifactCard candidate={task.candidate} onOpenPreview={onOpenPreview} onOpenDiff={onOpenDiff} onCommit={onCommit} onReject={onReject} /> : null}</>;
 }

@@ -94,4 +94,15 @@ describe('TaskConversationView', () => {
     await screen.findByText('NewWidget.ui');
     expect(onOpenPreview).toHaveBeenCalledWith(expect.objectContaining({ id: 'candidate-auto' }));
   });
+
+  it('projects unfinished progress steps as cancelled after task cancellation', async () => {
+    const cancelledApi = { ai: { ...api.ai, getTaskSnapshot: vi.fn(async () => ({ taskId, status: 'cancelled' as const, lastSequence: 3, createdAt: 1, updatedAt: 3, events: [
+      { taskId, sequence: 1, timestamp: 1, lane: 'generation' as const, type: 'status' as const, status: 'running' as const, title: '正在准备项目上下文' },
+      { taskId, sequence: 2, timestamp: 2, lane: 'generation' as const, type: 'status' as const, status: 'running' as const, title: '正在生成基础界面意图' },
+      { taskId, sequence: 3, timestamp: 3, lane: 'conversation' as const, type: 'cancelled' as const, status: 'cancelled' as const, title: '任务已取消' },
+    ] })) } } as unknown as DesktopApi;
+    render(<TaskStreamProvider api={cancelledApi}><TaskConversationView taskId={taskId} /></TaskStreamProvider>);
+    expect(await screen.findByText('已取消：正在准备项目上下文')).toBeTruthy();
+    expect(screen.getByText('已取消：正在生成基础界面意图')).toBeTruthy();
+  });
 });
