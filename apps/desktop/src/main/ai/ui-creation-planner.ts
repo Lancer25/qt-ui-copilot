@@ -52,8 +52,25 @@ function normalizeBlueprintProperties(value: unknown, root = true): unknown {
   if (Array.isArray(value)) return value.map((item) => normalizeBlueprintProperties(item, false));
   if (!value || typeof value !== 'object') return value;
   const object = value as Record<string, unknown>;
+  if (root) {
+    const source = object;
+    const rootType = source.rootType ?? source.rootClass ?? source.windowClass;
+    const size = source.size && typeof source.size === 'object' && !Array.isArray(source.size) ? source.size as Record<string, unknown> : {};
+    const normalizedRoot: Record<string, unknown> = {
+      fileName: typeof (source.fileName ?? source.name) === 'string' ? (source.fileName ?? source.name) : 'NewWidget.ui',
+      rootType: rootType === 'QDialog' || rootType === 'QMainWindow' ? rootType : 'QWidget',
+      rootObjectName: typeof (source.rootObjectName ?? source.objectName ?? source.name) === 'string' ? (source.rootObjectName ?? source.objectName ?? source.name) : 'mainWindow',
+      windowTitle: typeof (source.windowTitle ?? source.title) === 'string' ? (source.windowTitle ?? source.title) : 'Qt UI',
+      size: { width: Number(size.width) >= 160 ? Number(size.width) : 900, height: Number(size.height) >= 120 ? Number(size.height) : 640 },
+      layoutTree: normalizeBlueprintNode(source.layoutTree ?? source.tree ?? source.layout, 'mainLayout'),
+    };
+    for (const key of ['tabOrder', 'connections', 'resourceRefs', 'componentIds']) if (source[key] !== undefined) normalizedRoot[key] = source[key];
+    if (source.expectedResults !== undefined) normalizedRoot.expectedResults = source.expectedResults;
+    for (const key of ['tabOrder', 'connections', 'resourceRefs', 'componentIds']) if (normalizedRoot[key] === undefined) normalizedRoot[key] = [];
+    if (normalizedRoot.expectedResults === undefined) normalizedRoot.expectedResults = ['界面可被 Qt uic 编译并预览'];
+    return normalizeBlueprintProperties(normalizedRoot, false);
+  }
   const result: Record<string, unknown> = {};
-  if (root) { for (const key of ['tabOrder', 'connections', 'resourceRefs', 'componentIds']) if (object[key] === undefined) result[key] = []; if (object.expectedResults === undefined) result.expectedResults = ['界面可被 Qt uic 编译并预览']; }
   for (const [key, item] of Object.entries(object)) {
     if (key === 'layoutTree') { result[key] = normalizeBlueprintNode(item, 'mainLayout'); continue; }
     if (['tabOrder', 'resourceRefs', 'componentIds', 'expectedResults'].includes(key) && Array.isArray(item)) {
