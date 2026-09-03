@@ -26,7 +26,6 @@ export class PreviewSessionService {
 /** PreviewHost is an application-owned helper, not a project CMake source. */
 export function resolvePreviewHostSource(requested: string): string {
   const resourcesPath = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
-  if (resourcesPath) return join(resourcesPath, 'qt-ui-copilot-assets', 'preview-host');
-  const candidates = [requested, resourcesPath ? join(resourcesPath, 'qt-ui-copilot-assets', 'preview-host') : undefined, resolve(process.cwd(), 'native', 'qt-ui-preview-host'), resolve(process.cwd(), '..', '..', 'native', 'qt-ui-preview-host'), resolve(__dirname, '../../../../../native/qt-ui-preview-host')].filter((value): value is string => Boolean(value));
+  const candidates = [requested, resourcesPath ? join(resourcesPath, 'qt-ui-copilot-assets', 'preview-host') : undefined, resourcesPath ? resolve(resourcesPath, '..', '..', 'resources', 'qt-ui-copilot-assets', 'preview-host') : undefined, resolve(process.cwd(), 'native', 'qt-ui-preview-host'), resolve(process.cwd(), '..', '..', 'native', 'qt-ui-preview-host'), resolve(__dirname, '../../../../../native/qt-ui-preview-host')].filter((value): value is string => Boolean(value));
   return candidates.find((candidate) => existsSync(join(candidate, 'CMakeLists.txt'))) ?? requested;
 }
