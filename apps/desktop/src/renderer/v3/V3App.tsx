@@ -56,7 +56,7 @@ function ArtifactContent({ api, tab, workspace, selectedFile, candidate, onOpenP
   }} onOpenPreview={onOpenPreview} onOpenDiff={onOpenDiff} onOpenOutput={onOpenOutput} onCommitCandidate={onCommit} onRejectCandidate={onReject} />;
   if (tab.kind === 'settings') return <main aria-label="设置"><SettingsPage api={api} workspace={workspace} central /></main>;
   if (tab.kind === 'preview') return <UiPreviewTab api={api} filePath={tab.filePath} candidate={candidate} buildPreviewRequest={(mode) => {
-    const request = previewRequest(workspace, tab.filePath, mode);
+    const request = previewRequest(workspace, candidate?.stagedPath ?? tab.filePath, mode);
     if (!request) throw new Error('当前项目尚未配置可用的 Qt Kit。');
     return request;
   }} onOpenDiff={() => candidate && onOpenDiff(candidate)} onOpenSource={() => onOpenSource(tab.filePath, candidate)} onCommit={onCommit} onReject={onReject} />;
@@ -90,6 +90,7 @@ function V3Content({ api }: { api: DesktopApi }) {
       if (savedFile) { setSelectedFile(savedFile); setRevealPath(savedFile.relativePath); }
       dispatchTabs({ type: 'openPreview', filePath: result.uiFile, title: savedFile ? leafName(savedFile.relativePath) : candidate?.blueprint.fileName ?? leafName(result.uiFile), temporary: false, candidateId });
     }
+    setCandidates((current) => ({ ...current, [candidateId]: undefined }));
     setMessage('草稿已保存到项目。');
   };
   const reject = async (candidateId: string) => {

@@ -97,6 +97,7 @@ export type UiCreationRequest = z.infer<typeof UiCreationRequestSchema>;
 
 export const UiCreationCandidateSchema = z.object({
   id: z.string().min(1),
+  stagedPath: z.string().min(1).max(4096).optional(),
   workspaceId: z.string().min(1),
   targetPath: z.string().min(1),
   blueprint: UiCreationBlueprintSchema,

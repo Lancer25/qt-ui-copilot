@@ -209,7 +209,7 @@ export class UiCreationService {
     }
   }
 
-  private publicCandidate(candidate: StoredCandidate): UiCreationCandidate { const { candidatePath: _candidatePath, ...publicValue } = candidate; return publicValue; }
+  private publicCandidate(candidate: StoredCandidate): UiCreationCandidate { const { candidatePath, ...publicValue } = candidate; return { ...publicValue, stagedPath: candidatePath }; }
 }
 
 function isTransientModelError(error: unknown): boolean {
