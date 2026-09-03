@@ -3,6 +3,7 @@
 
 #include <QDir>
 #include <QFileInfo>
+#include <QImage>
 #include <QtTest>
 
 class PreviewHostTest : public QObject {
@@ -27,6 +28,8 @@ void PreviewHostTest::loadsResourceAndStyleSheet()
     QVERIFY(save != 0);
     QVERIFY(save->styleSheetMatched);
     QVERIFY(QFileInfo(result.imagePath).size() > 1000);
+    const QImage image(result.imagePath);
+    QCOMPARE(image.size(), QSize(900, 640));
 }
 
 void PreviewHostTest::isolatesResourceCacheAcrossQtMajors()

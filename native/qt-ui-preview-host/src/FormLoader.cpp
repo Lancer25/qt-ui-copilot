@@ -7,6 +7,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QImage>
+#include <QPainter>
 #include <QLocale>
 #include <QTextStream>
 #include <QWidget>
@@ -60,13 +61,14 @@ PreviewResult renderPreview(const PreviewRequest &request)
     FormLoader loader;
     QWidget *root = loader.loadForm(request, &result, &error);
     if (!root) { result.error = error; return result; }
-    // A model-generated horizontal layout can report a very large
-    // sizeHint (for example long labels or table columns). Preview output
-    // must honor the requested canvas instead of expanding to that hint.
-    root->setFixedSize(request.width, request.height); root->show();
+    root->resize(request.width, request.height); root->show();
     QApplication::processEvents(); QApplication::processEvents();
     const QPixmap image = root->grab();
-    if (image.isNull() || !image.save(request.outputImage)) { result.error = QString("Unable to save screenshot: %1").arg(request.outputImage); delete root; return result; }
+    if (image.isNull()) { result.error = QString("Unable to capture preview image"); delete root; return result; }
+    QImage canvas(request.width, request.height, QImage::Format_ARGB32_Premultiplied); canvas.fill(Qt::transparent);
+    const QImage fitted = image.toImage().scaled(request.width, request.height, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    QPainter painter(&canvas); painter.drawImage((request.width - fitted.width()) / 2, (request.height - fitted.height()) / 2, fitted); painter.end();
+    if (!canvas.save(request.outputImage)) { result.error = QString("Unable to save screenshot: %1").arg(request.outputImage); delete root; return result; }
     const QList<QWidget *> children = root->findChildren<QWidget *>();
     QList<QWidget *> all; all.append(root); all.append(children);
     foreach (QWidget *widget, all) {
