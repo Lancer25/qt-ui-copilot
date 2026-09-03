@@ -25,7 +25,7 @@ const desktopApi: DesktopApi = {
     deleteEntryPermanently: (input) => ipcRenderer.invoke('v3.workspace.deleteEntryPermanently', input) as ReturnType<NonNullable<DesktopApi['workspace']>['deleteEntryPermanently']>,
   },
   capabilities: { search: (input) => ipcRenderer.invoke('v3.capabilities.search', input) as ReturnType<NonNullable<DesktopApi['capabilities']>['search']> },
-  preview: { render: (input) => ipcRenderer.invoke('v3.preview.render', input) as ReturnType<NonNullable<DesktopApi['preview']>['render']>, cancel: (uiFile) => ipcRenderer.invoke('v3.preview.cancel', { uiFile }) as ReturnType<NonNullable<DesktopApi['preview']>['cancel']> },
+  preview: { render: (input) => ipcRenderer.invoke('v3.preview.render', input) as ReturnType<NonNullable<DesktopApi['preview']>['render']>, cancel: (uiFile) => ipcRenderer.invoke('v3.preview.cancel', { uiFile }) as ReturnType<NonNullable<DesktopApi['preview']>['cancel']>, openWindow: (imageDataUrl, title) => ipcRenderer.invoke('v3.preview.openWindow', { imageDataUrl, title }) as Promise<void> },
   ai: {
     plan: (input) => ipcRenderer.invoke('v3.ai.plan', input) as ReturnType<NonNullable<DesktopApi['ai']>['plan']>,
     planStream: (input) => ipcRenderer.invoke('v3.ai.planStream', input) as ReturnType<NonNullable<DesktopApi['ai']>['planStream']>,

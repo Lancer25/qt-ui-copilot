@@ -169,7 +169,7 @@ export interface DesktopApi {
     deleteEntryPermanently(input: { workspaceId: string; relativePath: string; confirmation: string }): Promise<void>;
   };
   capabilities?: { search(input: V3CapabilitySearchInput): Promise<UiCapabilityCandidate[]> };
-  preview?: { render(input: V3PreviewRequest): Promise<V3PreviewResult>; cancel(uiFile: string): Promise<void> };
+  preview?: { render(input: V3PreviewRequest): Promise<V3PreviewResult>; cancel(uiFile: string): Promise<void>; openWindow?(imageDataUrl: string, title?: string): Promise<void> };
   ai?: { plan(input: { requirement: string; uiFile: string; uiContent: string; contextMode: 'focused_ui' | 'whole_project'; workspaceId?: string }): Promise<V3UiPlan>; planStream(input: { requirement: string; uiFile: string; uiContent: string; contextMode: 'focused_ui' | 'whole_project'; workspaceId?: string }): Promise<V3ConversationEvent[]>; startTaskStream(input: V3StartTaskInput): Promise<{ taskId: string }>; getTaskSnapshot(taskId: string): Promise<V3TaskSnapshot | undefined>; onTaskEvent(listener: (event: V3TaskEvent) => void): () => void; cancelTaskStream(taskId: string): Promise<void>; createUiCandidate(input: UiCreationRequest): Promise<UiCreationResult>; onCreationProgress(listener: (event: { taskId: string; progress: V3UiCreationProgress }) => void): () => void; commitUiCandidate(candidateId: string): Promise<{ uiFile: string }>; rejectUiCandidate(candidateId: string): Promise<void>; cancelUiCreation(taskId: string): Promise<void> };
   revisions?: { apply(input: { uiFile: string; operations: unknown[]; conversationId: string }): Promise<V3RevisionResult>; undo(uiFile: string): Promise<void>; redo(uiFile: string): Promise<void>; rebase(uiFile: string): Promise<void> };
   projects: {

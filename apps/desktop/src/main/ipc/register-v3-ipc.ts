@@ -1,4 +1,4 @@
-import { ipcMain, type BrowserWindow } from 'electron';
+import { BrowserWindow, ipcMain, type BrowserWindow as BrowserWindowType } from 'electron';
 import { existsSync } from 'node:fs';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, parse, resolve } from 'node:path';
@@ -46,7 +46,7 @@ const DeleteEntrySchema = z.object({ workspaceId: z.string().min(1), relativePat
 const PermanentDeleteSchema = DeleteEntrySchema.extend({ confirmation: z.string().min(1).max(255) }).strict();
 
 /** Registers the sandboxed V3 workspace boundary and returns its lifecycle cleanup. */
-export function registerV3Ipc(window: BrowserWindow, service = new WorkspaceService(), preview = new PreviewSessionService(), modelProvider?: ModelProvider): { dispose(): void } {
+export function registerV3Ipc(window: BrowserWindowType, service = new WorkspaceService(), preview = new PreviewSessionService(), modelProvider?: ModelProvider): { dispose(): void } {
   const watchers = new Map<string, WorkspaceWatcher>();
   const revisionServices = new Map<string, RevisionService>();
   const creationTasks = new Map<string, AbortController>();
@@ -167,6 +167,13 @@ export function registerV3Ipc(window: BrowserWindow, service = new WorkspaceServ
   ipcMain.handle('v3.workspace.deleteEntryPermanently', (_event, input: unknown) => { const request = PermanentDeleteSchema.parse(input); return fileOperations.deleteEntryPermanently(request.workspaceId, request.relativePath, request.confirmation); });
   ipcMain.handle('v3.preview.render', (_event, input: unknown) => { const request = PreviewInputSchema.parse(input); return preview.render({ ...request, sourceDirectory: resolvePreviewHostSource(request.sourceDirectory) } as V3PreviewInput); });
   ipcMain.handle('v3.preview.cancel', (_event, input: unknown) => { preview.cancel(PreviewCancelSchema.parse(input).uiFile); });
+  ipcMain.handle('v3.preview.openWindow', (_event, input: unknown) => {
+    const request = z.object({ imageDataUrl: z.string().startsWith('data:image/').max(14_000_000), title: z.string().max(256).optional() }).strict().parse(input);
+    const previewWindow = new BrowserWindow({ width: 1280, height: 900, minWidth: 640, minHeight: 480, title: request.title ?? 'Qt UI 预览', autoHideMenuBar: true, webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false } });
+    const encoded = encodeURIComponent(`<!doctype html><html><head><meta charset="utf-8"><title>${request.title ?? 'Qt UI 预览'}</title><style>html,body{margin:0;width:100%;height:100%;overflow:auto;background:#111319}body{display:grid;place-items:center;padding:24px;box-sizing:border-box}img{display:block;max-width:none;box-shadow:0 12px 40px rgba(0,0,0,.45)}</style></head><body><img src="${request.imageDataUrl}" alt="${request.title ?? 'Qt UI 预览'}"></body></html>`);
+    void previewWindow.loadURL(`data:text/html;charset=utf-8,${encoded}`);
+    previewWindow.once('ready-to-show', () => previewWindow.maximize());
+  });
   ipcMain.handle('v3.ai.plan', async (_event, input: unknown) => { if (!modelProvider) throw new Error('模型服务尚未配置'); const request = PlanInputSchema.parse(input); let context: Record<string, unknown> = { uiFile: request.uiFile, uiContent: request.uiContent }; if (request.contextMode === 'whole_project' && request.workspaceId) { const files = await service.listFiles(request.workspaceId); context = { ...context, projectSearch: await new ContextService((filePath) => service.readText(request.workspaceId!, filePath)).searchWholeProject(request.requirement, files as never[]) }; } return new UiPlanner(modelProvider).plan({ requirement: request.requirement, targetSemanticTree: context, runtimeFacts: { contextMode: request.contextMode } }); });
   ipcMain.handle('v3.ai.planStream', async (_event, input: unknown) => { if (!modelProvider) throw new Error('模型服务尚未配置'); const request = PlanInputSchema.parse(input); const events = []; const context = { requirement: request.requirement, targetSemanticTree: await buildPlanContext(request), runtimeFacts: { contextMode: request.contextMode } }; for await (const event of new ConversationService(modelProvider).plan(`v3-${request.uiFile}`, context)) events.push(event); return events; });
   ipcMain.handle('v3.ai.startTaskStream', (_event, input: unknown) => {
@@ -242,6 +249,7 @@ export function registerV3Ipc(window: BrowserWindow, service = new WorkspaceServ
       ipcMain.removeHandler?.('v3.workspace.tree'); ipcMain.removeHandler?.('v3.workspace.createFile'); ipcMain.removeHandler?.('v3.workspace.createDirectory'); ipcMain.removeHandler?.('v3.workspace.renameEntry'); ipcMain.removeHandler?.('v3.workspace.trashEntry'); ipcMain.removeHandler?.('v3.workspace.deleteEntryPermanently');
       ipcMain.removeHandler?.('v3.preview.render');
       ipcMain.removeHandler?.('v3.preview.cancel');
+      ipcMain.removeHandler?.('v3.preview.openWindow');
       ipcMain.removeHandler?.('v3.ai.plan');
       ipcMain.removeHandler?.('v3.ai.planStream');
       ipcMain.removeHandler?.('v3.ai.startTaskStream');

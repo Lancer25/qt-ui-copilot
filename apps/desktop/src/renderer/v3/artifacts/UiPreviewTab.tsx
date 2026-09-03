@@ -37,12 +37,13 @@ export function UiPreviewTab({ api, filePath, candidate, buildPreviewRequest, on
   return <section className="v3-ui-preview" aria-label="Qt 预览">
     <header className="v3-ui-preview__toolbar">
       <div className="v3-ui-preview__mode" aria-label="预览模式"><button className={mode === 'quick' ? 'is-active' : ''} onClick={() => void renderPreview('quick')} disabled={rendering}>快速预览</button><button className={mode === 'enhanced' ? 'is-active' : ''} onClick={() => void renderPreview('enhanced')} disabled={rendering}>增强预览</button></div>
-      <div className="v3-ui-preview__tools"><button aria-label="刷新预览" onClick={() => void renderPreview()} disabled={rendering}>{rendering ? '渲染中…' : '刷新'}</button><button className={scale === 'fit' ? 'is-active' : ''} onClick={() => setScale('fit')}>适应窗口</button><button className={scale === '100' ? 'is-active' : ''} onClick={() => setScale('100')}>100%</button></div>
+      <div className="v3-ui-preview__tools"><button aria-label="刷新预览" onClick={() => void renderPreview()} disabled={rendering}>{rendering ? '渲染中…' : '刷新'}</button><button className={scale === 'fit' ? 'is-active' : ''} onClick={() => setScale('fit')}>适应窗口</button><button className={scale === '100' ? 'is-active' : ''} onClick={() => { setScale('100'); if (result?.imageDataUrl) void api.preview?.openWindow?.(result.imageDataUrl, title); }} disabled={!result?.imageDataUrl}>100% · 独立窗口</button></div>
     </header>
     <div className={`v3-ui-preview__canvas is-${scale}`} aria-label="Qt 预览画布">
       {result?.imageDataUrl ? <img src={result.imageDataUrl} alt={`${title} ${result.mode === 'enhanced' ? '增强' : '快速'}预览`} /> : <div className="v3-ui-preview__placeholder"><b>{rendering ? '正在渲染界面…' : '尚未生成预览'}</b><span>{filePath}</span>{!rendering ? <button onClick={() => void renderPreview()}>生成预览</button> : null}</div>}
     </div>
     {error ? <section className="v3-ui-preview__diagnostic" role="alert"><b>预览不可用</b><p>{error}</p><div><button onClick={() => void renderPreview()} disabled={rendering}>重试预览</button>{onOpenSource ? <button onClick={onOpenSource}>查看 XML</button> : null}</div></section> : null}
+    {!error && mode === 'enhanced' && result && <p className="v3-ui-preview__hint">增强预览会加载项目 QSS、QRC、字体和插件；当前项目未配置的资源不会产生额外视觉变化。</p>}
     {candidate ? <footer className="v3-ui-preview__approval" aria-label="草稿审批">
       <div><b>{candidate.blueprint.fileName}</b><span className={candidate.validation.uic ? 'is-ok' : 'is-error'}>{candidate.validation.uic ? 'uic 校验通过' : 'uic 校验失败'}</span>{candidate.validation.preview || result ? <span className="is-ok">预览可用</span> : <span className="is-warning">预览待配置</span>}</div>
       <div><button onClick={() => void onReject?.(candidate.id)}>放弃</button><button onClick={onOpenDiff}>查看 Diff</button><button className="v3-ui-preview__approve" disabled={!canSave} onClick={() => void onCommit?.(candidate.id)}>{previewFailure ? '保存基础版本' : '审批并保存'}</button></div>
