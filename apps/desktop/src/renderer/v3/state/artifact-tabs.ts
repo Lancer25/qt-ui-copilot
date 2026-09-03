@@ -15,6 +15,7 @@ export type ArtifactTabsAction =
   | { type: 'openPreview'; filePath: string; title?: string; temporary: boolean; candidateId?: string }
   | { type: 'openArtifact'; kind: 'source' | 'diff' | 'output'; title: string; filePath?: string; taskId?: string }
   | { type: 'activate'; id: string }
+  | { type: 'reset' }
   | { type: 'close'; id: string };
 
 const leafName = (filePath: string): string => filePath.split(/[\\/]/).filter(Boolean).at(-1) ?? filePath;
@@ -60,6 +61,7 @@ export function artifactTabsReducer(state: ArtifactTabsState, action: ArtifactTa
     return openTab(state, tab);
   }
   if (action.type === 'activate') return state.tabs.some((tab) => tab.id === action.id) ? { ...state, activeTabId: action.id } : state;
+  if (action.type === 'reset') return initialArtifactTabsState;
   const tabs = state.tabs.filter((tab) => tab.id !== action.id);
   return { tabs, activeTabId: state.activeTabId === action.id ? tabs.at(-1)?.id : state.activeTabId };
 }
