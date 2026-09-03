@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ipcMain } from 'electron';
 import type { BrowserWindow } from 'electron';
-import { registerV3Ipc, resolvePreviewHostSource } from './register-v3-ipc';
+import { registerV3Ipc } from './register-v3-ipc';
+import { resolvePreviewHostSource } from '../preview/preview-session-service';
 import { WorkspaceService } from '../workspace/workspace-service';
 
 describe('V3 workspace IPC', () => {

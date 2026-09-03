@@ -8,7 +8,7 @@ import { WorkspaceService } from '../workspace/workspace-service';
 import { WorkspaceTreeService } from '../workspace/workspace-tree-service';
 import { WorkspaceFileOperations } from '../workspace/workspace-file-operations';
 import { WorkspaceWatcher, type WorkspaceChange } from '../workspace/workspace-watcher';
-import { PreviewSessionService, type V3PreviewInput } from '../preview/preview-session-service';
+import { PreviewSessionService, resolvePreviewHostSource, type V3PreviewInput } from '../preview/preview-session-service';
 import { UiPlanner, type ModelProvider } from '@qt-ui-copilot/agent-workflow';
 import { loadProjectConfig, profileFromConfig, validateUiWithUic } from '@qt-ui-copilot/project-core';
 import { applyOperations, parseUi } from '@qt-ui-copilot/ui-document';
@@ -43,17 +43,6 @@ const TreeRequestSchema = z.object({ workspaceId: z.string().min(1), showInterna
 const CreateEntrySchema = z.object({ workspaceId: z.string().min(1), parentPath: z.string().max(4096), name: z.string().min(1).max(255) }).strict();
 const RenameEntrySchema = z.object({ workspaceId: z.string().min(1), sourcePath: z.string().min(1).max(4096), newName: z.string().min(1).max(255) }).strict();
 const DeleteEntrySchema = z.object({ workspaceId: z.string().min(1), relativePath: z.string().min(1).max(4096) }).strict();
-export function resolvePreviewHostSource(requested: string): string {
-  const resourcesPath = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
-  const candidates = [
-    requested,
-    resourcesPath ? join(resourcesPath, 'qt-ui-copilot-assets', 'preview-host') : undefined,
-    resolve(process.cwd(), 'native', 'qt-ui-preview-host'),
-    resolve(process.cwd(), '..', '..', 'native', 'qt-ui-preview-host'),
-    resolve(__dirname, '../../../../../native/qt-ui-preview-host'),
-  ].filter((value): value is string => Boolean(value));
-  return candidates.find((candidate) => existsSync(join(candidate, 'CMakeLists.txt'))) ?? requested;
-}
 const PermanentDeleteSchema = DeleteEntrySchema.extend({ confirmation: z.string().min(1).max(255) }).strict();
 
 /** Registers the sandboxed V3 workspace boundary and returns its lifecycle cleanup. */
