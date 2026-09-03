@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer, useState } from 'react';
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import type { UiCreationCandidate, V3StartTaskInput } from '@qt-ui-copilot/contracts';
 import type { DesktopApi, V3PreviewRequest, WorkspaceFile, WorkspaceSummary } from '../lib/api';
 import { SettingsPage } from '../pages/settings/SettingsPage';
@@ -46,9 +46,9 @@ function previewRequest(workspace: WorkspaceSummary | undefined, filePath: strin
   };
 }
 
-function ArtifactContent({ api, tab, workspace, selectedFile, candidate, onOpenPreview, onOpenDiff, onOpenSource, onOpenOutput, onCommit, onReject }: { api: DesktopApi; tab: ArtifactTab; workspace?: WorkspaceSummary; selectedFile?: WorkspaceFile; candidate?: UiCreationCandidate; onOpenPreview(candidate: UiCreationCandidate): void; onOpenDiff(candidate: UiCreationCandidate): void; onOpenSource(filePath: string, candidate?: UiCreationCandidate): void; onOpenOutput(taskId: string): void; onCommit(candidateId: string): Promise<void>; onReject(candidateId: string): Promise<void> }) {
+function ArtifactContent({ api, tab, workspace, selectedFile, candidate, onOpenPreview, shouldAutoOpenCandidate, onOpenDiff, onOpenSource, onOpenOutput, onCommit, onReject }: { api: DesktopApi; tab: ArtifactTab; workspace?: WorkspaceSummary; selectedFile?: WorkspaceFile; candidate?: UiCreationCandidate; onOpenPreview(candidate: UiCreationCandidate): void; shouldAutoOpenCandidate(candidate: UiCreationCandidate): boolean; onOpenDiff(candidate: UiCreationCandidate): void; onOpenSource(filePath: string, candidate?: UiCreationCandidate): void; onOpenOutput(taskId: string): void; onCommit(candidateId: string): Promise<void>; onReject(candidateId: string): Promise<void> }) {
   const stream = useTaskStream(tab.kind === 'task' || tab.kind === 'output' ? tab.taskId : undefined);
-  if (tab.kind === 'task') return <TaskConversationView taskId={tab.taskId} createTaskInput={async (input) => {
+  if (tab.kind === 'task') return <TaskConversationView taskId={tab.taskId} shouldAutoOpenCandidate={shouldAutoOpenCandidate} createTaskInput={async (input) => {
     if (!workspace) throw new Error('请先打开一个 Qt 项目文件夹。');
     if (!selectedFile) return { kind: 'create', taskId: tab.taskId, request: { workspaceId: workspace.id, contextMode: input.contextMode, requirement: input.text, attachments: input.attachments, fileName: nextUiFileName(workspace), rootType: 'QWidget', directory: 'ui', qtKitId: String((workspace.profile?.qt as { id?: unknown; version?: unknown } | undefined)?.id ?? (workspace.profile?.qt as { version?: unknown } | undefined)?.version ?? 'project-kit'), useProjectResources: true, useComponentLibrary: true, capabilityCandidates: [] } };
     const uiContent = await api.workspace?.readText(workspace.id, selectedFile.absolutePath) ?? '';
@@ -67,10 +67,11 @@ function ArtifactContent({ api, tab, workspace, selectedFile, candidate, onOpenP
 
 function V3Content({ api }: { api: DesktopApi }) {
   const [workspace, setWorkspace] = useState<WorkspaceSummary>(); const [files, setFiles] = useState<WorkspaceFile[]>([]); const [selectedFile, setSelectedFile] = useState<WorkspaceFile>();
-  const [activity, setActivity] = useState<WorkspaceActivity>('explorer'); const [tabs, dispatchTabs] = useReducer(artifactTabsReducer, initialArtifactTabsState); const [candidates, setCandidates] = useState<Record<string, UiCreationCandidate | undefined>>({}); const [message, setMessage] = useState<string>(); const [revealPath, setRevealPath] = useState<string>();
+  const [activity, setActivity] = useState<WorkspaceActivity>('explorer'); const [tabs, dispatchTabs] = useReducer(artifactTabsReducer, initialArtifactTabsState); const [candidates, setCandidates] = useState<Record<string, UiCreationCandidate | undefined>>({}); const [message, setMessage] = useState<string>(); const [revealPath, setRevealPath] = useState<string>(); const dismissedCandidates = useRef(new Set<string>());
   const openTask = useCallback((taskId: string, title = 'AI 任务') => dispatchTabs({ type: 'openTask', taskId, title }), []);
   const openFile = useCallback((file: WorkspaceFile) => { setSelectedFile(file); dispatchTabs({ type: 'openPreview', filePath: file.absolutePath, title: leafName(file.relativePath), temporary: false }); }, []);
-  const openCandidate = useCallback((candidate: UiCreationCandidate) => { setCandidates((current) => ({ ...current, [candidate.id]: candidate })); dispatchTabs({ type: 'openPreview', filePath: candidate.targetPath, title: candidate.blueprint.fileName, temporary: true, candidateId: candidate.id }); }, []);
+  const openCandidate = useCallback((candidate: UiCreationCandidate) => { dismissedCandidates.current.delete(candidate.id); setCandidates((current) => ({ ...current, [candidate.id]: candidate })); dispatchTabs({ type: 'openPreview', filePath: candidate.targetPath, title: candidate.blueprint.fileName, temporary: true, candidateId: candidate.id }); }, []);
+  const shouldAutoOpenCandidate = useCallback((candidate: UiCreationCandidate) => !dismissedCandidates.current.has(candidate.id), []);
   const openDiff = useCallback((candidate: UiCreationCandidate) => { setCandidates((current) => ({ ...current, [candidate.id]: candidate })); dispatchTabs({ type: 'openArtifact', kind: 'diff', title: `${candidate.blueprint.fileName} Diff`, filePath: candidate.targetPath }); }, []);
   const openSource = useCallback((filePath: string, candidate?: UiCreationCandidate) => { if (candidate) setCandidates((current) => ({ ...current, [candidate.id]: candidate })); dispatchTabs({ type: 'openArtifact', kind: 'source', title: `${leafName(filePath)} 源码`, filePath }); }, []);
   const openOutput = useCallback((taskId: string) => dispatchTabs({ type: 'openArtifact', kind: 'output', title: '任务日志', taskId }), []);
@@ -108,7 +109,8 @@ function V3Content({ api }: { api: DesktopApi }) {
     }
     setActivity(next);
   };
-  return <WorkspaceShell titlebar={<Titlebar api={api} workspace={workspace} />} activity={activity} onActivityChange={changeActivity} sidebar={sidebar} workspace={<ArtifactTabs tabs={tabs.tabs} activeTabId={tabs.activeTabId} onActivate={(id) => dispatchTabs({ type: 'activate', id })} onClose={(id) => dispatchTabs({ type: 'close', id })} renderTab={(tab) => <ArtifactContent api={api} tab={tab} workspace={workspace} selectedFile={selectedFile} candidate={candidateForTab(tab, candidates)} onOpenPreview={openCandidate} onOpenDiff={openDiff} onOpenSource={openSource} onOpenOutput={openOutput} onCommit={commit} onReject={reject} />} />}>{message ? <div role="status" className="v3-toast">{message}</div> : null}</WorkspaceShell>;
+  const closeTab = (id: string) => { const tab = tabs.tabs.find((item) => item.id === id); if (tab?.kind === 'preview' && tab.candidateId) dismissedCandidates.current.add(tab.candidateId); dispatchTabs({ type: 'close', id }); };
+  return <WorkspaceShell titlebar={<Titlebar api={api} workspace={workspace} />} activity={activity} onActivityChange={changeActivity} sidebar={sidebar} workspace={<ArtifactTabs tabs={tabs.tabs} activeTabId={tabs.activeTabId} onActivate={(id) => dispatchTabs({ type: 'activate', id })} onClose={closeTab} renderTab={(tab) => <ArtifactContent api={api} tab={tab} workspace={workspace} selectedFile={selectedFile} candidate={candidateForTab(tab, candidates)} onOpenPreview={openCandidate} onOpenDiff={openDiff} onOpenSource={openSource} onOpenOutput={openOutput} onCommit={commit} onReject={reject} shouldAutoOpenCandidate={shouldAutoOpenCandidate} />} />}>{message ? <div role="status" className="v3-toast">{message}</div> : null}</WorkspaceShell>;
 }
 
 export function V3App({ api }: { api: DesktopApi }) { return <TaskStreamProvider api={api}><V3Content api={api} /></TaskStreamProvider>; }

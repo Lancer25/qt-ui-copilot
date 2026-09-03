@@ -11,6 +11,7 @@ export interface TaskConversationViewProps {
   taskId: string;
   createTaskInput?: (input: TaskComposerInput) => V3StartTaskInput | Promise<V3StartTaskInput>;
   onOpenPreview?: (candidate: UiCreationCandidate) => void;
+  shouldAutoOpenCandidate?: (candidate: UiCreationCandidate) => boolean;
   onOpenDiff?: (candidate: UiCreationCandidate) => void;
   onCommitCandidate?: (candidateId: string) => Promise<void> | void;
   onRejectCandidate?: (candidateId: string) => Promise<void> | void;
@@ -19,13 +20,13 @@ export interface TaskConversationViewProps {
 
 const visibleStatus = (event: V3TaskEvent) => event.type !== 'message_delta' && event.type !== 'artifact' && event.type !== 'done';
 
-export function TaskConversationView({ taskId, createTaskInput, onOpenPreview, onOpenDiff, onCommitCandidate, onRejectCandidate, onOpenOutput }: TaskConversationViewProps) {
+export function TaskConversationView({ taskId, createTaskInput, onOpenPreview, shouldAutoOpenCandidate, onOpenDiff, onCommitCandidate, onRejectCandidate, onOpenOutput }: TaskConversationViewProps) {
   const controller = useTaskStream(taskId);
   const [composerError, setComposerError] = useState<string>();
   const [lastRequest, setLastRequest] = useState<V3StartTaskInput>();
   const task = controller.task;
   const running = task?.status === 'running' || task?.status === 'pending';
-  useEffect(() => { if (task?.candidate) onOpenPreview?.(task.candidate); }, [task?.candidate?.id, onOpenPreview]);
+  useEffect(() => { if (task?.candidate && (shouldAutoOpenCandidate?.(task.candidate) ?? true)) onOpenPreview?.(task.candidate); }, [task?.candidate?.id, onOpenPreview, shouldAutoOpenCandidate]);
   const submit = async (input: TaskComposerInput) => {
     if (!createTaskInput) { setComposerError('当前任务尚未配置发送方式。'); return; }
     try {
