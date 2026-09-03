@@ -46,14 +46,14 @@ function previewRequest(workspace: WorkspaceSummary | undefined, filePath: strin
   };
 }
 
-function ArtifactContent({ api, tab, workspace, selectedFile, candidate, onOpenPreview, onOpenDiff, onOpenSource, onCommit, onReject }: { api: DesktopApi; tab: ArtifactTab; workspace?: WorkspaceSummary; selectedFile?: WorkspaceFile; candidate?: UiCreationCandidate; onOpenPreview(candidate: UiCreationCandidate): void; onOpenDiff(candidate: UiCreationCandidate): void; onOpenSource(filePath: string, candidate?: UiCreationCandidate): void; onCommit(candidateId: string): Promise<void>; onReject(candidateId: string): Promise<void> }) {
+function ArtifactContent({ api, tab, workspace, selectedFile, candidate, onOpenPreview, onOpenDiff, onOpenSource, onOpenOutput, onCommit, onReject }: { api: DesktopApi; tab: ArtifactTab; workspace?: WorkspaceSummary; selectedFile?: WorkspaceFile; candidate?: UiCreationCandidate; onOpenPreview(candidate: UiCreationCandidate): void; onOpenDiff(candidate: UiCreationCandidate): void; onOpenSource(filePath: string, candidate?: UiCreationCandidate): void; onOpenOutput(taskId: string): void; onCommit(candidateId: string): Promise<void>; onReject(candidateId: string): Promise<void> }) {
   const stream = useTaskStream(tab.kind === 'task' || tab.kind === 'output' ? tab.taskId : undefined);
   if (tab.kind === 'task') return <TaskConversationView taskId={tab.taskId} createTaskInput={async (input) => {
     if (!workspace) throw new Error('请先打开一个 Qt 项目文件夹。');
     if (!selectedFile) return { kind: 'create', taskId: tab.taskId, request: { workspaceId: workspace.id, contextMode: input.contextMode, requirement: input.text, attachments: input.attachments, fileName: nextUiFileName(workspace), rootType: 'QWidget', directory: 'ui', qtKitId: String((workspace.profile?.qt as { id?: unknown; version?: unknown } | undefined)?.id ?? (workspace.profile?.qt as { version?: unknown } | undefined)?.version ?? 'project-kit'), useProjectResources: true, useComponentLibrary: true, capabilityCandidates: [] } };
     const uiContent = await api.workspace?.readText(workspace.id, selectedFile.absolutePath) ?? '';
     return { kind: 'modify', taskId: tab.taskId, request: { workspaceId: workspace.id, contextMode: input.contextMode, requirement: input.text, attachments: input.attachments, uiFile: selectedFile.absolutePath, uiContent } };
-  }} onOpenPreview={onOpenPreview} onOpenDiff={onOpenDiff} onCommitCandidate={onCommit} onRejectCandidate={onReject} />;
+  }} onOpenPreview={onOpenPreview} onOpenDiff={onOpenDiff} onOpenOutput={onOpenOutput} onCommitCandidate={onCommit} onRejectCandidate={onReject} />;
   if (tab.kind === 'settings') return <main aria-label="设置"><SettingsPage api={api} workspace={workspace} central /></main>;
   if (tab.kind === 'preview') return <UiPreviewTab api={api} filePath={tab.filePath} candidate={candidate} buildPreviewRequest={(mode) => {
     const request = previewRequest(workspace, tab.filePath, mode);
@@ -73,6 +73,7 @@ function V3Content({ api }: { api: DesktopApi }) {
   const openCandidate = useCallback((candidate: UiCreationCandidate) => { setCandidates((current) => ({ ...current, [candidate.id]: candidate })); dispatchTabs({ type: 'openPreview', filePath: candidate.targetPath, title: candidate.blueprint.fileName, temporary: true, candidateId: candidate.id }); }, []);
   const openDiff = useCallback((candidate: UiCreationCandidate) => { setCandidates((current) => ({ ...current, [candidate.id]: candidate })); dispatchTabs({ type: 'openArtifact', kind: 'diff', title: `${candidate.blueprint.fileName} Diff`, filePath: candidate.targetPath }); }, []);
   const openSource = useCallback((filePath: string, candidate?: UiCreationCandidate) => { if (candidate) setCandidates((current) => ({ ...current, [candidate.id]: candidate })); dispatchTabs({ type: 'openArtifact', kind: 'source', title: `${leafName(filePath)} 源码`, filePath }); }, []);
+  const openOutput = useCallback((taskId: string) => dispatchTabs({ type: 'openArtifact', kind: 'output', title: '任务日志', taskId }), []);
   const activateWorkspaceTask = (next: WorkspaceSummary) => { dispatchTabs({ type: 'close', id: 'task:default' }); openTask(emptyTaskId(next)); };
   const openFolder = async () => { if (!api.workspace) { setMessage('当前运行时未接入 V3 工作区服务。'); return; } const rootDir = await api.projects.chooseDirectory(); if (!rootDir) return; try { const next = await api.workspace.open({ rootDir }); setWorkspace(next); setFiles(next.files); setSelectedFile(undefined); activateWorkspaceTask(next); setActivity('explorer'); } catch (reason) { setMessage(reason instanceof Error ? reason.message : String(reason)); } };
   const refreshWorkspace = useCallback(async () => { if (!workspace || !api.workspace) return; const next = await api.workspace.open({ rootDir: workspace.rootDir }); setWorkspace(next); setFiles(next.files); }, [api.workspace, workspace]);
@@ -106,7 +107,7 @@ function V3Content({ api }: { api: DesktopApi }) {
     }
     setActivity(next);
   };
-  return <WorkspaceShell titlebar={<Titlebar api={api} workspace={workspace} />} activity={activity} onActivityChange={changeActivity} sidebar={sidebar} workspace={<ArtifactTabs tabs={tabs.tabs} activeTabId={tabs.activeTabId} onActivate={(id) => dispatchTabs({ type: 'activate', id })} onClose={(id) => dispatchTabs({ type: 'close', id })} renderTab={(tab) => <ArtifactContent api={api} tab={tab} workspace={workspace} selectedFile={selectedFile} candidate={candidateForTab(tab, candidates)} onOpenPreview={openCandidate} onOpenDiff={openDiff} onOpenSource={openSource} onCommit={commit} onReject={reject} />} />}>{message ? <div role="status" className="v3-toast">{message}</div> : null}</WorkspaceShell>;
+  return <WorkspaceShell titlebar={<Titlebar api={api} workspace={workspace} />} activity={activity} onActivityChange={changeActivity} sidebar={sidebar} workspace={<ArtifactTabs tabs={tabs.tabs} activeTabId={tabs.activeTabId} onActivate={(id) => dispatchTabs({ type: 'activate', id })} onClose={(id) => dispatchTabs({ type: 'close', id })} renderTab={(tab) => <ArtifactContent api={api} tab={tab} workspace={workspace} selectedFile={selectedFile} candidate={candidateForTab(tab, candidates)} onOpenPreview={openCandidate} onOpenDiff={openDiff} onOpenSource={openSource} onOpenOutput={openOutput} onCommit={commit} onReject={reject} />} />}>{message ? <div role="status" className="v3-toast">{message}</div> : null}</WorkspaceShell>;
 }
 
 export function V3App({ api }: { api: DesktopApi }) { return <TaskStreamProvider api={api}><V3Content api={api} /></TaskStreamProvider>; }

@@ -105,4 +105,20 @@ describe('TaskConversationView', () => {
     expect(await screen.findByText('已取消：正在准备项目上下文')).toBeTruthy();
     expect(screen.getByText('已取消：正在生成基础界面意图')).toBeTruthy();
   });
+
+  it('offers retry and log actions when the current task fails', async () => {
+    const user = userEvent.setup();
+    const startTaskStream = vi.fn(async () => ({ taskId }));
+    let emit: ((event: any) => void) | undefined;
+    const failedApi = { ai: { ...api.ai, onTaskEvent: vi.fn((listener) => { emit = listener; return () => undefined; }), startTaskStream, getTaskSnapshot: vi.fn(async () => ({ taskId, status: 'failed' as const, lastSequence: 1, createdAt: 1, updatedAt: 1, events: [{ taskId, sequence: 1, timestamp: 1, lane: 'generation' as const, type: 'error' as const, status: 'failed' as const, title: '任务执行失败', detail: '模型响应无效' }] })) } } as unknown as DesktopApi;
+    const onOpenOutput = vi.fn();
+    render(<TaskStreamProvider api={failedApi}><TaskConversationView taskId={taskId} createTaskInput={(payload) => ({ kind: 'create', request: { workspaceId: 'workspace', contextMode: payload.contextMode, requirement: payload.text, attachments: payload.attachments, fileName: 'NewWidget.ui', rootType: 'QWidget', directory: 'ui', qtKitId: 'kit', useProjectResources: true, useComponentLibrary: true, capabilityCandidates: [] } })} onOpenOutput={onOpenOutput} /></TaskStreamProvider>);
+    await screen.findByText('任务执行失败');
+    await user.click(screen.getByRole('button', { name: '查看日志' }));
+    expect(onOpenOutput).toHaveBeenCalledWith(taskId);
+    await user.type(screen.getByRole('textbox', { name: '发送给 AI' }), '重试');
+    await user.click(screen.getByRole('button', { name: '发送' }));
+    emit?.({ taskId, sequence: 2, timestamp: 2, lane: 'generation', type: 'status', status: 'running', title: '重新执行中' });
+    expect(startTaskStream).toHaveBeenCalled();
+  });
 });

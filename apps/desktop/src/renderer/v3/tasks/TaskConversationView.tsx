@@ -14,13 +14,15 @@ export interface TaskConversationViewProps {
   onOpenDiff?: (candidate: UiCreationCandidate) => void;
   onCommitCandidate?: (candidateId: string) => Promise<void> | void;
   onRejectCandidate?: (candidateId: string) => Promise<void> | void;
+  onOpenOutput?: (taskId: string) => void;
 }
 
 const visibleStatus = (event: V3TaskEvent) => event.type !== 'message_delta' && event.type !== 'artifact' && event.type !== 'done';
 
-export function TaskConversationView({ taskId, createTaskInput, onOpenPreview, onOpenDiff, onCommitCandidate, onRejectCandidate }: TaskConversationViewProps) {
+export function TaskConversationView({ taskId, createTaskInput, onOpenPreview, onOpenDiff, onCommitCandidate, onRejectCandidate, onOpenOutput }: TaskConversationViewProps) {
   const controller = useTaskStream(taskId);
   const [composerError, setComposerError] = useState<string>();
+  const [lastRequest, setLastRequest] = useState<V3StartTaskInput>();
   const task = controller.task;
   const running = task?.status === 'running' || task?.status === 'pending';
   useEffect(() => { if (task?.candidate) onOpenPreview?.(task.candidate); }, [task?.candidate?.id, onOpenPreview]);
@@ -28,6 +30,7 @@ export function TaskConversationView({ taskId, createTaskInput, onOpenPreview, o
     if (!createTaskInput) { setComposerError('当前任务尚未配置发送方式。'); return; }
     try {
       const request = await createTaskInput(input);
+      setLastRequest(request);
       if (running) await controller.queueMessage(request);
       else await controller.startTask(request);
       setComposerError(undefined);
@@ -37,6 +40,7 @@ export function TaskConversationView({ taskId, createTaskInput, onOpenPreview, o
     <header className="v3-task-conversation__header"><div><span>AI 任务</span><h1>{task?.status === 'running' ? '正在处理你的请求' : 'Qt UI Copilot'}</h1></div>{task?.status ? <span className={`v3-task-conversation__state is-${task.status}`}>{task.status === 'running' ? '处理中' : task.status === 'failed' ? '需要处理' : task.status === 'cancelled' ? '已停止' : '就绪'}</span> : null}</header>
     <div className="v3-task-conversation__feed" aria-live="polite">
       {!task?.events.length ? <section className="v3-task-conversation__empty"><b>开始一个 AI 任务</b><p>描述要创建或修改的 Qt 界面，或拖入一张参考图。</p></section> : <TaskFeed task={task} onOpenPreview={onOpenPreview} onOpenDiff={onOpenDiff} onCommit={onCommitCandidate} onReject={onRejectCandidate} />}
+      {task?.status === 'failed' ? <div className="v3-task-recovery" role="group" aria-label="任务恢复操作"><span>任务未完成，可以重新执行或查看详细日志。</span><div>{lastRequest ? <button type="button" onClick={() => void controller.startTask({ ...lastRequest, taskId })}>重新执行</button> : null}<button type="button" onClick={() => onOpenOutput?.(taskId)}>查看日志</button></div></div> : null}
       {composerError ? <p className="v3-task-conversation__error" role="alert">{composerError}</p> : null}
     </div>
     <TaskComposer running={running} queued={task?.queuedMessages.length} onSubmit={submit} onStop={() => controller.cancelTask()} />
