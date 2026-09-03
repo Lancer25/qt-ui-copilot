@@ -40,7 +40,7 @@ export function TaskConversationView({ taskId, createTaskInput, onOpenPreview, o
     <header className="v3-task-conversation__header"><div><span>AI 任务</span><h1>{task?.status === 'running' ? '正在处理你的请求' : 'Qt UI Copilot'}</h1></div>{task?.status ? <span className={`v3-task-conversation__state is-${task.status}`}>{task.status === 'running' ? '处理中' : task.status === 'failed' ? '需要处理' : task.status === 'cancelled' ? '已停止' : '就绪'}</span> : null}</header>
     <div className="v3-task-conversation__feed" aria-live="polite">
       {!task?.events.length ? <section className="v3-task-conversation__empty"><b>开始一个 AI 任务</b><p>描述要创建或修改的 Qt 界面，或拖入一张参考图。</p></section> : <TaskFeed task={task} onOpenPreview={onOpenPreview} onOpenDiff={onOpenDiff} onCommit={onCommitCandidate} onReject={onRejectCandidate} />}
-      {task?.status === 'failed' ? <div className="v3-task-recovery" role="group" aria-label="任务恢复操作"><span>任务未完成，可以重新执行或查看详细日志。</span><div>{lastRequest ? <button type="button" onClick={() => void controller.startTask({ ...lastRequest, taskId })}>重新执行</button> : null}<button type="button" onClick={() => onOpenOutput?.(taskId)}>查看日志</button></div></div> : null}
+      {task?.status === 'failed' ? <div className="v3-task-recovery" role="group" aria-label="任务恢复操作"><span>任务未完成，可以重新执行或查看详细日志。</span><div><button type="button" onClick={() => lastRequest ? void controller.startTask({ ...lastRequest, taskId }) : setComposerError('当前任务输入未恢复，请在下方重新描述后发送。')}>{lastRequest ? '重新执行' : '重新输入'}</button><button type="button" onClick={() => onOpenOutput?.(taskId)}>查看日志</button></div></div> : null}
       {composerError ? <p className="v3-task-conversation__error" role="alert">{composerError}</p> : null}
     </div>
     <TaskComposer running={running} queued={task?.queuedMessages.length} onSubmit={submit} onStop={() => controller.cancelTask()} />
@@ -55,9 +55,12 @@ function TaskFeed({ task, onOpenPreview, onOpenDiff, onCommit, onReject }: { tas
       return message ? <TaskMessage key={`message-${event.sequence}`} message={message} /> : null;
     }
     if (!visibleStatus(event)) return null;
+    const hasLaterEvent = task.events.some((next) => next.sequence > event.sequence && (next.type === 'status' || next.type === 'error' || next.type === 'cancelled' || next.type === 'done'));
     const projected = task.status === 'cancelled' && event.status !== 'completed'
       ? { ...event, status: 'cancelled' as const, title: event.title.startsWith('已取消') ? event.title : `已取消：${event.title}` }
-      : event;
+      : event.status === 'running' && hasLaterEvent
+        ? { ...event, status: 'completed' as const, title: event.title }
+        : event;
     return <TaskStatusLine key={event.sequence} event={projected} />;
   })}{task.candidate ? <TaskArtifactCard candidate={task.candidate} onOpenPreview={onOpenPreview} onOpenDiff={onOpenDiff} onCommit={onCommit} onReject={onReject} /> : null}</>;
 }

@@ -55,6 +55,11 @@ function normalizeBlueprintProperties(value: unknown): unknown {
   const result: Record<string, unknown> = {};
   for (const [key, item] of Object.entries(object)) {
     if (key === 'layoutTree') { result[key] = normalizeBlueprintNode(item, 'mainLayout'); continue; }
+    if (['tabOrder', 'resourceRefs', 'componentIds', 'expectedResults'].includes(key) && Array.isArray(item)) {
+      result[key] = item.map((entry) => typeof entry === 'string' ? entry : entry && typeof entry === 'object' ? String((entry as Record<string, unknown>).path ?? (entry as Record<string, unknown>).name ?? (entry as Record<string, unknown>).id ?? '') : '').filter(Boolean);
+      continue;
+    }
+    if (key === 'connections' && Array.isArray(item)) { result[key] = item.filter((entry) => entry && typeof entry === 'object').map((entry) => { const row = entry as Record<string, unknown>; return { sender: String(row.sender ?? row.from ?? ''), signal: String(row.signal ?? ''), receiver: String(row.receiver ?? row.to ?? ''), slot: String(row.slot ?? '') }; }).filter((entry) => entry.sender && entry.signal && entry.receiver && entry.slot); continue; }
     if (key === 'properties' && item && typeof item === 'object' && !Array.isArray(item)) {
       const properties: Record<string, unknown> = {};
       for (const [name, raw] of Object.entries(item as Record<string, unknown>)) {

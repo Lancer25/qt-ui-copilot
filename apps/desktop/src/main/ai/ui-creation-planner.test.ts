@@ -33,4 +33,13 @@ describe('UiCreationPlanner', () => {
     expect(properties.broken).toBeUndefined();
     expect(result.layoutTree.children[0]?.children[0]?.className).toBe('QFutureWidget');
   });
+
+  it('normalizes object resource references from model shorthand', async () => {
+    const provider = new FakeProvider();
+    provider.generate = async (request) => { provider.requests.push(request); return { ...blueprint, resourceRefs: [{ path: 'resources/app.qrc' }], componentIds: [{ id: 'card' }], expectedResults: [{ name: 'renders' }] }; };
+    const result = await new UiCreationPlanner(provider).plan({ requirement: 'Create app', attachments: [], targetQtVersion: '6.10.2', fileName: 'Login.ui', rootType: 'QDialog' });
+    expect(result.resourceRefs).toEqual(['resources/app.qrc']);
+    expect(result.componentIds).toEqual(['card']);
+    expect(result.expectedResults).toEqual(['renders']);
+  });
 });
