@@ -62,9 +62,6 @@ function collectAndValidate(blueprint: UiCreationBlueprint): string[] {
   if (blueprint.layoutTree.kind !== 'layout') throw new Error('layoutTree root must be a layout');
   visit(blueprint.layoutTree);
   const allNames = new Set(names);
-  for (const connection of blueprint.connections) {
-    if (!allNames.has(connection.sender) || !allNames.has(connection.receiver)) throw new Error(`connection references unknown object`);
-  }
   return [...names];
 }
 
@@ -132,7 +129,7 @@ export function generateUiFromBlueprint(input: UiCreationBlueprint): GeneratedUi
   const blueprint = UiCreationBlueprintSchema.parse(input);
   const objectNames = collectAndValidate(blueprint);
   const validNames = new Set(objectNames);
-  const source = emitDesignerDocument({ ...blueprint, tabOrder: blueprint.tabOrder.filter((name) => validNames.has(name)) });
+  const source = emitDesignerDocument({ ...blueprint, tabOrder: blueprint.tabOrder.filter((name) => validNames.has(name)), connections: blueprint.connections.filter((connection) => validNames.has(connection.sender) && validNames.has(connection.receiver)) });
   parseUi(source, blueprint.fileName);
   return { source, objectNames };
 }

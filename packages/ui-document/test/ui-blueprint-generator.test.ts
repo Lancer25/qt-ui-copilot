@@ -50,4 +50,12 @@ describe('generateUiFromBlueprint', () => {
     expect(result.source).not.toContain('missingEdit');
     expect(result.source).not.toContain('anotherMissing');
   });
+
+  it('drops connections that reference unknown objects', () => {
+    const blueprint = structuredClone(loginBlueprint);
+    blueprint.connections.push({ sender: 'missingButton', signal: 'clicked()', receiver: 'loginDialog', slot: 'accept()' });
+    const result = generateUiFromBlueprint(blueprint);
+    expect(result.source).toContain('<sender>submitButton</sender>');
+    expect(result.source).not.toContain('missingButton');
+  });
 });
