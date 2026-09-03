@@ -42,4 +42,13 @@ describe('UiCreationPlanner', () => {
     expect(result.componentIds).toEqual(['card']);
     expect(result.expectedResults).toEqual(['renders']);
   });
+
+  it('fills optional blueprint collections when a model omits them', async () => {
+    const provider = new FakeProvider();
+    provider.generate = async (request) => { provider.requests.push(request); const { tabOrder: _tabOrder, connections: _connections, resourceRefs: _resourceRefs, componentIds: _componentIds, expectedResults: _expectedResults, ...partial } = blueprint; return partial; };
+    const result = await new UiCreationPlanner(provider).plan({ requirement: 'Create app', attachments: [], targetQtVersion: '6.10.2', fileName: 'Login.ui', rootType: 'QDialog' });
+    expect(result.tabOrder).toEqual([]);
+    expect(result.connections).toEqual([]);
+    expect(result.expectedResults.length).toBeGreaterThan(0);
+  });
 });

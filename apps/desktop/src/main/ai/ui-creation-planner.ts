@@ -48,11 +48,12 @@ function parseBlueprint(value: unknown): UiCreationBlueprint {
  * blueprint boundary. Table/list properties are represented as stringList in
  * the protocol; unknown or malformed properties are omitted rather than
  * invalidating an otherwise usable layout. */
-function normalizeBlueprintProperties(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(normalizeBlueprintProperties);
+function normalizeBlueprintProperties(value: unknown, root = true): unknown {
+  if (Array.isArray(value)) return value.map((item) => normalizeBlueprintProperties(item, false));
   if (!value || typeof value !== 'object') return value;
   const object = value as Record<string, unknown>;
   const result: Record<string, unknown> = {};
+  if (root) { for (const key of ['tabOrder', 'connections', 'resourceRefs', 'componentIds']) if (object[key] === undefined) result[key] = []; if (object.expectedResults === undefined) result.expectedResults = ['界面可被 Qt uic 编译并预览']; }
   for (const [key, item] of Object.entries(object)) {
     if (key === 'layoutTree') { result[key] = normalizeBlueprintNode(item, 'mainLayout'); continue; }
     if (['tabOrder', 'resourceRefs', 'componentIds', 'expectedResults'].includes(key) && Array.isArray(item)) {
@@ -65,11 +66,11 @@ function normalizeBlueprintProperties(value: unknown): unknown {
       for (const [name, raw] of Object.entries(item as Record<string, unknown>)) {
         const normalized = name === 'items' || name === 'horizontalHeaderLabels'
           ? Array.isArray(raw) && raw.every((entry) => typeof entry === 'string') ? { kind: 'stringList', values: raw } : raw
-          : normalizeBlueprintProperties(raw);
+          : normalizeBlueprintProperties(raw, false);
         if (UiValueSchema.safeParse(normalized).success) properties[name] = normalized;
       }
       result[key] = properties;
-    } else result[key] = normalizeBlueprintProperties(item);
+    } else result[key] = normalizeBlueprintProperties(item, false);
   }
   return result;
 }
@@ -83,7 +84,7 @@ function normalizeBlueprintNode(value: unknown, fallbackName: string): Record<st
   const rawName = object.objectName ?? object.name ?? object.id;
   const objectName = typeof rawName === 'string' && /^[A-Za-z_][A-Za-z0-9_]*$/.test(rawName) ? rawName : fallbackName;
   const children = Array.isArray(object.children) ? object.children.map((child, index) => normalizeBlueprintNode(child, `${fallbackName}_${index + 1}`)) : [];
-  const properties = object.properties && typeof object.properties === 'object' && !Array.isArray(object.properties) ? normalizeBlueprintProperties({ properties: object.properties }) as Record<string, unknown> : {};
+  const properties = object.properties && typeof object.properties === 'object' && !Array.isArray(object.properties) ? normalizeBlueprintProperties({ properties: object.properties }, false) as Record<string, unknown> : {};
   return { kind, className, objectName, properties: properties.properties ?? {}, children };
 }
 
