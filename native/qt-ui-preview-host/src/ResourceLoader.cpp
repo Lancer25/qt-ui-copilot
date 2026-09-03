@@ -37,6 +37,7 @@ QStringList uiReferencedQrcFiles(const QString &uiFile)
         xml.readNext();
         if (xml.isStartElement() && xml.name() == "include" && xml.attributes().hasAttribute("location")) {
             const QString qrc = base.filePath(xml.attributes().value("location").toString());
+            if (QFileInfo(qrc).suffix().compare(QStringLiteral("qrc"), Qt::CaseInsensitive) != 0) continue;
             if (!result.contains(qrc)) result.append(qrc);
         }
     }
@@ -104,6 +105,11 @@ bool ResourceLoader::load(const PreviewRequest &request, PreviewResult *result, 
     if (!QDir().mkpath(cacheRoot)) { *error = "Unable to create preview resource cache"; return false; }
     QStringList qrcFiles = request.qrcFiles;
     foreach (const QString &qrcFile, uiReferencedQrcFiles(request.uiFile)) if (!qrcFiles.contains(qrcFile)) qrcFiles.append(qrcFile);
+    // Model-generated UI files occasionally place image attachments or other
+    // files inside <resources>. Only .qrc files are resource bundles.
+    for (int index = qrcFiles.size() - 1; index >= 0; --index) {
+        if (QFileInfo(qrcFiles.at(index)).suffix().compare(QStringLiteral("qrc"), Qt::CaseInsensitive) != 0) qrcFiles.removeAt(index);
+    }
     if (!qrcFiles.isEmpty() && request.rccExecutable.isEmpty()) { *error = "rccExecutable is required when the UI references QRC resources"; return false; }
     foreach (const QString &qrcFile, qrcFiles) {
         const QString cacheKey = resourceCacheKeyForTesting(qrcFile, request.rccExecutable);

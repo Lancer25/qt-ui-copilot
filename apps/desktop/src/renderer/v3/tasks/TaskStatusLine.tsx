@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { V3TaskEvent } from '@qt-ui-copilot/contracts';
 
 function StatusIcon({ status }: { status: V3TaskEvent['status'] }) {
@@ -8,10 +8,12 @@ function StatusIcon({ status }: { status: V3TaskEvent['status'] }) {
 
 export function TaskStatusLine({ event }: { event: V3TaskEvent }) {
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const status = event.status ?? (event.type === 'error' ? 'failed' : event.type === 'cancelled' ? 'cancelled' : 'running');
+  useEffect(() => { if (status !== 'running') return; const update = () => setElapsedSeconds(Math.max(0, Math.floor((Date.now() - event.timestamp) / 1000))); update(); const timer = window.setInterval(update, 1000); return () => window.clearInterval(timer); }, [event.timestamp, status]);
   return <section className={`v3-task-status v3-task-status--${status}${status === 'running' ? ' is-running' : ''}`} aria-label={event.title}>
     <span className="v3-task-status__icon"> <StatusIcon status={status} /></span>
-    <div className="v3-task-status__body"><b>{event.title}</b>{event.detail && detailsOpen ? <pre>{event.detail}</pre> : null}</div>
+    <div className="v3-task-status__body"><b>{event.title}</b>{status === 'running' ? <small className="v3-task-status__elapsed"> · 已等待 {elapsedSeconds} 秒</small> : null}{event.detail && detailsOpen ? <pre>{event.detail}</pre> : null}</div>
     {event.detail ? <button type="button" className="v3-task-status__details" aria-label={`${detailsOpen ? '收起详情' : '查看详情'}：${event.title}`} onClick={() => setDetailsOpen((open) => !open)}>{detailsOpen ? '收起详情' : '查看详情'}</button> : null}
   </section>;
 }
