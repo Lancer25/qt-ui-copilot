@@ -60,7 +60,10 @@ PreviewResult renderPreview(const PreviewRequest &request)
     FormLoader loader;
     QWidget *root = loader.loadForm(request, &result, &error);
     if (!root) { result.error = error; return result; }
-    root->resize(request.width, request.height); root->show();
+    // A model-generated horizontal layout can report a very large
+    // sizeHint (for example long labels or table columns). Preview output
+    // must honor the requested canvas instead of expanding to that hint.
+    root->setFixedSize(request.width, request.height); root->show();
     QApplication::processEvents(); QApplication::processEvents();
     const QPixmap image = root->grab();
     if (image.isNull() || !image.save(request.outputImage)) { result.error = QString("Unable to save screenshot: %1").arg(request.outputImage); delete root; return result; }
