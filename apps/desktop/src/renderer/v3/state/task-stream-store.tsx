@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, type ReactNode } from 'react';
-import type { UiCreationCandidate, V3StartTaskInput, V3TaskArtifact, V3TaskEvent, V3TaskPreview, V3TaskSnapshot } from '@qt-ui-copilot/contracts';
+import type { UiCreationCandidate, V3StartTaskInput, V3TaskArtifact, V3TaskEvent, V3TaskPreview, V3TaskSnapshot, V3TaskStreamAdjustRequest } from '@qt-ui-copilot/contracts';
 import { desktopApi, type DesktopApi } from '../../lib/api';
 
 const MAX_EVENTS = 200;
@@ -108,6 +108,7 @@ export interface TaskStreamController {
   task?: TaskStreamTask;
   startTask(input: V3StartTaskInput): Promise<string>;
   queueMessage(input: V3StartTaskInput): Promise<void>;
+  adjustTask(input: V3TaskStreamAdjustRequest): Promise<string>;
   /** Explicit user action after cancellation; queued work never resumes itself. */
   continueTask(): Promise<void>;
   cancelTask(): Promise<void>;
@@ -118,6 +119,7 @@ interface TaskStreamContextValue {
   accept(event: V3TaskEvent): void;
   restore(taskId: string): Promise<void>;
   startTask(input: V3StartTaskInput): Promise<string>;
+  adjustTask(input: V3TaskStreamAdjustRequest): Promise<string>;
   queueMessage(taskId: string, input: V3StartTaskInput): Promise<void>;
   continueTask(taskId: string): Promise<void>;
   cancelTask(taskId: string): Promise<void>;
@@ -164,6 +166,17 @@ export function TaskStreamProvider({ api = desktopApi(), children }: { api?: Des
     await startTask({ ...input, taskId });
   }, [startTask]);
 
+  const adjustTask = useCallback(async (input: V3TaskStreamAdjustRequest) => {
+    const taskId = input.taskId;
+    const request: V3StartTaskInput = { kind: 'adjust', taskId, request: input };
+    const task = stateRef.current.tasks[taskId];
+    if (task?.status === 'pending' || task?.status === 'running') {
+      await queueMessage(taskId, request);
+      return taskId;
+    }
+    return startTask(request);
+  }, [queueMessage, startTask]);
+
   const cancelTask = useCallback(async (taskId: string) => {
     await api.ai?.cancelTaskStream(taskId);
   }, [api]);
@@ -178,7 +191,7 @@ export function TaskStreamProvider({ api = desktopApi(), children }: { api?: Des
     await restore(taskId);
   }, [api, restore]);
 
-  const value = useMemo(() => ({ state, accept, restore, startTask, queueMessage, continueTask, cancelTask }), [state, accept, restore, startTask, queueMessage, continueTask, cancelTask]);
+  const value = useMemo(() => ({ state, accept, restore, startTask, queueMessage, adjustTask, continueTask, cancelTask }), [state, accept, restore, startTask, queueMessage, adjustTask, continueTask, cancelTask]);
   return <TaskStreamContext.Provider value={value}>{children}</TaskStreamContext.Provider>;
 }
 
@@ -189,6 +202,7 @@ export function useTaskStream(taskId: string | undefined): TaskStreamController 
   return useMemo(() => ({
     task: taskId ? context.state.tasks[taskId] : undefined,
     startTask: context.startTask,
+    adjustTask: context.adjustTask,
     queueMessage: async (input) => {
       if (!taskId) throw new Error('没有可排队的任务');
       await context.queueMessage(taskId, input);

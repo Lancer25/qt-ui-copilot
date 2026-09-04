@@ -38,6 +38,26 @@ export const V3TaskPreviewSchema = z.object({
 
 export type V3TaskPreview = z.infer<typeof V3TaskPreviewSchema>;
 
+const relativeUiPath = z.string().min(1).max(4096).refine((value) => {
+  const normalized = value.replaceAll('\\', '/');
+  return normalized.toLowerCase().endsWith('.ui')
+    && !normalized.startsWith('/')
+    && !/^[A-Za-z]:\//.test(normalized)
+    && !normalized.split('/').includes('..');
+}, 'uiFile must be a relative .ui path within the workspace');
+
+/** A user-driven visual adjustment that reuses an existing V3 task session. */
+export const V3TaskStreamAdjustRequestSchema = z.object({
+  taskId: z.string().min(1).max(128),
+  uiFile: relativeUiPath,
+  uiContent: z.string().max(2_000_000),
+  requirement: z.string().min(1).max(10_000),
+  contextMode: z.enum(['focused_ui', 'whole_project']),
+  previewDataUrl: z.string().max(14_000_000).refine((value) => /^data:image\/(png|jpeg|webp);base64,/.test(value), 'previewDataUrl must be a base64 image data URL').optional(),
+}).strict();
+
+export type V3TaskStreamAdjustRequest = z.infer<typeof V3TaskStreamAdjustRequestSchema>;
+
 /** A serializable, bounded resume point returned by the main process. */
 export const V3TaskSnapshotSchema = z.object({
   taskId: z.string().min(1).max(128),
@@ -64,6 +84,7 @@ export const V3TaskStreamModifyRequestSchema = z.object({
 export const V3StartTaskInputSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('create'), taskId: z.string().min(1).max(128).optional(), request: UiCreationRequestSchema }).strict(),
   z.object({ kind: z.literal('modify'), taskId: z.string().min(1).max(128).optional(), request: V3TaskStreamModifyRequestSchema }).strict(),
+  z.object({ kind: z.literal('adjust'), taskId: z.string().min(1).max(128), request: V3TaskStreamAdjustRequestSchema }).strict(),
 ]);
 
 // Keep the newly introduced project options optional at call sites so older
@@ -71,4 +92,5 @@ export const V3StartTaskInputSchema = z.discriminatedUnion('kind', [
 // supplies their defaults when data crosses the process boundary.
 export type V3StartTaskInput =
   | { kind: 'create'; taskId?: string; request: UiCreationRequest }
-  | { kind: 'modify'; taskId?: string; request: z.infer<typeof V3TaskStreamModifyRequestSchema> };
+  | { kind: 'modify'; taskId?: string; request: z.infer<typeof V3TaskStreamModifyRequestSchema> }
+  | { kind: 'adjust'; taskId: string; request: V3TaskStreamAdjustRequest };

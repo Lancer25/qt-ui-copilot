@@ -102,4 +102,20 @@ describe('TaskStreamStore', () => {
     expect(startTaskStream).toHaveBeenCalledWith({ ...request, taskId: 'task-1' });
     expect(result.current.task?.queuedMessages).toEqual([]);
   });
+
+  it('queues preview adjustments on a running task and starts the same task when idle', async () => {
+    let emit: ((value: V3TaskEvent) => void) | undefined;
+    const startTaskStream = vi.fn(async () => ({ taskId: 'task-1' }));
+    const api = { ai: { onTaskEvent: vi.fn((listener) => { emit = listener; return () => undefined; }), getTaskSnapshot: vi.fn(async () => undefined), startTaskStream } } as unknown as DesktopApi;
+    const wrapper = ({ children }: { children: React.ReactNode }) => <TaskStreamProvider api={api}>{children}</TaskStreamProvider>;
+    const { result } = renderHook(() => useTaskStream('task-1'), { wrapper });
+    const adjustment = { taskId: 'task-1', uiFile: 'ui/Main.ui', uiContent: '<ui/>', requirement: '把按钮改成蓝色', contextMode: 'focused_ui' as const, previewDataUrl: 'data:image/png;base64,AA==' };
+
+    act(() => emit?.(event(1)));
+    await act(async () => { await result.current.adjustTask(adjustment); });
+    expect(result.current.task?.queuedMessages).toEqual([{ kind: 'adjust', taskId: 'task-1', request: adjustment }]);
+
+    act(() => emit?.(event(2, { type: 'done', status: 'completed', title: '完成' })));
+    await waitFor(() => expect(startTaskStream).toHaveBeenCalledWith({ kind: 'adjust', taskId: 'task-1', request: adjustment }));
+  });
 });
