@@ -8,7 +8,7 @@
 
 1. 用户打开一个文件夹并进入创建模式。
 2. AI 根据需求生成应用草稿，至少包含 `CMakeLists.txt`、`main.cpp` 和 `ui/<名称>.ui`。
-3. 使用当前项目已配置的 Qt Kit、CMake 和构建目录进行配置与编译。
+3. 使用当前项目已配置的 Qt Kit，并按项目构建后端（QMake 或 MSBuild）进行配置与编译。
 4. 预览窗口显示实际构建结果；候选卡片同时展示工程文件、UI 文件和构建状态。
 5. 用户审批后保存草稿；未审批前所有生成文件写入候选暂存目录，不覆盖项目文件。
 
@@ -20,16 +20,20 @@
 
 ## 文件与冲突处理
 
-- 默认文件：`CMakeLists.txt`、`main.cpp`、`ui/NewWidget.ui`、`.qt-ui-copilot/project.json`。
+- 默认文件：`main.cpp`、`ui/NewWidget.ui`、`.qt-ui-copilot/project.json`；QMake 后端额外生成 `.pro`，MSBuild 后端生成或使用 `.vcxproj`/`.sln`。
 - 若同名 UI 文件已存在，按 `NewWidget_2.ui`、`NewWidget_3.ui` 递增命名。
-- 已存在的 `CMakeLists.txt`、`main.cpp` 或项目配置不直接覆盖；候选阶段展示 diff，由用户审批后选择合并或保存为新文件。
+- 已存在的构建文件（如 `CMakeLists.txt`、`.pro`、`.vcxproj`、`.sln`）、`main.cpp` 或项目配置不直接覆盖；候选阶段展示 diff，由用户审批后选择合并或保存为新文件。
 - 生成阶段只写入 `.qt-ui-copilot/candidates/<task-id>`，审批后才提交到项目根目录。
 
-## 构建与预览
+## 构建后端、构建与预览
 
-- 从工作区 profile 读取 Qt Kit、CMake、构建目录和目标程序配置。
-- 若 Qt Kit 已配置但工程文件缺失，创建模式先生成最小 CMake 工程，再配置和构建。
-- 构建状态按“生成工程 → 配置 CMake → 编译 → 启动预览”顺序流式更新。
+- 项目配置增加构建后端选项：`qmake`、`msbuild` 或 `auto`。
+- `qmake` 后端生成/使用 `.pro` 文件，通过 Qt Kit 的 qmake 生成构建文件，再调用 `make`、`nmake` 或 `jom` 编译。
+- `msbuild` 后端使用 Qt Kit 生成的 Visual Studio 工程或解决方案，并调用已配置的 MSBuild；适用于 MSVC Qt Kit。
+- `auto` 根据现有 `.pro`、`.sln`/`.vcxproj` 和 Qt Kit 能力推断，推断不确定时要求用户选择，不静默切换后端。
+- 从工作区 profile 读取 Qt Kit、构建后端、构建目录和目标程序配置。
+- 若工程文件缺失，创建模式根据选择的后端生成最小 Qt Widgets 工程：QMake 生成 `.pro`，MSBuild 生成可构建的 Visual Studio 工程文件。
+- 构建状态按“生成工程 → 配置构建后端 → 编译 → 启动预览”顺序流式更新。
 - 任一阶段失败时保留已生成候选文件，并显示阶段、命令、退出码和可复制日志；用户可单独重试构建或预览。
 
 ## 数据流与接口
@@ -41,13 +45,14 @@
 
 ## 错误处理
 
-- 当前文件夹不可写、文件冲突、Qt Kit 缺失、CMake 配置失败和编译失败分别显示明确原因。
+- 当前文件夹不可写、文件冲突、Qt Kit 缺失、构建后端不可用、QMake/MSBuild 配置失败和编译失败分别显示明确原因。
 - 已存在工程时不因缺少某个可选文件而整体失败；仅在无法生成入口或无法确定构建目标时阻断，并提供修复提示。
 - 取消任务立即停止后续生成/构建，不将部分候选误标记为完成。
 
 ## 验证标准
 
-- 空文件夹创建模式可生成最小 Qt Widgets 工程并完成预览。
+- 空文件夹创建模式在 QMake 和 MSBuild 后端下均可生成最小 Qt Widgets 工程并完成预览。
+- 构建后端为 `auto` 时能正确识别已有工程；无法识别时会要求用户选择。
 - 已有 Qt 工程创建模式不会覆盖用户文件，能生成补充文件或展示冲突 diff。
 - 修改模式行为和现有 UI 候选流程保持不变。
 - 覆盖创建请求 schema、候选服务、构建编排、审批提交、任务状态和预览失败恢复的单元及集成测试。
