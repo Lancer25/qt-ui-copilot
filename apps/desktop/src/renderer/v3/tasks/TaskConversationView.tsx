@@ -12,6 +12,7 @@ export interface TaskConversationViewProps {
   createTaskInput?: (input: TaskComposerInput) => V3StartTaskInput | Promise<V3StartTaskInput>;
   onOpenPreview?: (candidate: UiCreationCandidate) => void;
   shouldAutoOpenCandidate?: (candidate: UiCreationCandidate) => boolean;
+  creationMode?: boolean;
   onOpenDiff?: (candidate: UiCreationCandidate) => void;
   onCommitCandidate?: (candidateId: string) => Promise<void> | void;
   onRejectCandidate?: (candidateId: string) => Promise<void> | void;
@@ -20,7 +21,7 @@ export interface TaskConversationViewProps {
 
 const visibleStatus = (event: V3TaskEvent) => event.type !== 'message_delta' && event.type !== 'artifact' && event.type !== 'done';
 
-export function TaskConversationView({ taskId, createTaskInput, onOpenPreview, shouldAutoOpenCandidate, onOpenDiff, onCommitCandidate, onRejectCandidate, onOpenOutput }: TaskConversationViewProps) {
+export function TaskConversationView({ taskId, createTaskInput, onOpenPreview, shouldAutoOpenCandidate, creationMode, onOpenDiff, onCommitCandidate, onRejectCandidate, onOpenOutput }: TaskConversationViewProps) {
   const controller = useTaskStream(taskId);
   const [composerError, setComposerError] = useState<string>();
   const [lastRequest, setLastRequest] = useState<V3StartTaskInput>();
@@ -44,7 +45,7 @@ export function TaskConversationView({ taskId, createTaskInput, onOpenPreview, s
       {task?.status === 'failed' ? <div className="v3-task-recovery" role="group" aria-label="任务恢复操作"><span>任务未完成，可以重新执行或查看详细日志。</span><div><button type="button" onClick={() => lastRequest ? void controller.startTask({ ...lastRequest, taskId }) : setComposerError('当前任务输入未恢复，请在下方重新描述后发送。')}>{lastRequest ? '重新执行' : '重新输入'}</button><button type="button" onClick={() => onOpenOutput?.(taskId)}>查看日志</button></div></div> : null}
       {composerError ? <p className="v3-task-conversation__error" role="alert">{composerError}</p> : null}
     </div>
-    <TaskComposer running={running} queued={task?.queuedMessages.length} onSubmit={submit} onStop={() => controller.cancelTask()} />
+    <TaskComposer running={running} queued={task?.queuedMessages.length} creationMode={creationMode} onSubmit={submit} onStop={() => controller.cancelTask()} />
   </main>;
 }
 

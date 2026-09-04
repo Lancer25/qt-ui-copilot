@@ -1,7 +1,7 @@
 import { BrowserWindow, ipcMain, type BrowserWindow as BrowserWindowType } from 'electron';
 import { existsSync } from 'node:fs';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { dirname, join, parse, resolve } from 'node:path';
+import { dirname, join, parse, relative, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { WorkspaceService } from '../workspace/workspace-service';
@@ -25,6 +25,7 @@ import type { UiCreationProgress } from '../ai/ui-creation-task-service';
 import { UiIntentPlanner } from '../ai/ui-intent-planner';
 import { UiEnhancementPlanner } from '../ai/ui-enhancement-planner';
 import { V3TaskEventService } from '../ai/v3-task-event-service';
+import { QtBuildService } from '../build/qt-build-service';
 
 const OpenWorkspaceSchema = z.object({ rootDir: z.string().min(1).max(4096), ignorePatterns: z.array(z.string().min(1).max(512)).max(128).optional() }).strict();
 const WorkspaceIdSchema = z.object({ workspaceId: z.string().min(1).max(128) }).strict();
@@ -52,6 +53,7 @@ export function registerV3Ipc(window: BrowserWindowType, service = new Workspace
   const creationTasks = new Map<string, AbortController>();
   const taskStreams = new Map<string, AbortController>();
   const taskEvents = new V3TaskEventService();
+  const buildService = new QtBuildService();
   const qtCapabilitySource = new QtWidgetCapabilitySource();
   const treeService = new WorkspaceTreeService(service);
   const fileOperations = new WorkspaceFileOperations(service);
@@ -144,6 +146,16 @@ export function registerV3Ipc(window: BrowserWindowType, service = new Workspace
       const candidate = await creationService.createCandidate(input.request, (progress) => appendCreationProgress(taskId, progress), controller.signal, taskId);
       taskEvents.setCandidate(taskId, candidate);
       taskEvents.append(taskId, { lane: 'generation', type: 'artifact', status: 'completed', stage: 'base_candidate_ready', title: '基础 UI 已生成', artifact: { kind: 'candidate', id: candidate.id, filePath: candidate.targetPath, candidate } });
+      if (input.request.createProject && candidate.files?.length) {
+        const rootDir = resolve(service.getRoot(input.request.workspaceId));
+        const relativeUi = relative(rootDir, candidate.targetPath).replaceAll('\\', '/');
+        const stagedRoot = resolve(candidate.stagedPath ?? candidate.targetPath, ...relativeUi.split('/').map(() => '..'));
+        const config = loadProjectConfig(rootDir);
+        if (!config) throw new Error('当前项目缺少 Qt 构建配置，请先在设置中保存 Qt Kit。');
+        const build = await buildService.build({ projectRoot: stagedRoot, stagedRoot, backend: input.request.buildBackend ?? config.build.backend ?? 'auto', qt: config.qt, buildDirectory: '.build', signal: controller.signal, onProgress: (progress) => taskEvents.append(taskId, { lane: 'generation', type: 'status', status: 'running', stage: `build_${progress.stage}`, title: progress.detail ?? progress.stage, detail: progress.command }) });
+        taskEvents.updateCandidate(taskId, (current) => ({ ...current, executable: build.executable, buildDirectory: build.buildDirectory, buildBackend: build.backend }));
+        await creationService.finishCandidatePreview(candidate.id, (progress) => appendCreationProgress(taskId, progress));
+      }
       // UiCreationService continues the PreviewHost lane in the background;
       // its real progress callback completes this task when preview resolves.
       previewContinuesInBackground = true;

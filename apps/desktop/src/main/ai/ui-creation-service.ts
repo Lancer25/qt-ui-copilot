@@ -102,12 +102,18 @@ export class UiCreationService {
       };
       this.candidates.set(id, candidate);
       if (taskId) this.taskCandidates.set(taskId, id);
-      void this.finishPreview(id, rootDir, candidatePath, onProgress);
+      if (!request.createProject) void this.finishPreview(id, rootDir, candidatePath, onProgress);
       return this.publicCandidate(candidate);
     } catch (error) {
       await rm(candidateDir, { recursive: true, force: true });
       throw error;
     }
+  }
+
+  async finishCandidatePreview(candidateId: string, onProgress?: (progress: UiCreationProgress) => void): Promise<void> {
+    const candidate = this.candidates.get(candidateId);
+    if (!candidate) throw new Error('unknown UI creation candidate');
+    await this.finishPreview(candidateId, resolve(this.deps.workspace.getRoot(candidate.workspaceId)), candidate.candidatePath, onProgress);
   }
 
   private async planLegacy(request: UiCreationRequest, attachments: ValidatedAttachment[]): Promise<UiCreationBlueprint> {

@@ -89,8 +89,16 @@ export class QtBuildService {
       const make = tools.make || await this.findMake(tools.binDirectory);
       await run('compiling', make, [], 'QMake generated build files');
     } else {
-      const project = (await findFiles(input.stagedRoot, ['.sln', '.vcxproj']))[0] ?? (await findFiles(input.projectRoot, ['.sln', '.vcxproj']))[0];
-      if (!project) throw new Error('MSBuild project file (.sln or .vcxproj) was not found');
+      let project = (await findFiles(input.stagedRoot, ['.sln', '.vcxproj']))[0] ?? (await findFiles(input.projectRoot, ['.sln', '.vcxproj']))[0];
+      if (!project) {
+        const pro = (await findFiles(input.stagedRoot, ['.pro']))[0] ?? (await findFiles(input.projectRoot, ['.pro']))[0];
+        if (!pro) throw new Error('MSBuild project file (.sln or .vcxproj) was not found');
+        const qmake = tools.qmake || path.join(tools.binDirectory ?? '', process.platform === 'win32' ? 'qmake.exe' : 'qmake');
+        if (!qmake || (!existsSync(qmake) && !tools.qmake)) throw new Error(`QMake executable was not found for MSBuild project conversion: ${qmake}`);
+        await run('configuring', qmake, ['-tp', 'vc', pro]);
+        project = (await findFiles(input.stagedRoot, ['.sln', '.vcxproj']))[0] ?? (await findFiles(input.projectRoot, ['.sln', '.vcxproj']))[0];
+        if (!project) throw new Error('QMake did not generate a Visual Studio project for MSBuild');
+      }
       const msbuild = tools.msbuild || 'msbuild';
       await run('configuring', msbuild, [project, '/t:Restore', '/p:Configuration=Debug']);
       await run('compiling', msbuild, [project, '/m', '/p:Configuration=Debug', `/p:OutDir=${path.resolve(buildDirectory)}${path.sep}`]);
@@ -110,4 +118,3 @@ export class QtBuildService {
     throw new Error('No QMake build tool found (jom, nmake, or make)');
   }
 }
-
