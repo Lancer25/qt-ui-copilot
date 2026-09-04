@@ -61,7 +61,7 @@ export const ProjectConfigSchema = z.object({
     fonts: z.array(z.string()).default([]),
     pluginPaths: z.array(z.string()).default([]),
   }).strict(),
-  build: z.object({ command: CommandSchema, configure: CommandSchema.optional() }).strict(),
+  build: z.object({ command: CommandSchema, configure: CommandSchema.optional(), backend: z.enum(['qmake', 'msbuild', 'auto']).default('auto') }).strict(),
   run: z.object({
     executable: z.string().min(1),
     args: z.array(z.string()).default([]),
@@ -77,7 +77,7 @@ export const ProjectProfileSchema = z.object({
   id: z.string().min(1),
   rootDir: z.string().min(1),
   qt: QtToolchainSchema.extend({ binDirectory: z.string().min(1).optional() }).strict(),
-  build: z.object({ command: CommandSchema, configure: CommandSchema.optional() }).strict(),
+  build: z.object({ command: CommandSchema, configure: CommandSchema.optional(), backend: z.enum(['qmake', 'msbuild', 'auto']).default('auto') }).strict(),
   run: z.object({
     executable: z.string().min(1),
     args: z.array(z.string()).default([]),
@@ -87,7 +87,7 @@ export const ProjectProfileSchema = z.object({
 
 export type Command = z.infer<typeof CommandSchema>;
 export type QtToolchain = z.infer<typeof QtToolchainSchema>;
-export type ProjectProfile = z.infer<typeof ProjectProfileSchema>;
-export type ProjectConfig = z.infer<typeof ProjectConfigSchema>;
+export type ProjectProfile = Omit<z.infer<typeof ProjectProfileSchema>, 'build'> & { build: Omit<z.infer<typeof ProjectProfileSchema>['build'], 'backend'> & { backend?: 'qmake' | 'msbuild' | 'auto' } };
+export type ProjectConfig = Omit<z.infer<typeof ProjectConfigSchema>, 'build'> & { build: Omit<z.infer<typeof ProjectConfigSchema>['build'], 'backend'> & { backend?: 'qmake' | 'msbuild' | 'auto' } };
 export type SemanticRoute = z.infer<typeof SemanticRouteSchema>;
 export type SemanticRouteStep = z.infer<typeof SemanticRouteStepSchema>;

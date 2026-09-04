@@ -3,6 +3,7 @@ import { access, mkdir, open, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { UiCreationRequestSchema, type UiCreationBlueprint, type UiCreationCandidate, type UiCreationRequest } from '@qt-ui-copilot/contracts';
 import { generateUiFromBlueprint } from '@qt-ui-copilot/ui-document';
+import { createQtProjectScaffold } from './qt-project-scaffolder';
 import { loadProjectConfig, profileFromConfig, validateUiWithUic } from '@qt-ui-copilot/project-core';
 import type { ProjectProfile } from '@qt-ui-copilot/contracts';
 import type { WorkspaceService } from '../workspace/workspace-service';
@@ -23,7 +24,7 @@ export interface UiCreationServiceDeps {
   validateUic?: (rootDir: string, uiFile: string) => Promise<{ valid: boolean; stdout?: string; stderr?: string }>;
 }
 
-type StoredCandidate = UiCreationCandidate & { candidatePath: string; source: string };
+type StoredCandidate = UiCreationCandidate & { candidatePath: string; source: string; projectRoot?: string };
 
 /** Stages generated UI files and commits only after all validation gates pass. */
 export class UiCreationService {
@@ -45,7 +46,7 @@ export class UiCreationService {
     }
     const rootDir = resolve(this.deps.workspace.getRoot(request.workspaceId));
     const targetPath = this.resolveTarget(rootDir, request.directory, request.fileName);
-    if (await exists(targetPath)) throw new Error(`target already exists: ${targetPath}`);
+    if (!request.createProject && await exists(targetPath)) throw new Error(`target already exists: ${targetPath}`);
     const attachments = this.deps.attachments.validate(request.attachments);
     let blueprint: UiCreationBlueprint;
     let source: string;
@@ -77,10 +78,17 @@ export class UiCreationService {
     }
     const id = `ui-creation-${randomUUID()}`;
     const candidateDir = join(rootDir, '.qt-ui-copilot', 'candidates', id);
-    const candidatePath = join(candidateDir, request.fileName);
+    const uiRelativePath = relative(rootDir, targetPath).replaceAll('\\', '/');
+    const candidatePath = join(candidateDir, uiRelativePath);
     await mkdir(candidateDir, { recursive: true });
     try {
-      await writeFile(candidatePath, source, { encoding: 'utf8', flag: 'wx' });
+      const scaffold = request.createProject ? createQtProjectScaffold({ appName: rootDir.split(/[\\/]/).pop() || 'QtApp', uiRelativePath, uiSource: source, rootType: request.rootType, backend: request.buildBackend === 'msbuild' ? 'msbuild' : 'qmake' }) : { [uiRelativePath]: source };
+      const projectFiles = request.createProject ? await Promise.all(Object.entries(scaffold).map(async ([relativePath, content]) => ({ relativePath, content, existing: await exists(join(rootDir, relativePath)), conflict: await exists(join(rootDir, relativePath)) }))) : undefined;
+      for (const [relativePath, content] of Object.entries(scaffold)) {
+        const stagedFile = join(candidateDir, relativePath);
+        await mkdir(dirname(stagedFile), { recursive: true });
+        await writeFile(stagedFile, content, { encoding: 'utf8', flag: 'wx' });
+      }
       if (signal?.aborted) throw new Error('UI creation cancelled');
       const validation = await this.validateBase(rootDir, candidatePath);
       if (!validation.uic) throw new Error(`无法验证新界面：${validation.findings.find((finding) => finding.code === 'uic_failed')?.message ?? '请先在项目设置中选择 Qt Kit（需要 uic）'}`);
@@ -89,7 +97,8 @@ export class UiCreationService {
         sourceHash: createHash('sha256').update(source).digest('hex'),
         
         validation: { xml: true, semantic: true, uic: validation.uic, preview: validation.preview, findings: validation.findings },
-        createdAt: Date.now(), candidatePath,
+        createdAt: Date.now(), candidatePath, ...(request.createProject ? { projectRoot: rootDir } : {}),
+        ...(projectFiles ? { files: projectFiles, buildBackend: request.buildBackend ?? 'auto', buildDirectory: '.qt-ui-copilot/build', executable: `.qt-ui-copilot/build/${rootDir.split(/[\\/]/).pop() || 'QtApp'}.exe` } : {}),
       };
       this.candidates.set(id, candidate);
       if (taskId) this.taskCandidates.set(taskId, id);
@@ -116,12 +125,21 @@ export class UiCreationService {
     const candidate = this.candidates.get(candidateId);
     if (!candidate) throw new Error('unknown UI creation candidate');
     if (await exists(candidate.targetPath)) throw new Error(`target already exists: ${candidate.targetPath}`);
+    if (candidate.files?.some((file) => file.conflict)) throw new Error('project file conflicts require explicit approval');
     await mkdir(dirname(candidate.targetPath), { recursive: true });
     let handle: Awaited<ReturnType<typeof open>> | undefined;
     try {
-      handle = await open(candidate.targetPath, 'wx');
-      await handle.writeFile(candidate.source, 'utf8');
-      await handle.close(); handle = undefined;
+      if (candidate.files?.length) {
+        for (const file of candidate.files) {
+          const target = join(candidate.projectRoot ?? dirname(candidate.targetPath), file.relativePath);
+          await mkdir(dirname(target), { recursive: true });
+          await writeFile(target, file.content, { encoding: 'utf8', flag: 'wx' });
+        }
+      } else {
+        handle = await open(candidate.targetPath, 'wx');
+        await handle!.writeFile(candidate.source, 'utf8');
+      }
+      await handle?.close(); handle = undefined;
       await rm(dirname(candidate.candidatePath), { recursive: true, force: true });
       this.candidates.delete(candidateId);
       for (const [taskId, id] of this.taskCandidates) if (id === candidateId) this.taskCandidates.delete(taskId);
@@ -209,7 +227,7 @@ export class UiCreationService {
     }
   }
 
-  private publicCandidate(candidate: StoredCandidate): UiCreationCandidate { const { candidatePath, ...publicValue } = candidate; return { ...publicValue, stagedPath: candidatePath }; }
+  private publicCandidate(candidate: StoredCandidate): UiCreationCandidate { const { candidatePath, projectRoot: _projectRoot, ...publicValue } = candidate; return { ...publicValue, stagedPath: candidatePath }; }
 }
 
 function isTransientModelError(error: unknown): boolean {
@@ -240,7 +258,7 @@ async function loadQtOnlyProfile(rootDir: string): Promise<ProjectProfile | unde
       id: typeof raw.id === 'string' ? raw.id : `workspace-${createHash('sha256').update(rootDir).digest('hex').slice(0, 12)}`,
       rootDir,
       qt: { version: qt.version, uic: resolved(qt.uic), rcc: resolved(qt.rcc), ...(typeof qt.binDirectory === 'string' ? { binDirectory: resolved(qt.binDirectory) } : {}) },
-      build: { command: { executable: 'cmake', args: [] } },
+      build: { command: { executable: 'cmake', args: [] }, backend: 'auto' },
       run: { executable: process.platform === 'win32' ? 'cmd.exe' : 'sh', args: [], environment: {} },
     };
   } catch { return undefined; }

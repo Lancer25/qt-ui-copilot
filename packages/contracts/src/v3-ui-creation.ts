@@ -83,6 +83,8 @@ export const UiCreationRequestSchema = z.object({
   qtKitId: z.string().min(1),
   useProjectResources: z.boolean().default(true),
   useComponentLibrary: z.boolean().default(true),
+  createProject: z.boolean().default(false),
+  buildBackend: z.enum(['qmake', 'msbuild', 'auto']).default('auto'),
   /** Bounded, non-sensitive capability summaries supplied by the application. */
   capabilityCandidates: z.array(UiCapabilityCandidateSchema).max(20).default([]),
 }).strict().superRefine((value, context) => {
@@ -93,7 +95,21 @@ export const UiCreationRequestSchema = z.object({
   if (!value.requirement.trim() && images.length === 0) context.addIssue({ code: 'custom', path: ['requirement'], message: 'requirement or an image attachment is required' });
 });
 
-export type UiCreationRequest = z.infer<typeof UiCreationRequestSchema>;
+export type UiCreationRequest = Omit<z.infer<typeof UiCreationRequestSchema>, 'createProject' | 'buildBackend'> & { createProject?: boolean; buildBackend?: 'qmake' | 'msbuild' | 'auto' };
+
+const relativeProjectPath = z.string().min(1).max(1024).refine((value) => {
+  const normalized = value.replaceAll('\\', '/');
+  return !normalized.startsWith('/') && !/^[A-Za-z]:\//.test(normalized) && !normalized.split('/').includes('..');
+}, 'project paths must be relative and stay within the workspace');
+
+export const UiProjectFileSchema = z.object({
+  relativePath: relativeProjectPath,
+  content: z.string().max(16 * 1024 * 1024),
+  existing: z.boolean().default(false),
+  conflict: z.boolean().default(false),
+}).strict();
+
+export type UiProjectFile = z.infer<typeof UiProjectFileSchema>;
 
 export const UiCreationCandidateSchema = z.object({
   id: z.string().min(1),
@@ -104,6 +120,10 @@ export const UiCreationCandidateSchema = z.object({
   source: z.string().min(1),
   sourceHash: z.string().regex(/^[a-f0-9]{64}$/),
   previewDataUrl: z.string().optional(),
+  files: z.array(UiProjectFileSchema).max(128).optional(),
+  buildBackend: z.enum(['qmake', 'msbuild', 'auto']).optional(),
+  buildDirectory: relativeProjectPath.optional(),
+  executable: relativeProjectPath.optional(),
   validation: z.object({
     xml: z.boolean(), semantic: z.boolean(), uic: z.boolean(), preview: z.boolean(),
     findings: z.array(z.object({ severity: z.enum(['info', 'warning', 'error']), code: z.string(), message: z.string() }).strict()).default([]),

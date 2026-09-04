@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { UiCreationCandidateSchema, UiCreationRequestSchema } from './v3-ui-creation.js';
+import { UiCreationCandidateSchema, UiCreationRequestSchema, type UiCreationRequest } from './v3-ui-creation.js';
 
 export const V3TaskArtifactSchema = z.object({
   kind: z.enum(['candidate', 'preview', 'source', 'diff', 'output']),
@@ -66,4 +66,9 @@ export const V3StartTaskInputSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('modify'), taskId: z.string().min(1).max(128).optional(), request: V3TaskStreamModifyRequestSchema }).strict(),
 ]);
 
-export type V3StartTaskInput = z.infer<typeof V3StartTaskInputSchema>;
+// Keep the newly introduced project options optional at call sites so older
+// integrations can continue constructing UI-only requests. The parser still
+// supplies their defaults when data crosses the process boundary.
+export type V3StartTaskInput =
+  | { kind: 'create'; taskId?: string; request: UiCreationRequest }
+  | { kind: 'modify'; taskId?: string; request: z.infer<typeof V3TaskStreamModifyRequestSchema> };
