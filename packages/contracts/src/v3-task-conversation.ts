@@ -49,6 +49,7 @@ const relativeUiPath = z.string().min(1).max(4096).refine((value) => {
 /** A user-driven visual adjustment that reuses an existing V3 task session. */
 export const V3TaskStreamAdjustRequestSchema = z.object({
   taskId: z.string().min(1).max(128),
+  candidateId: z.string().min(1).max(128).optional(),
   uiFile: relativeUiPath,
   uiContent: z.string().max(2_000_000),
   requirement: z.string().min(1).max(10_000),

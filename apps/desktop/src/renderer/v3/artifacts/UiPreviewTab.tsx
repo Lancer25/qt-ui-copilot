@@ -12,14 +12,18 @@ export interface UiPreviewTabProps {
   onOpenSource?: () => void;
   onCommit?: (candidateId: string) => Promise<void> | void;
   onReject?: (candidateId: string) => Promise<void> | void;
+  taskId?: string;
+  onAdjust?: (requirement: string, previewDataUrl?: string) => Promise<void> | void;
 }
 
-export function UiPreviewTab({ api, filePath, candidate, buildPreviewRequest, onOpenDiff, onOpenSource, onCommit, onReject }: UiPreviewTabProps) {
+export function UiPreviewTab({ api, filePath, candidate, buildPreviewRequest, onOpenDiff, onOpenSource, onCommit, onReject, onAdjust }: UiPreviewTabProps) {
   const [mode, setMode] = useState<'quick' | 'enhanced'>('quick');
   const [scale, setScale] = useState<'fit' | '100'>('fit');
   const [result, setResult] = useState<V3PreviewResult | undefined>(candidate?.previewDataUrl ? { imageDataUrl: candidate.previewDataUrl, mode: 'enhanced', imagePath: '', findings: [], degradedFeatures: [], confidence: 1 } : undefined);
   const [error, setError] = useState<string>();
   const [rendering, setRendering] = useState(false);
+  const [adjustment, setAdjustment] = useState('');
+  const [adjusting, setAdjusting] = useState(false);
   const canSave = Boolean(candidate?.validation.uic);
   const previewFailure = Boolean(error || (candidate && !candidate.validation.preview && !candidate.previewDataUrl));
 
@@ -34,6 +38,7 @@ export function UiPreviewTab({ api, filePath, candidate, buildPreviewRequest, on
   }, [api.preview, buildPreviewRequest, mode]);
 
   const title = useMemo(() => filePath.split(/[\\/]/).at(-1) ?? filePath, [filePath]);
+  const submitAdjustment = async () => { const requirement = adjustment.trim(); if (!requirement || !onAdjust) return; setAdjusting(true); try { await onAdjust(requirement, result?.imageDataUrl); setAdjustment(''); } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); } finally { setAdjusting(false); } };
   return <section className="v3-ui-preview" aria-label="Qt 预览">
     <header className="v3-ui-preview__toolbar">
       <div className="v3-ui-preview__mode" aria-label="预览模式"><button className={mode === 'quick' ? 'is-active' : ''} onClick={() => void renderPreview('quick')} disabled={rendering}>快速预览</button><button className={mode === 'enhanced' ? 'is-active' : ''} onClick={() => void renderPreview('enhanced')} disabled={rendering}>增强预览</button></div>
@@ -42,6 +47,7 @@ export function UiPreviewTab({ api, filePath, candidate, buildPreviewRequest, on
     <div className={`v3-ui-preview__canvas is-${scale}`} aria-label="Qt 预览画布">
       {result?.imageDataUrl ? <img src={result.imageDataUrl} alt={`${title} ${result.mode === 'enhanced' ? '增强' : '快速'}预览`} /> : <div className="v3-ui-preview__placeholder"><b>{rendering ? '正在渲染界面…' : '尚未生成预览'}</b><span>{filePath}</span>{!rendering ? <button onClick={() => void renderPreview()}>生成预览</button> : null}</div>}
     </div>
+    {onAdjust ? <form className="v3-ui-preview__adjust" onSubmit={(event) => { event.preventDefault(); void submitAdjustment(); }}><textarea aria-label="描述预览调整" value={adjustment} onChange={(event) => setAdjustment(event.target.value)} placeholder="告诉 AI 如何调整当前界面…" rows={2} disabled={adjusting} /><button type="submit" disabled={adjusting || !adjustment.trim()}>{adjusting ? '调整中…' : '发送给 AI'}</button></form> : null}
     {error ? <section className="v3-ui-preview__diagnostic" role="alert"><b>预览不可用</b><p>{error}</p><div><button onClick={() => void renderPreview()} disabled={rendering}>重试预览</button>{onOpenSource ? <button onClick={onOpenSource}>查看 XML</button> : null}</div></section> : null}
     {!error && mode === 'enhanced' && result && <p className="v3-ui-preview__hint">增强预览会加载项目 QSS、QRC、字体和插件；当前项目未配置的资源不会产生额外视觉变化。</p>}
     {candidate ? <footer className="v3-ui-preview__approval" aria-label="草稿审批">

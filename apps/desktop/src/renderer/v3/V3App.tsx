@@ -17,6 +17,7 @@ import './styles/v3.css';
 
 const emptyTaskId = (workspace?: WorkspaceSummary) => workspace ? `workspace:${workspace.id}` : 'default';
 const leafName = (path: string) => path.split(/[\\/]/).filter(Boolean).at(-1) ?? path;
+const workspaceRelativePath = (root: string, filePath: string): string => { const normalizedRoot = root.replaceAll('\\', '/').replace(/\/$/, ''); const normalized = filePath.replaceAll('\\', '/'); return normalized.startsWith(`${normalizedRoot}/`) ? normalized.slice(normalizedRoot.length + 1) : normalized; };
 export const nextUiFileName = (workspace: WorkspaceSummary): string => {
   const existing = new Set(workspace.files.filter((file) => file.kind === 'ui').map((file) => leafName(file.relativePath).toLowerCase()));
   if (!existing.has('newwidget.ui')) return 'NewWidget.ui';
@@ -47,7 +48,8 @@ function previewRequest(workspace: WorkspaceSummary | undefined, filePath: strin
 }
 
 function ArtifactContent({ api, tab, workspace, selectedFile, candidate, onOpenPreview, shouldAutoOpenCandidate, onOpenDiff, onOpenSource, onOpenOutput, onCommit, onReject }: { api: DesktopApi; tab: ArtifactTab; workspace?: WorkspaceSummary; selectedFile?: WorkspaceFile; candidate?: UiCreationCandidate; onOpenPreview(candidate: UiCreationCandidate): void; shouldAutoOpenCandidate(candidate: UiCreationCandidate): boolean; onOpenDiff(candidate: UiCreationCandidate): void; onOpenSource(filePath: string, candidate?: UiCreationCandidate): void; onOpenOutput(taskId: string): void; onCommit(candidateId: string): Promise<void>; onReject(candidateId: string): Promise<void> }) {
-  const stream = useTaskStream(tab.kind === 'task' || tab.kind === 'output' ? tab.taskId : undefined);
+  const stream = useTaskStream(tab.kind === 'task' || tab.kind === 'output' ? tab.taskId : tab.kind === 'preview' && workspace ? emptyTaskId(workspace) : undefined);
+  const activeCandidate = stream.task?.candidate ?? candidate;
   if (tab.kind === 'task') return <TaskConversationView taskId={tab.taskId} creationMode={!selectedFile} shouldAutoOpenCandidate={shouldAutoOpenCandidate} createTaskInput={async (input) => {
     if (!workspace) throw new Error('请先打开一个 Qt 项目文件夹。');
     if (!selectedFile) return { kind: 'create', taskId: tab.taskId, request: { workspaceId: workspace.id, contextMode: input.contextMode, requirement: input.text, attachments: input.attachments, fileName: nextUiFileName(workspace), rootType: 'QWidget', directory: 'ui', qtKitId: String((workspace.profile?.qt as { id?: unknown; version?: unknown } | undefined)?.id ?? (workspace.profile?.qt as { version?: unknown } | undefined)?.version ?? 'project-kit'), useProjectResources: true, useComponentLibrary: true, createProject: input.createProject, buildBackend: input.buildBackend, capabilityCandidates: [] } };
@@ -55,7 +57,7 @@ function ArtifactContent({ api, tab, workspace, selectedFile, candidate, onOpenP
     return { kind: 'modify', taskId: tab.taskId, request: { workspaceId: workspace.id, contextMode: input.contextMode, requirement: input.text, attachments: input.attachments, uiFile: selectedFile.absolutePath, uiContent } };
   }} onOpenPreview={onOpenPreview} onOpenDiff={onOpenDiff} onOpenOutput={onOpenOutput} onCommitCandidate={onCommit} onRejectCandidate={onReject} />;
   if (tab.kind === 'settings') return <main aria-label="设置"><SettingsPage api={api} workspace={workspace} central /></main>;
-  if (tab.kind === 'preview') return <UiPreviewTab api={api} filePath={tab.filePath} candidate={candidate} buildPreviewRequest={(mode) => {
+  if (tab.kind === 'preview') return <UiPreviewTab api={api} filePath={tab.filePath} candidate={activeCandidate} taskId={workspace ? emptyTaskId(workspace) : undefined} onAdjust={activeCandidate && workspace ? async (requirement, previewDataUrl) => { await stream.adjustTask({ taskId: emptyTaskId(workspace), candidateId: activeCandidate.id, uiFile: workspaceRelativePath(workspace.rootDir, activeCandidate.targetPath), uiContent: activeCandidate.source, requirement, contextMode: 'focused_ui', ...(previewDataUrl ? { previewDataUrl } : {}) }); } : undefined} buildPreviewRequest={(mode) => {
     const request = previewRequest(workspace, candidate?.stagedPath ?? tab.filePath, mode);
     if (!request) throw new Error('当前项目尚未配置可用的 Qt Kit。');
     return request;

@@ -25,6 +25,7 @@ import type { UiCreationProgress } from '../ai/ui-creation-task-service';
 import { UiIntentPlanner } from '../ai/ui-intent-planner';
 import { UiEnhancementPlanner } from '../ai/ui-enhancement-planner';
 import { V3TaskEventService } from '../ai/v3-task-event-service';
+import { UiAdjustmentService } from '../ai/ui-adjustment-service';
 import { QtBuildService } from '../build/qt-build-service';
 
 const OpenWorkspaceSchema = z.object({ rootDir: z.string().min(1).max(4096), ignorePatterns: z.array(z.string().min(1).max(512)).max(128).optional() }).strict();
@@ -54,6 +55,7 @@ export function registerV3Ipc(window: BrowserWindowType, service = new Workspace
   const taskStreams = new Map<string, AbortController>();
   const taskEvents = new V3TaskEventService();
   const buildService = new QtBuildService();
+  const adjustmentService = modelProvider ? new UiAdjustmentService(new UiEnhancementPlanner(modelProvider)) : undefined;
   const qtCapabilitySource = new QtWidgetCapabilitySource();
   const treeService = new WorkspaceTreeService(service);
   const fileOperations = new WorkspaceFileOperations(service);
@@ -120,6 +122,8 @@ export function registerV3Ipc(window: BrowserWindowType, service = new Workspace
       const previewStatus = previewStatuses[progress.previewStatus];
       taskEvents.setPreview(taskId, { status: previewStatus, ...(progress.previewDataUrl ? { imageDataUrl: progress.previewDataUrl, mode: 'enhanced' } : {}), ...(progress.warnings[0] ? { error: progress.warnings[0].message } : {}) });
       taskEvents.updateCandidate(taskId, (candidate) => ({ ...candidate, ...(progress.previewDataUrl ? { previewDataUrl: progress.previewDataUrl } : {}), validation: { ...candidate.validation, preview: previewStatus === 'completed' } }));
+      const candidate = taskEvents.snapshot(taskId)?.candidate;
+      if (candidate) taskEvents.append(taskId, { lane: 'preview', type: 'artifact', status: 'completed', stage: progress.stage, title: progress.message, artifact: { kind: 'candidate', id: candidate.id, filePath: candidate.targetPath, candidate } });
     }
     if (progress.stage === 'preview_ready') {
       taskEvents.append(taskId, { lane: 'approval', type: 'done', status: 'completed', stage: 'waiting_approval', title: '等待用户审批保存' });
@@ -130,6 +134,22 @@ export function registerV3Ipc(window: BrowserWindowType, service = new Workspace
     let previewContinuesInBackground = false;
     try {
       taskEvents.append(taskId, { lane: 'conversation', type: 'status', status: 'running', stage: 'started', title: input.kind === 'create' ? '正在创建新界面' : '正在分析当前界面' });
+      if (input.kind === 'adjust') {
+        if (!modelProvider || !adjustmentService || !creationService) throw new Error('模型服务尚未配置');
+        const snapshot = taskEvents.snapshot(taskId);
+        const current = snapshot?.candidate;
+        if (!current || current.id !== input.request.candidateId) throw new Error('当前任务没有可调整的候选界面');
+        const uiFile = current.stagedPath ?? current.targetPath;
+        taskEvents.append(taskId, { lane: 'conversation', type: 'status', status: 'running', stage: 'analyzing', title: 'AI 正在分析预览调整' });
+        const result = await adjustmentService.adjust({ uiFile, uiContent: current.source, requirement: input.request.requirement, previewDataUrl: input.request.previewDataUrl, contextMode: input.request.contextMode, signal: controller.signal });
+        taskEvents.append(taskId, { lane: 'generation', type: 'status', status: 'running', stage: 'applying', title: '正在应用界面调整', detail: result.summary });
+        const updated = creationService.replaceCandidateSource(current.id, result.source);
+        taskEvents.updateCandidate(taskId, () => updated);
+        taskEvents.append(taskId, { lane: 'generation', type: 'artifact', status: 'completed', stage: 'adjustment_applied', title: '候选界面已更新', artifact: { kind: 'candidate', id: updated.id, filePath: updated.targetPath, candidate: updated } });
+        taskEvents.append(taskId, { lane: 'generation', type: 'status', status: 'completed', stage: 'validated', title: '界面调整已通过校验', detail: `${result.beforeHash.slice(0, 8)} → ${result.afterHash.slice(0, 8)}` });
+        await creationService.finishCandidatePreview(current.id, (progress) => appendCreationProgress(taskId, progress));
+        return;
+      }
       if (input.kind === 'modify') {
         if (!modelProvider) throw new Error('模型服务尚未配置');
         const context = { requirement: input.request.requirement, targetSemanticTree: await buildPlanContext(input.request), runtimeFacts: { contextMode: input.request.contextMode } };

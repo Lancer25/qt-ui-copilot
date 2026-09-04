@@ -116,6 +116,14 @@ export class UiCreationService {
     await this.finishPreview(candidateId, resolve(this.deps.workspace.getRoot(candidate.workspaceId)), candidate.candidatePath, onProgress);
   }
 
+  replaceCandidateSource(candidateId: string, source: string): UiCreationCandidate {
+    const candidate = this.candidates.get(candidateId);
+    if (!candidate) throw new Error('unknown UI creation candidate');
+    const updated: StoredCandidate = { ...candidate, source, sourceHash: createHash('sha256').update(source).digest('hex'), validation: { ...candidate.validation, preview: false, findings: [...candidate.validation.findings.filter((finding) => finding.code !== 'preview_pending'), { severity: 'info', code: 'preview_pending', message: '调整已应用，预览正在重新生成。' }] }, ...(candidate.files ? { files: candidate.files.map((file) => file.relativePath.toLowerCase().endsWith(candidate.blueprint.fileName.toLowerCase()) ? { ...file, content: source } : file) } : {}) };
+    this.candidates.set(candidateId, updated);
+    return this.publicCandidate(updated);
+  }
+
   private async planLegacy(request: UiCreationRequest, attachments: ValidatedAttachment[]): Promise<UiCreationBlueprint> {
     const blueprint = await this.deps.planner.plan({
       requirement: request.requirement, contextMode: request.contextMode, attachments, targetQtVersion: request.qtKitId,
