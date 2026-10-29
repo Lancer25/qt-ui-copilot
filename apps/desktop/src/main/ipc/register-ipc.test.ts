@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { ModelProvider } from '@qt-ui-copilot/agent-workflow';
-import { createLocalBackend, OpenAiCompatibleProvider, type ModelTraceEvent, type SecureStorage } from './register-ipc';
+import { createLocalBackend, defaultQtKitRoots, OpenAiCompatibleProvider, type ModelTraceEvent, type SecureStorage } from './register-ipc';
 import type { ModelRequest } from '@qt-ui-copilot/agent-workflow';
 import { openDatabase, TaskRepository } from '@qt-ui-copilot/task-store';
 
@@ -22,6 +22,12 @@ const unavailableStorage: SecureStorage = {
   encryptString: () => { throw new Error('unavailable'); },
   decryptString: () => { throw new Error('unavailable'); },
 };
+
+it('builds portable Windows Qt scan roots from environment and common drives', () => {
+  const roots = defaultQtKitRoots({ QT_ROOT: 'F:/SDK/Qt', QTDIR: 'G:/Qt/6.8.3/msvc2022_64' }, 'win32');
+  expect(roots).toEqual(expect.arrayContaining(['F:/SDK/Qt', 'G:/Qt', 'C:/Qt', 'D:/Qt', 'E:/Qt']));
+  expect(new Set(roots.map((root) => root.toLowerCase())).size).toBe(roots.length);
+});
 
 function writeExecutionConfig(root: string, route?: unknown): void {
   mkdirSync(join(root, '.qt-ui-copilot'), { recursive: true });
@@ -66,6 +72,17 @@ describe('local workflow backend', () => {
     expect(body.response_format).toEqual({ type: 'json_object' });
     expect(body.messages[0]?.content).toContain('valid json');
     expect(body.messages[0]?.content).toContain('{"summary":"string"}');
+    expect(body.messages[1]?.content.toLowerCase()).toContain('json');
+  });
+
+  it('keeps JSON mode compatible with gateways that inspect only the user message', async () => {
+    const provider = new OpenAiCompatibleProvider({ baseUrl: 'https://gateway.example/v1', model: 'gpt-compatible' }, async (_input, init) => {
+      const body = JSON.parse(String(init?.body)) as { messages: Array<{ role: string; content: string }> };
+      const user = body.messages.find((message) => message.role === 'user');
+      if (!user?.content.toLowerCase().includes('json')) return new Response(JSON.stringify({ error: { message: 'messages must contain json' } }), { status: 400 });
+      return new Response(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: '{"ok":true}' } }] }), { status: 200 });
+    });
+    await expect(provider.generate({ kind: 'format_repair', systemPrompt: '分类请求。', input: { requirement: '编译运行' }, responseSchema: '{"ok":"boolean"}' })).resolves.toBe('{"ok":true}');
   });
 
   it('preserves the standard bounded request body for other OpenAI-compatible hosts', async () => {
@@ -94,11 +111,28 @@ describe('local workflow backend', () => {
     await provider.generate({ kind: 'visual_review', systemPrompt: 'Review images.', input: { beforeImage: before, afterImage: after, expectedResults: ['button visible'] }, responseSchema: '{}' });
     const body = JSON.parse(String(requests[0]?.init?.body)) as { enable_thinking?: boolean; messages: Array<{ role: string; content: unknown }> };
     expect(body.enable_thinking).toBe(false);
-    const content = body.messages[1]?.content as Array<{ type: string; image_url?: { url: string } }>;
+    const content = body.messages[1]?.content as Array<{ type: string; text?: string; image_url?: { url: string } }>;
+    expect(content[0]?.text?.toLowerCase()).toContain('json');
     expect(content).toEqual(expect.arrayContaining([
       { type: 'image_url', image_url: { url: before } },
       { type: 'image_url', image_url: { url: after } },
     ]));
+  });
+
+  it.each(['ui_intent', 'ui_enhancement'] as const)('sends %s reference images as multimodal content instead of JSON text', async kind => {
+    const requests: Array<{ init?: RequestInit }> = [];
+    const provider = new OpenAiCompatibleProvider({ baseUrl: 'https://api.example.com/v1', model: 'vision-model' }, async (_input, init) => {
+      requests.push({ init });
+      return new Response(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: '{}' } }] }), { status: 200 });
+    });
+    const reference = 'data:image/png;base64,AAAA';
+    await provider.generate({ kind, systemPrompt: 'Plan.', input: { requirement: '', visualAttachments: [{ name: 'login.png', mimeType: 'image/png', dataUrl: reference }] }, responseSchema: '{}' });
+    const body = JSON.parse(String(requests[0]?.init?.body)) as { messages: Array<{ role: string; content: unknown }> };
+    const content = body.messages[1]?.content as Array<{ type: string; text?: string; image_url?: { url: string } }>;
+    // A vision model can only see the reference when it arrives as an image
+    // part; stringifying it into the prompt hands it an unreadable base64 wall.
+    expect(content).toEqual(expect.arrayContaining([{ type: 'image_url', image_url: { url: reference } }]));
+    expect(content[0]?.text).not.toContain('data:image/png;base64');
   });
 
   it('emits redacted request/response trace metadata with elapsed timing', async () => {

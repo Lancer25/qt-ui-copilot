@@ -37,6 +37,8 @@ struct PreviewRequest {
 
 struct PreviewResult {
     bool success;
+    int width;
+    int height;
     QString imagePath;
     QString error;
     QStringList loadedResources;

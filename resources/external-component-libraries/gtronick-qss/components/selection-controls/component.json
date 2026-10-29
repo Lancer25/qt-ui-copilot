@@ -1,0 +1,1 @@
+{"id":"gtronick-selection-controls","name":"MaterialDark 选择控件","description":"包含复选框、单选按钮和下拉选择的选项组件。","tags":["选择","QCheckBox","QRadioButton","QComboBox","MaterialDark","GTRONICK"],"sourceUiFile":"selection-controls.ui","qssDependencies":["../../styles/MaterialDark.qss"],"qtVersionRange":">=5.9.6 <7.0.0"}

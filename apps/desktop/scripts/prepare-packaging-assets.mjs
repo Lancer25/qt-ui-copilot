@@ -9,6 +9,8 @@ const outputRoot = path.join(workspaceRoot, '.qt-ui-copilot', 'package-assets');
 const assets = [
   ['preview-host', path.join(workspaceRoot, 'native', 'qt-ui-preview-host')],
   ['probe', path.join(workspaceRoot, 'native', 'qt-ui-probe')],
+  ['component-library', path.join(workspaceRoot, 'resources', 'component-library')],
+  ['component-libraries/gtronick-qss', path.join(workspaceRoot, 'resources', 'external-component-libraries', 'gtronick-qss')],
   // The worker is isolated from Electron Main. Its TypeScript source is shipped
   // for the release build pipeline; native UI-TARS dependencies stay outside
   // ASAR through the packager unpack rule.
@@ -29,7 +31,11 @@ const collectFiles = async (root, relative = '') => {
 
 await rm(outputRoot, { recursive: true, force: true });
 await mkdir(outputRoot, { recursive: true });
-for (const [name, source] of assets) await cp(source, path.join(outputRoot, name), { recursive: true });
+for (const [name, source] of assets) {
+  const destination = path.join(outputRoot, name);
+  await mkdir(path.dirname(destination), { recursive: true });
+  await cp(source, destination, { recursive: true });
+}
 
 const manifestAssets = [];
 for (const [name] of assets) {

@@ -5,6 +5,10 @@ set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_AUTOMOC ON)
+set(QT_UI_PREVIEW_COMPONENT_FACTORY "" CACHE FILEPATH "Generated custom-widget preview factory")
+set(QT_UI_PREVIEW_COMPONENT_SOURCES "" CACHE STRING "Semicolon-separated custom-widget source files")
+set(QT_UI_PREVIEW_COMPONENT_HEADERS "" CACHE STRING "Semicolon-separated custom-widget headers")
+set(QT_UI_PREVIEW_COMPONENT_INCLUDE_DIRS "" CACHE STRING "Semicolon-separated custom-widget include directories")
 
 set(QT_MAJOR_VERSION "" CACHE STRING "Qt major version: 5 or 6")
 if(QT_MAJOR_VERSION STREQUAL "5")
@@ -17,12 +21,24 @@ else()
   message(FATAL_ERROR "Set -DQT_MAJOR_VERSION=5 or -DQT_MAJOR_VERSION=6. A PreviewHost is built per target Qt Kit.")
 endif()
 
+set(PREVIEW_FACTORY_SOURCE src/CustomWidgetFactory.cpp)
+if(QT_UI_PREVIEW_COMPONENT_FACTORY)
+  set(PREVIEW_FACTORY_SOURCE ${QT_UI_PREVIEW_COMPONENT_FACTORY})
+  set_source_files_properties(${QT_UI_PREVIEW_COMPONENT_FACTORY} PROPERTIES SKIP_AUTOMOC ON)
+endif()
+if(QT_UI_PREVIEW_COMPONENT_SOURCES)
+  set_source_files_properties(${QT_UI_PREVIEW_COMPONENT_SOURCES} PROPERTIES SKIP_AUTOMOC ON)
+endif()
+
 add_library(qt-ui-preview-host-core
   src/PreviewRequest.cpp
   src/ResourceLoader.cpp
   src/FormLoader.cpp
+  ${PREVIEW_FACTORY_SOURCE}
+  ${QT_UI_PREVIEW_COMPONENT_SOURCES}
+  ${QT_UI_PREVIEW_COMPONENT_HEADERS}
 )
-target_include_directories(qt-ui-preview-host-core PUBLIC src)
+target_include_directories(qt-ui-preview-host-core PUBLIC src PRIVATE ${QT_UI_PREVIEW_COMPONENT_INCLUDE_DIRS})
 target_link_libraries(qt-ui-preview-host-core PUBLIC
   ${QT_PACKAGE}::Core ${QT_PACKAGE}::Gui ${QT_PACKAGE}::Widgets ${QT_PACKAGE}::UiTools)
 

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>GtronickTextInputs</class>
+ <widget class="QFrame" name="gtronickTextInputs">
+  <property name="minimumSize"><size><width>420</width><height>260</height></size></property>
+  <layout class="QFormLayout" name="inputFormLayout">
+   <property name="horizontalSpacing"><number>14</number></property><property name="verticalSpacing"><number>12</number></property>
+   <item row="0" column="0"><widget class="QLabel" name="accountLabel"><property name="text"><string>账号</string></property></widget></item>
+   <item row="0" column="1"><widget class="QLineEdit" name="accountEdit"><property name="placeholderText"><string>请输入账号</string></property></widget></item>
+   <item row="1" column="0"><widget class="QLabel" name="passwordLabel"><property name="text"><string>密码</string></property></widget></item>
+   <item row="1" column="1"><widget class="QLineEdit" name="passwordEdit"><property name="echoMode"><enum>QLineEdit::Password</enum></property><property name="placeholderText"><string>请输入密码</string></property></widget></item>
+   <item row="2" column="0"><widget class="QLabel" name="notesLabel"><property name="text"><string>备注</string></property></widget></item>
+   <item row="2" column="1"><widget class="QTextEdit" name="notesEdit"><property name="placeholderText"><string>补充说明…</string></property></widget></item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

@@ -4,7 +4,7 @@ import { artifactTabId, artifactTabsReducer, initialArtifactTabsState } from './
 describe('artifactTabsReducer', () => {
   it('deduplicates preview tabs by normalized file path and promotes candidate previews', () => {
     const first = artifactTabsReducer(initialArtifactTabsState, { type: 'openPreview', filePath: 'D:/demo/Main.ui', temporary: true });
-    const second = artifactTabsReducer(first, { type: 'openPreview', filePath: 'D:/demo/Main.ui', temporary: false });
+    const second = artifactTabsReducer(first, { type: 'openPreview', filePath: 'd:\\DEMO\\main.UI', temporary: false });
 
     expect(second.tabs).toHaveLength(2);
     expect(second.tabs[1]).toMatchObject({ kind: 'preview', temporary: false });
@@ -17,6 +17,12 @@ describe('artifactTabsReducer', () => {
 
     expect(reopened.tabs).toHaveLength(2);
     expect(reopened.tabs[1]).toMatchObject({ id: 'source:d:/demo/main.ui', title: 'Main.ui 源码' });
+  });
+
+  it('preserves task identity while normalizing only file-backed tabs', () => {
+    expect(artifactTabId('task', 'Workspace:CaseSensitive')).toBe('task:Workspace:CaseSensitive');
+    expect(artifactTabId('output', 'Workspace:CaseSensitive')).toBe('output:Workspace:CaseSensitive');
+    expect(artifactTabId('preview', 'D:\\Demo\\Main.UI')).toBe('preview:d:/demo/main.ui');
   });
 
   it('opens settings as one unique central workspace tab', () => {

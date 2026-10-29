@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>GtronickTabs</class>
+ <widget class="QFrame" name="gtronickTabs">
+  <property name="minimumSize"><size><width>460</width><height>270</height></size></property>
+  <layout class="QVBoxLayout" name="tabsLayout">
+   <item><widget class="QTabWidget" name="tabWidget"><property name="currentIndex"><number>0</number></property>
+    <widget class="QWidget" name="overviewTab"><attribute name="title"><string>概览</string></attribute><layout class="QVBoxLayout" name="overviewLayout"><item><widget class="QLabel" name="overviewTitle"><property name="text"><string>项目概览</string></property><property name="font"><font><pointsize>14</pointsize><weight>75</weight><bold>true</bold></font></property></widget></item><item><widget class="QLabel" name="overviewText"><property name="text"><string>在这里展示项目状态、指标和最新动态。</string></property><property name="wordWrap"><bool>true</bool></property></widget></item><item><spacer name="overviewSpacer"><property name="orientation"><enum>Qt::Vertical</enum></property><property name="sizeHint" stdset="0"><size><width>20</width><height>70</height></size></property></spacer></item></layout></widget>
+    <widget class="QWidget" name="settingsTab"><attribute name="title"><string>设置</string></attribute><layout class="QFormLayout" name="settingsLayout"><item row="0" column="0"><widget class="QLabel" name="nameLabel"><property name="text"><string>名称</string></property></widget></item><item row="0" column="1"><widget class="QLineEdit" name="nameEdit"><property name="text"><string>示例项目</string></property></widget></item><item row="1" column="0"><widget class="QLabel" name="enabledLabel"><property name="text"><string>状态</string></property></widget></item><item row="1" column="1"><widget class="QCheckBox" name="enabledCheck"><property name="text"><string>已启用</string></property><property name="checked"><bool>true</bool></property></widget></item></layout></widget>
+   </widget></item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0"><class>DataTablePanel</class><widget class="QFrame" name="dataTablePanel"><property name="componentRole" stdset="0"><string>card</string></property><layout class="QVBoxLayout" name="dataTableLayout">
+ <item><widget class="QLabel" name="tableTitle"><property name="heading" stdset="0"><bool>true</bool></property><property name="text"><string>数据列表</string></property></widget></item>
+ <item><widget class="QTableWidget" name="dataTable"><property name="columnCount"><number>4</number></property><property name="rowCount"><number>5</number></property><column><property name="text"><string>名称</string></property></column><column><property name="text"><string>类型</string></property></column><column><property name="text"><string>状态</string></property></column><column><property name="text"><string>更新时间</string></property></column></widget></item>
+ <item><widget class="QLabel" name="tableStatus"><property name="muted" stdset="0"><bool>true</bool></property><property name="text"><string>显示 1–5 条记录</string></property></widget></item>
+</layout></widget><resources/><connections/></ui>

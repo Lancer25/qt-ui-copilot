@@ -50,7 +50,19 @@ export class QtKitService {
         const binDirectory = join(candidate.abiDir, 'bin');
         if ((major !== 5 && major !== 6) || !fs.exists(executable(binDirectory, 'uic')) || !fs.exists(executable(binDirectory, 'rcc'))) continue;
         const id = `qt-${version}-${candidate.abiDir.replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase()}`;
-        kits.push({ id, displayName: `Qt ${version}`, version, qtMajor: major as 5 | 6, rootDir: candidate.abiDir, binDirectory, uic: executable(binDirectory, 'uic'), rcc: executable(binDirectory, 'rcc'), qmake: fs.exists(executable(binDirectory, 'qmake')) ? executable(binDirectory, 'qmake') : undefined, cmakePrefixPath: candidate.abiDir, compilerAbi: candidate.abiDir.split(/[\\/]/).at(-1), architecture: candidate.abiDir.includes('64') ? 'x86_64' : undefined });
+        const compilerAbi = candidate.abiDir.split(/[\\/]/).at(-1) ?? '';
+        const qmake = executable(binDirectory, 'qmake');
+        const architecture = /(?:arm64|aarch64)/i.test(compilerAbi) ? 'arm64'
+          : /(?:x86_64|amd64|_64$)/i.test(compilerAbi) ? 'x86_64'
+            : /(?:x86|_32$)/i.test(compilerAbi) ? 'x86' : undefined;
+        kits.push({
+          id, displayName: `Qt ${version}`, version, qtMajor: major as 5 | 6,
+          rootDir: candidate.abiDir, binDirectory,
+          uic: executable(binDirectory, 'uic'), rcc: executable(binDirectory, 'rcc'),
+          cmakePrefixPath: candidate.abiDir, compilerAbi,
+          ...(fs.exists(qmake) ? { qmake } : {}),
+          ...(architecture ? { architecture } : {}),
+        });
       }
     }
     return kits;

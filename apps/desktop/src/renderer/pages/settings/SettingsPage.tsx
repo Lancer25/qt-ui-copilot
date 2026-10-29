@@ -4,6 +4,7 @@ import type { SettingsSection } from '../../app/tabs/tab-model';
 import { ModelSettingsPanel } from './ModelSettingsPanel';
 import { QtKitsPanel } from './QtKitsPanel';
 import { ProjectBindingPanel } from './ProjectBindingPanel';
+import { ComponentSourcesPanel } from './ComponentSourcesPanel';
 import { SettingsDetailPanel } from './SettingsDetailPanel';
 
 const sections: Array<{ id: SettingsSection; label: string; description: string }> = [
@@ -44,8 +45,9 @@ export function SettingsPage({ api, initialSection = 'model', central = false, w
   const sectionContent = (id: SettingsSection) => {
     if (!visitedSections.has(id)) return null;
     if (id === 'model') return <ModelSettingsPanel api={api} />;
-    if (id === 'qt-kits') return <QtKitsPanel api={api} health={kitHealth} onHealthChange={(kitId, result) => setKitHealth((old) => ({ ...old, [kitId]: result }))} />;
+    if (id === 'qt-kits') return <QtKitsPanel api={api} workspace={workspace} health={kitHealth} onHealthChange={(kitId, result) => setKitHealth((old) => ({ ...old, [kitId]: result }))} />;
     if (id === 'project-binding') return <ProjectBindingPanel api={api} workspace={workspace} onProjectImported={onProjectImported} />;
+    if (id === 'component-sources') return <ComponentSourcesPanel api={api} />;
     return isDetailSection(id) ? <SettingsDetailPanel api={api} section={id} workspace={workspace} /> : null;
   };
 

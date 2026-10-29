@@ -1,0 +1,1 @@
+{"id":"gtronick-numeric-date-inputs","name":"MaterialDark 数值与日期","description":"包含整数、小数和日期编辑器的参数输入组件。","tags":["数值","日期","QSpinBox","QDoubleSpinBox","QDateEdit","MaterialDark","GTRONICK"],"sourceUiFile":"numeric-date-inputs.ui","qssDependencies":["../../styles/MaterialDark.qss"],"qtVersionRange":">=5.9.6 <7.0.0"}

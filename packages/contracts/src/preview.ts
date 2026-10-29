@@ -20,6 +20,8 @@ export const PreviewFindingSchema = z.object({
 
 export const PreviewResultSchema = z.object({
   success: z.boolean(),
+  width: z.number().int().positive().optional(),
+  height: z.number().int().positive().optional(),
   imagePath: z.string().min(1).optional(),
   findings: z.array(PreviewFindingSchema).default([]),
   degradedFeatures: z.array(z.string().min(1)).default([]),

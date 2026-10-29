@@ -17,6 +17,8 @@ describe('ComponentCatalog', () => {
     expect(first.componentId).toBe('network-connection-panel');
     expect(first.score).toBeGreaterThan(0);
     expect(first.missingDependencies).toEqual([]);
+    expect(catalog.get('network-connection-panel')?.rootObjectName).toBe('networkConnectionPanel');
+    expect(catalog.list().map((component) => component.id)).toContain('network-connection-panel');
   });
 
   it('ranks compatible metadata and never requires the optional vector adapter', async () => {

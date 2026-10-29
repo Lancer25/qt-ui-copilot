@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { AiAttachment } from '../assistant/attachment-reader';
 import { AttachmentDropZone } from '../assistant/AttachmentDropZone';
 import { AttachmentList } from '../assistant/AttachmentList';
+import { WorkspaceIcon } from '../shell/WorkspaceIcon';
 
 export type TaskComposerInput = {
   text: string;
@@ -10,19 +11,22 @@ export type TaskComposerInput = {
   applyMode: 'approval' | 'automatic';
   createProject: boolean;
   buildBackend: 'qmake' | 'msbuild' | 'auto';
+  useComponentLibrary: boolean;
 };
 
-export function TaskComposer({ running, queued, creationMode, onSubmit, onStop }: { running?: boolean; queued?: number; creationMode?: boolean; onSubmit: (input: TaskComposerInput) => Promise<void> | void; onStop?: () => Promise<void> | void }) {
+export function TaskComposer({ running, queued, creationMode, seed, componentCount = 0, onSubmit, onStop }: { running?: boolean; queued?: number; creationMode?: boolean; seed?: { id: number; text: string }; componentCount?: number; onSubmit: (input: TaskComposerInput) => Promise<void> | void; onStop?: () => Promise<void> | void }) {
   const [text, setText] = useState('');
   const [attachments, setAttachments] = useState<AiAttachment[]>([]);
   const [contextMode, setContextMode] = useState<'focused_ui' | 'whole_project'>('focused_ui');
   const [applyMode, setApplyMode] = useState<'approval' | 'automatic'>('approval');
   const [createProject, setCreateProject] = useState(true);
   const [buildBackend, setBuildBackend] = useState<'qmake' | 'msbuild' | 'auto'>('auto');
+  const [useComponentLibrary, setUseComponentLibrary] = useState(true);
   const [attachmentError, setAttachmentError] = useState<string>();
+  useEffect(() => { if (seed) setText(seed.text); }, [seed?.id]);
   const submit = async () => {
     if (!text.trim() && !attachments.length) return;
-    await onSubmit({ text: text.trim(), attachments, contextMode, applyMode, createProject: creationMode === false ? false : createProject, buildBackend });
+    await onSubmit({ text: text.trim(), attachments, contextMode, applyMode, createProject: creationMode === false ? false : createProject, buildBackend, useComponentLibrary: creationMode === false ? false : useComponentLibrary });
     setText(''); setAttachments([]); setAttachmentError(undefined);
   };
   return <form className="v3-task-composer" onSubmit={(event) => { event.preventDefault(); void submit(); }}>
@@ -32,6 +36,9 @@ export function TaskComposer({ running, queued, creationMode, onSubmit, onStop }
     </AttachmentDropZone>
     {attachmentError ? <p className="v3-task-composer__error" role="alert">{attachmentError}</p> : null}
     <textarea aria-label="发送给 AI" value={text} onChange={(event) => setText(event.target.value)} placeholder={running ? '当前任务执行中；新消息将加入队列…' : '描述你想创建或修改的界面…'} rows={3} />
-    <footer><div className="v3-task-composer__switches"><div aria-label="AI 上下文"><button type="button" className={contextMode === 'focused_ui' ? 'is-active' : ''} onClick={() => setContextMode('focused_ui')}>专注界面</button><button type="button" className={contextMode === 'whole_project' ? 'is-active' : ''} onClick={() => setContextMode('whole_project')}>整体模式</button></div><div aria-label="应用方式"><button type="button" className={applyMode === 'approval' ? 'is-active' : ''} onClick={() => setApplyMode('approval')}>审批</button><button type="button" className={applyMode === 'automatic' ? 'is-active' : ''} onClick={() => setApplyMode('automatic')}>自动应用</button></div>{creationMode !== false ? <div aria-label="创建类型"><button type="button" className={createProject ? 'is-active' : ''} onClick={() => setCreateProject(true)}>完整应用</button><button type="button" className={!createProject ? 'is-active' : ''} onClick={() => setCreateProject(false)}>仅界面</button><label className="v3-task-composer__backend">构建<select aria-label="构建后端" value={buildBackend} onChange={(event) => setBuildBackend(event.target.value as typeof buildBackend)} disabled={!createProject}><option value="auto">自动</option><option value="qmake">QMake</option><option value="msbuild">MSBuild</option></select></label></div> : null}</div><div className="v3-task-composer__actions">{queued ? <span role="status">已加入队列{queued > 1 ? ` · ${queued}` : ''}</span> : null}{running && onStop ? <button type="button" className="v3-task-composer__stop" aria-label="停止当前任务" onClick={() => void onStop()}>停止</button> : null}<button type="submit" className="v3-task-composer__send" disabled={!text.trim() && !attachments.length}>发送</button></div></footer>
+    <footer className="v3-task-composer__footer">
+      <div className="v3-task-composer__behavior-row"><div className="v3-task-composer__switches"><div aria-label="AI 上下文"><button type="button" className={contextMode === 'focused_ui' ? 'is-active' : ''} onClick={() => setContextMode('focused_ui')}>专注界面</button><button type="button" className={contextMode === 'whole_project' ? 'is-active' : ''} onClick={() => setContextMode('whole_project')}>整体模式</button></div><div aria-label="应用方式"><button type="button" className={applyMode === 'approval' ? 'is-active' : ''} onClick={() => setApplyMode('approval')}>审批</button><button type="button" className={applyMode === 'automatic' ? 'is-active' : ''} onClick={() => setApplyMode('automatic')}>自动应用</button></div>{creationMode !== false ? <button type="button" className={`v3-task-composer__library-toggle${useComponentLibrary ? ' is-active' : ''}`} aria-pressed={useComponentLibrary} aria-label={`引用组件库：${useComponentLibrary ? '已开启' : '已关闭'}`} title="控制本次任务是否引用组件库和已选组件" onClick={() => setUseComponentLibrary((value) => !value)}><span className="v3-task-composer__library-icon" aria-hidden="true"><WorkspaceIcon name="components" /></span><b>组件库{componentCount ? ` · ${componentCount}` : ''}</b><em>{useComponentLibrary ? '引用' : '忽略'}</em></button> : null}</div></div>
+      <div className="v3-task-composer__output-row"><div className="v3-task-composer__switches">{creationMode !== false ? <><div aria-label="创建类型"><button type="button" className={createProject ? 'is-active' : ''} onClick={() => setCreateProject(true)}>完整应用</button><button type="button" className={!createProject ? 'is-active' : ''} onClick={() => setCreateProject(false)}>仅界面</button></div><div className={`v3-task-composer__backend${createProject ? '' : ' is-disabled'}`} aria-label="构建方式" aria-disabled={!createProject}><span>构建方式</span>{(['auto', 'qmake', 'msbuild'] as const).map((backend) => <button key={backend} type="button" aria-pressed={buildBackend === backend} className={buildBackend === backend ? 'is-active' : ''} disabled={!createProject} onClick={() => setBuildBackend(backend)}>{backend === 'auto' ? '自动' : backend === 'qmake' ? 'QMake' : 'MSBuild'}</button>)}</div></> : null}</div><div className="v3-task-composer__actions">{queued ? <span role="status">已加入队列{queued > 1 ? ` · ${queued}` : ''}</span> : null}{running && onStop ? <button type="button" className="v3-task-composer__stop" aria-label="停止当前任务" onClick={() => void onStop()}>停止</button> : null}<button type="submit" className="v3-task-composer__send" disabled={!text.trim() && !attachments.length}>发送</button></div></div>
+    </footer>
   </form>;
 }

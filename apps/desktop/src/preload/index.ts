@@ -12,6 +12,7 @@ const desktopApi: DesktopApi = {
     listFiles: (workspaceId) => ipcRenderer.invoke('v3.workspace.listFiles', { workspaceId }) as ReturnType<NonNullable<DesktopApi['workspace']>['listFiles']>,
     readText: (workspaceId, filePath) => ipcRenderer.invoke('v3.workspace.readText', { workspaceId, filePath }) as ReturnType<NonNullable<DesktopApi['workspace']>['readText']>,
     writeText: (workspaceId, filePath, content) => ipcRenderer.invoke('v3.workspace.writeText', { workspaceId, filePath, content }) as ReturnType<NonNullable<DesktopApi['workspace']>['writeText']>,
+    syncProjectProfile: (workspaceId, profile) => ipcRenderer.invoke('v3.workspace.syncProjectProfile', { workspaceId, profile }) as ReturnType<NonNullable<DesktopApi['workspace']>['syncProjectProfile']>,
     onChange: (listener) => {
       const handler = (_event: Electron.IpcRendererEvent, change: WorkspaceChange) => listener(change);
       ipcRenderer.on('v3.workspace.onChange', handler);
@@ -25,12 +26,23 @@ const desktopApi: DesktopApi = {
     deleteEntryPermanently: (input) => ipcRenderer.invoke('v3.workspace.deleteEntryPermanently', input) as ReturnType<NonNullable<DesktopApi['workspace']>['deleteEntryPermanently']>,
   },
   capabilities: { search: (input) => ipcRenderer.invoke('v3.capabilities.search', input) as ReturnType<NonNullable<DesktopApi['capabilities']>['search']> },
+  componentSources: {
+    list: () => ipcRenderer.invoke('v3.componentSources.list') as ReturnType<NonNullable<DesktopApi['componentSources']>['list']>,
+    save: (input) => ipcRenderer.invoke('v3.componentSources.save', input) as ReturnType<NonNullable<DesktopApi['componentSources']>['save']>,
+    remove: (sourceId) => ipcRenderer.invoke('v3.componentSources.remove', { sourceId }) as ReturnType<NonNullable<DesktopApi['componentSources']>['remove']>,
+    test: (sourceId) => ipcRenderer.invoke('v3.componentSources.test', { sourceId }) as ReturnType<NonNullable<DesktopApi['componentSources']>['test']>,
+    sync: (sourceId, query) => ipcRenderer.invoke('v3.componentSources.sync', { sourceId, ...(query ? { query } : {}) }) as ReturnType<NonNullable<DesktopApi['componentSources']>['sync']>,
+    search: (input) => ipcRenderer.invoke('v3.componentSources.search', input) as ReturnType<NonNullable<DesktopApi['componentSources']>['search']>,
+    preview: (input) => ipcRenderer.invoke('v3.componentSources.preview', input) as ReturnType<NonNullable<DesktopApi['componentSources']>['preview']>,
+  },
   preview: { render: (input) => ipcRenderer.invoke('v3.preview.render', input) as ReturnType<NonNullable<DesktopApi['preview']>['render']>, cancel: (uiFile) => ipcRenderer.invoke('v3.preview.cancel', { uiFile }) as ReturnType<NonNullable<DesktopApi['preview']>['cancel']>, openWindow: (imageDataUrl, title) => ipcRenderer.invoke('v3.preview.openWindow', { imageDataUrl, title }) as Promise<void> },
   ai: {
     plan: (input) => ipcRenderer.invoke('v3.ai.plan', input) as ReturnType<NonNullable<DesktopApi['ai']>['plan']>,
     planStream: (input) => ipcRenderer.invoke('v3.ai.planStream', input) as ReturnType<NonNullable<DesktopApi['ai']>['planStream']>,
     startTaskStream: (input) => ipcRenderer.invoke('v3.ai.startTaskStream', input) as ReturnType<NonNullable<DesktopApi['ai']>['startTaskStream']>,
+    resumeTaskStream: (taskId) => ipcRenderer.invoke('v3.ai.resumeTaskStream', { taskId }) as ReturnType<NonNullable<DesktopApi['ai']>['resumeTaskStream']>,
     getTaskSnapshot: (taskId) => ipcRenderer.invoke('v3.ai.getTaskSnapshot', { taskId }) as ReturnType<NonNullable<DesktopApi['ai']>['getTaskSnapshot']>,
+    listTaskSnapshots: (input) => ipcRenderer.invoke('v3.ai.listTaskSnapshots', input) as ReturnType<NonNullable<DesktopApi['ai']>['listTaskSnapshots']>,
     onTaskEvent: (listener) => {
       const handler = (_event: Electron.IpcRendererEvent, payload: Parameters<typeof listener>[0]) => listener(payload);
       ipcRenderer.on('v3.ai.taskEvent', handler);

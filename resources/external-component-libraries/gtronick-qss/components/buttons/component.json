@@ -1,0 +1,1 @@
+{"id":"gtronick-buttons","name":"MaterialDark 按钮组","description":"包含普通按钮、主要操作、禁用状态和工具按钮的基础操作组件。","tags":["按钮","QPushButton","QToolButton","MaterialDark","GTRONICK"],"sourceUiFile":"buttons.ui","qssDependencies":["../../styles/MaterialDark.qss"],"qtVersionRange":">=5.9.6 <7.0.0"}

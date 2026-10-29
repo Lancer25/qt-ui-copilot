@@ -17,9 +17,9 @@ export interface QtBuildInput {
   onProgress?: (event: QtBuildProgress) => void;
 }
 export interface QtBuildOutput { executable: string; buildDirectory: string; backend: 'qmake' | 'msbuild'; }
-export type QtBuildRunner = (command: { executable: string; args: readonly string[]; cwd?: string; timeoutMs?: number }) => Promise<ProcessResult>;
+export type QtBuildRunner = (command: { executable: string; args: readonly string[]; cwd?: string; environment?: NodeJS.ProcessEnv; timeoutMs?: number; windowsVerbatimArguments?: boolean }) => Promise<ProcessResult>;
 
-type QtTools = ProjectProfile['qt'] & { qmake?: string; msbuild?: string; make?: string };
+type QtTools = ProjectProfile['qt'] & { qmake?: string; msbuild?: string; make?: string; compilerAbi?: string };
 
 const commandText = (executable: string, args: readonly string[]) => [executable, ...args].map((part) => /\s/.test(part) ? `"${part}"` : part).join(' ');
 const abortError = () => Object.assign(new Error('Build cancelled'), { name: 'AbortError' });
@@ -69,10 +69,11 @@ export class QtBuildService {
     const buildDirectory = path.resolve(input.projectRoot, input.buildDirectory);
     await mkdir(buildDirectory, { recursive: true });
     const tools = input.qt as QtTools;
+    const environment = await this.resolveBuildEnvironment(tools);
     const run = async (stage: QtBuildStage, executable: string, args: readonly string[], detail?: string) => {
       ensureNotAborted(input.signal);
       input.onProgress?.({ stage, command: commandText(executable, args), detail });
-      const result = await this.runner({ executable, args, cwd: buildDirectory, timeoutMs: 180_000 });
+      const result = await this.runner({ executable, args, cwd: buildDirectory, environment, timeoutMs: 180_000 });
       if (result.timedOut || result.exitCode !== 0) {
         const output = (result.stderr || result.stdout || '').trim();
         throw new Error(`${stage} failed (${result.exitCode ?? 'timeout'}): ${output || commandText(executable, args)}`);
@@ -110,11 +111,36 @@ export class QtBuildService {
   }
 
   private async findMake(binDirectory?: string): Promise<string> {
-    const candidates = [process.platform === 'win32' ? 'jom.exe' : 'jom', process.platform === 'win32' ? 'nmake.exe' : 'make', 'make'];
-    for (const candidate of candidates) {
-      const absolute = binDirectory ? path.join(binDirectory, candidate) : candidate;
-      if (!binDirectory || existsSync(absolute)) return absolute;
+    const names = process.platform === 'win32' ? ['jom.exe', 'nmake.exe'] : ['make'];
+    const absoluteCandidates = binDirectory ? [
+      ...names.map((name) => path.join(binDirectory, name)),
+      ...(process.platform === 'win32' ? [
+        path.resolve(binDirectory, '..', '..', '..', 'Tools', 'QtCreator', 'bin', 'jom.exe'),
+        path.resolve(binDirectory, '..', '..', '..', 'Tools', 'QtCreator', 'bin', 'jom', 'jom.exe'),
+      ] : []),
+    ] : [];
+    const found = absoluteCandidates.find(existsSync);
+    if (found) return found;
+    // Let spawn resolve a developer-command-prompt installation from PATH.
+    return names[0]!;
+  }
+
+  private async resolveBuildEnvironment(tools: QtTools): Promise<NodeJS.ProcessEnv | undefined> {
+    if (process.platform !== 'win32' || !tools.compilerAbi?.toLowerCase().includes('msvc')) return undefined;
+    const vswhere = 'C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer\\vswhere.exe';
+    if (!existsSync(vswhere)) throw new Error('Visual Studio Build Tools was not found (vswhere.exe is missing)');
+    const installation = await this.runner({ executable: vswhere, args: ['-latest', '-products', '*', '-requires', 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64', '-property', 'installationPath'], timeoutMs: 30_000 });
+    const installRoot = installation.stdout.trim().split(/\r?\n/).at(-1);
+    if (installation.exitCode !== 0 || !installRoot) throw new Error('Visual Studio C++ Build Tools was not found');
+    const vcvars = path.join(installRoot, 'VC', 'Auxiliary', 'Build', tools.compilerAbi.includes('64') ? 'vcvars64.bat' : 'vcvars32.bat');
+    if (!existsSync(vcvars)) throw new Error(`MSVC environment script was not found: ${vcvars}`);
+    const configured = await this.runner({ executable: process.env.ComSpec ?? 'cmd.exe', args: ['/d', '/s', '/c', `call "${vcvars}" >nul && set`], windowsVerbatimArguments: true, timeoutMs: 30_000 });
+    if (configured.exitCode !== 0) throw new Error(`Unable to initialize the MSVC build environment: ${(configured.stderr || configured.stdout).trim()}`);
+    const environment: NodeJS.ProcessEnv = { ...process.env };
+    for (const line of configured.stdout.split(/\r?\n/)) {
+      const separator = line.indexOf('=');
+      if (separator > 0) environment[line.slice(0, separator)] = line.slice(separator + 1);
     }
-    throw new Error('No QMake build tool found (jom, nmake, or make)');
+    return environment;
   }
 }

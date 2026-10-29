@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { UiCreationCandidateSchema, UiCreationRequestSchema, type UiCreationRequest } from './v3-ui-creation.js';
+import { AiAttachmentSchema, UiCreationCandidateSchema, UiCreationRequestSchema, type AiAttachment, type UiCreationRequest } from './v3-ui-creation.js';
 
 export const V3TaskArtifactSchema = z.object({
   kind: z.enum(['candidate', 'preview', 'source', 'diff', 'output']),
@@ -73,13 +73,32 @@ export const V3TaskSnapshotSchema = z.object({
 
 export type V3TaskSnapshot = z.infer<typeof V3TaskSnapshotSchema>;
 
+/** Lightweight metadata used by the V3 task-history sidebar. */
+export const V3TaskHistoryItemSchema = z.object({
+  taskId: z.string().min(1).max(128),
+  workspaceId: z.string().min(1).max(128).optional(),
+  title: z.string().min(1).max(256),
+  targetPath: z.string().min(1).max(4096).optional(),
+  status: V3TaskSnapshotSchema.shape.status,
+  createdAt: z.number().int().positive(),
+  updatedAt: z.number().int().positive(),
+}).strict();
+
+export type V3TaskHistoryItem = z.infer<typeof V3TaskHistoryItemSchema>;
+
 export const V3TaskStreamModifyRequestSchema = z.object({
   requirement: z.string().min(1).max(10_000),
   uiFile: z.string().min(1).max(4096),
   uiContent: z.string().max(2_000_000),
   contextMode: z.enum(['focused_ui', 'whole_project']),
   workspaceId: z.string().min(1).max(128).optional(),
-}).strict();
+  attachments: z.array(AiAttachmentSchema).max(16).default([]),
+}).strict().superRefine((value, context) => {
+  if (value.attachments.filter((attachment) => attachment.kind === 'image').length > 4) context.addIssue({ code: 'custom', path: ['attachments'], message: 'at most four image attachments are allowed' });
+  if (value.attachments.reduce((sum, attachment) => sum + attachment.size, 0) > 24 * 1024 * 1024) context.addIssue({ code: 'custom', path: ['attachments'], message: 'attachments exceed the 24MB total limit' });
+});
+
+export type V3TaskStreamModifyRequest = Omit<z.infer<typeof V3TaskStreamModifyRequestSchema>, 'attachments'> & { attachments?: AiAttachment[] };
 
 /** The two existing V3 AI flows behind one Main-process streaming boundary. */
 export const V3StartTaskInputSchema = z.discriminatedUnion('kind', [
@@ -93,5 +112,5 @@ export const V3StartTaskInputSchema = z.discriminatedUnion('kind', [
 // supplies their defaults when data crosses the process boundary.
 export type V3StartTaskInput =
   | { kind: 'create'; taskId?: string; request: UiCreationRequest }
-  | { kind: 'modify'; taskId?: string; request: z.infer<typeof V3TaskStreamModifyRequestSchema> }
+  | { kind: 'modify'; taskId?: string; request: V3TaskStreamModifyRequest }
   | { kind: 'adjust'; taskId: string; request: V3TaskStreamAdjustRequest };

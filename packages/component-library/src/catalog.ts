@@ -89,6 +89,16 @@ export class ComponentCatalog {
 
   public close(): void { this.database.close(); }
 
+  public get(componentId: string): ComponentRecord | undefined {
+    const row = this.database.prepare('SELECT record_json FROM component_records WHERE id = ?').get(componentId) as { record_json: string } | undefined;
+    return row ? ComponentRecordSchema.parse(JSON.parse(row.record_json)) : undefined;
+  }
+
+  public list(): ComponentRecord[] {
+    const rows = this.database.prepare('SELECT record_json FROM component_records ORDER BY id').all() as { record_json: string }[];
+    return rows.map((row) => ComponentRecordSchema.parse(JSON.parse(row.record_json)));
+  }
+
   public async indexLibrary(root: string): Promise<number> {
     const absoluteRoot = path.resolve(root);
     let indexed = 0;

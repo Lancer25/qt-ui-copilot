@@ -1,7 +1,7 @@
 import type { ComponentCandidate } from '@qt-ui-copilot/component-library';
 import type { UiCapabilityCandidate } from '@qt-ui-copilot/contracts';
 import type { WorkspaceTreeSnapshot } from '@qt-ui-copilot/contracts';
-import type { AiAttachment, UiCreationBlueprint, UiCreationCandidate, UiPlan, V3StartTaskInput, V3TaskEvent, V3TaskSnapshot } from '@qt-ui-copilot/contracts';
+import type { AiAttachment, ComponentSourceInput, ComponentSourceRecord, ComponentSourceSearchResult, UiCreationBlueprint, UiCreationCandidate, UiPlan, V3StartTaskInput, V3TaskEvent, V3TaskHistoryItem, V3TaskSnapshot } from '@qt-ui-copilot/contracts';
 
 export type WorkflowUiStatus = 'running' | 'waiting_approval' | 'failed' | 'cancelled' | 'completed';
 
@@ -99,6 +99,7 @@ export interface QtKit {
   cmakePrefixPath?: string;
   compilerAbi?: string;
   architecture?: string;
+  isDefault?: boolean;
 }
 
 export interface QtToolHealth { name: 'uic' | 'rcc' | 'qmake' | 'cmake'; ok: boolean; path: string; version?: string; message?: string; }
@@ -126,15 +127,22 @@ export interface WorkspaceSummary {
   files: WorkspaceFile[];
   profile?: Record<string, unknown>;
 }
+export interface PortableProjectProfile {
+  id: string;
+  qt: { version: string; qtMajor?: 5 | 6; compilerAbi: string; architecture: string };
+  build: { backend: 'auto' | 'qmake' | 'msbuild'; directory?: string };
+  run?: { executable?: string };
+  preview?: { width?: number; height?: number; locale?: string; style?: string; mode?: 'quick' | 'enhanced'; highDpiMode?: 'project-default' | 'logical-96' | 'system' };
+}
 export type WorkspaceChange =
   | { type: 'created'; workspaceId: string; path: string; file: WorkspaceFile }
   | { type: 'changed'; workspaceId: string; path: string; file: WorkspaceFile; previousHash: string }
   | { type: 'deleted'; workspaceId: string; path: string; previousHash: string }
   | { type: 'renamed'; workspaceId: string; path: string; oldPath: string; file: WorkspaceFile; previousHash: string };
 export interface V3PreviewRequest { uiFile: string; profile: { qtKitId: string; mode: 'quick' | 'enhanced'; width: number; height: number; locale: string; style: string; qrcFiles: string[]; stylesheets: string[]; fonts: string[]; pluginPaths: string[]; highDpiMode: 'project-default' | 'logical-96' | 'system' }; qt: { version: string; compilerAbi: string; architecture: string; binDirectory: string; uic: string; rcc: string; cmake: string; cmakePrefixPath: string; cmakeGenerator?: string }; sourceDirectory: string; cacheDirectory: string; outputImage: string; }
-export interface V3PreviewResult { imageDataUrl: string; mode: 'quick' | 'enhanced'; imagePath: string; findings: unknown[]; degradedFeatures: string[]; confidence: number; }
+export interface V3PreviewResult { imageDataUrl: string; mode: 'quick' | 'enhanced'; imagePath: string; width?: number; height?: number; findings: unknown[]; degradedFeatures: string[]; confidence: number; }
 export interface V3UiPlan { summary: string; riskLevel: 'low' | 'medium' | 'high'; operations: unknown[]; expectedResults: string[]; componentIds: string[]; }
-export type UiCreationRequest = { workspaceId: string; contextMode?: 'focused_ui' | 'whole_project'; requirement: string; attachments: AiAttachment[]; fileName: string; rootType: 'QWidget' | 'QDialog' | 'QMainWindow'; directory: string; qtKitId: string; useProjectResources?: boolean; useComponentLibrary?: boolean; taskId?: string };
+export type UiCreationRequest = { workspaceId: string; contextMode?: 'focused_ui' | 'whole_project'; requirement: string; attachments: AiAttachment[]; fileName: string; rootType: 'QWidget' | 'QDialog' | 'QMainWindow'; directory: string; qtKitId: string; useProjectResources?: boolean; useComponentLibrary?: boolean; capabilityCandidates?: UiCapabilityCandidate[]; taskId?: string };
 export type UiCreationResult = UiCreationCandidate & { blueprint: UiCreationBlueprint };
 export type V3UiCreationStage = 'preparing_context' | 'generating_intent' | 'normalizing_intent' | 'building_base_ui' | 'validating_base_ui' | 'base_candidate_ready' | 'generating_enhancements' | 'applying_enhancements' | 'validating_preview' | 'preview_ready' | 'waiting_approval' | 'failed' | 'cancelled';
 export interface V3UiCreationProgress { stage: V3UiCreationStage; message: string; warnings: Array<{ code: string; message: string }>; previewDataUrl?: string; previewStatus?: 'ready' | 'warning' | 'failed'; }
@@ -160,6 +168,7 @@ export interface DesktopApi {
     listFiles(workspaceId: string): Promise<WorkspaceFile[]>;
     readText(workspaceId: string, filePath: string): Promise<string>;
     writeText(workspaceId: string, filePath: string, content: string): Promise<void>;
+    syncProjectProfile(workspaceId: string, profile: PortableProjectProfile): Promise<void>;
     onChange(listener: (change: WorkspaceChange) => void): () => void;
     tree(input: { workspaceId: string; showInternal?: boolean }): Promise<WorkspaceTreeSnapshot>;
     createFile(input: { workspaceId: string; parentPath: string; name: string }): Promise<void>;
@@ -169,8 +178,17 @@ export interface DesktopApi {
     deleteEntryPermanently(input: { workspaceId: string; relativePath: string; confirmation: string }): Promise<void>;
   };
   capabilities?: { search(input: V3CapabilitySearchInput): Promise<UiCapabilityCandidate[]> };
+  componentSources?: {
+    list(): Promise<ComponentSourceRecord[]>;
+    save(input: ComponentSourceInput): Promise<ComponentSourceRecord>;
+    remove(sourceId: string): Promise<void>;
+    test(sourceId: string): Promise<ComponentSourceRecord>;
+    sync(sourceId: string, query?: string): Promise<ComponentSourceRecord>;
+    search(input: V3CapabilitySearchInput & { sourceId?: string; offset?: number }): Promise<ComponentSourceSearchResult[]>;
+    preview(input: { sourceId: string; componentId: string; workspaceId?: string }): Promise<V3PreviewResult>;
+  };
   preview?: { render(input: V3PreviewRequest): Promise<V3PreviewResult>; cancel(uiFile: string): Promise<void>; openWindow?(imageDataUrl: string, title?: string): Promise<void> };
-  ai?: { plan(input: { requirement: string; uiFile: string; uiContent: string; contextMode: 'focused_ui' | 'whole_project'; workspaceId?: string }): Promise<V3UiPlan>; planStream(input: { requirement: string; uiFile: string; uiContent: string; contextMode: 'focused_ui' | 'whole_project'; workspaceId?: string }): Promise<V3ConversationEvent[]>; startTaskStream(input: V3StartTaskInput): Promise<{ taskId: string }>; getTaskSnapshot(taskId: string): Promise<V3TaskSnapshot | undefined>; onTaskEvent(listener: (event: V3TaskEvent) => void): () => void; cancelTaskStream(taskId: string): Promise<void>; createUiCandidate(input: UiCreationRequest): Promise<UiCreationResult>; onCreationProgress(listener: (event: { taskId: string; progress: V3UiCreationProgress }) => void): () => void; commitUiCandidate(candidateId: string): Promise<{ uiFile: string }>; rejectUiCandidate(candidateId: string): Promise<void>; cancelUiCreation(taskId: string): Promise<void> };
+  ai?: { plan(input: { requirement: string; uiFile: string; uiContent: string; contextMode: 'focused_ui' | 'whole_project'; workspaceId?: string }): Promise<V3UiPlan>; planStream(input: { requirement: string; uiFile: string; uiContent: string; contextMode: 'focused_ui' | 'whole_project'; workspaceId?: string }): Promise<V3ConversationEvent[]>; startTaskStream(input: V3StartTaskInput): Promise<{ taskId: string }>; resumeTaskStream(taskId: string): Promise<{ resumed: boolean }>; getTaskSnapshot(taskId: string): Promise<V3TaskSnapshot | undefined>; listTaskSnapshots(input?: { workspaceId?: string }): Promise<V3TaskHistoryItem[]>; onTaskEvent(listener: (event: V3TaskEvent) => void): () => void; cancelTaskStream(taskId: string): Promise<void>; createUiCandidate(input: UiCreationRequest): Promise<UiCreationResult>; onCreationProgress(listener: (event: { taskId: string; progress: V3UiCreationProgress }) => void): () => void; commitUiCandidate(candidateId: string): Promise<{ uiFile: string }>; rejectUiCandidate(candidateId: string): Promise<void>; cancelUiCreation(taskId: string): Promise<void> };
   revisions?: { apply(input: { uiFile: string; operations: unknown[]; conversationId: string }): Promise<V3RevisionResult>; undo(uiFile: string): Promise<void>; redo(uiFile: string): Promise<void>; rebase(uiFile: string): Promise<void> };
   projects: {
     /** Opens the native directory chooser in the Main process. Undefined means the user cancelled. */

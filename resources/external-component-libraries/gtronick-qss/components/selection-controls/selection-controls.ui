@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>GtronickSelectionControls</class>
+ <widget class="QFrame" name="gtronickSelectionControls">
+  <property name="minimumSize"><size><width>390</width><height>230</height></size></property>
+  <layout class="QVBoxLayout" name="selectionLayout">
+   <property name="spacing"><number>10</number></property>
+   <item><widget class="QLabel" name="selectionTitle"><property name="text"><string>偏好设置</string></property><property name="font"><font><weight>75</weight><bold>true</bold></font></property></widget></item>
+   <item><widget class="QCheckBox" name="notificationCheck"><property name="text"><string>接收通知</string></property><property name="checked"><bool>true</bool></property></widget></item>
+   <item><widget class="QCheckBox" name="autoSaveCheck"><property name="text"><string>自动保存</string></property></widget></item>
+   <item><widget class="QRadioButton" name="standardRadio"><property name="text"><string>标准模式</string></property><property name="checked"><bool>true</bool></property></widget></item>
+   <item><widget class="QRadioButton" name="advancedRadio"><property name="text"><string>高级模式</string></property></widget></item>
+   <item><widget class="QComboBox" name="themeCombo"><item><property name="text"><string>Material Dark</string></property></item><item><property name="text"><string>系统默认</string></property></item><item><property name="text"><string>高对比度</string></property></item></widget></item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

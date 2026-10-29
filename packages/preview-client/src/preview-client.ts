@@ -83,6 +83,8 @@ export class PreviewClient {
           // strict while preserving user-visible degradation evidence.
           const result = PreviewResultSchema.parse({
             success: nativeResult.success,
+            width: nativeResult.width,
+            height: nativeResult.height,
             imagePath: nativeResult.imagePath,
             error: nativeResult.error,
             findings: nativeResult.findings || [],

@@ -1,0 +1,1 @@
+{"id":"gtronick-labels","name":"MaterialDark 文本标签","description":"包含标题、副标题、正文和辅助说明的 QLabel 排版组件。","tags":["标签","文本","QLabel","排版","MaterialDark","GTRONICK"],"sourceUiFile":"labels.ui","qssDependencies":["../../styles/MaterialDark.qss"],"qtVersionRange":">=5.9.6 <7.0.0"}

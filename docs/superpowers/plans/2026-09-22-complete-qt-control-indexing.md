@@ -14,7 +14,7 @@
 
 - Index every class whose inheritance resolves to the Qt Widgets visual hierarchy; retain unresolved `Q_OBJECT` candidates for mapping.
 - Safe scan and persisted mapping caps are exactly 2,048.
-- A page contains at most 100 rows; rendering a page must not reduce the persisted item count.
+- 映射编辑初始页包含 25 行；单页请求最多 100 行，渲染分页不得减少已持久化的组件数。
 - A true bound must be visible to the user through sync health text.
 
 ---
@@ -47,16 +47,47 @@
 - [ ] Update all Qt-binary synchronization calls to request 2,048 candidates; permit 2,048 mappings and page search results by offset.
 - [ ] Run `pnpm --filter @qt-ui-copilot/desktop test -- component-source-service.test.ts register-v3-ipc.test.ts`.
 
+### Task 2A: Auto-detect native controls in local source directories
+
+**Files:**
+- Modify: `apps/desktop/src/main/components/component-source-service.ts`
+- Modify: `apps/desktop/src/main/components/component-source-service.test.ts`
+- Modify: `apps/desktop/src/renderer/pages/settings/ComponentSourcesPanel.tsx`
+
+**Interfaces:** Existing `local` records keep their source ID; `syncSource` promotes the record to `qt_binary` when safe lexical discovery finds native Qt controls.
+
+- [ ] Add a failing service test with seven `.ui` modules and more native control discoveries; assert synchronization persists the native controls and changes the source kind to `qt_binary`.
+- [ ] Reuse the first discovery result during synchronization so automatic detection does not scan twice.
+- [ ] Include the automatic classification in source health text and rename the local UI option to “本地控件库（自动识别）”.
+- [ ] Run the focused service and settings tests.
+
+### Task 2B: Integrate source and header-only controls without binary mapping
+
+**Files:**
+- Modify: `packages/contracts/src/component-source.ts`
+- Modify: `packages/contracts/src/component.ts`
+- Modify: `packages/component-library/src/qt-binary-source-adapter.ts`
+- Modify: `apps/desktop/src/main/components/component-source-service.ts`
+- Modify: `apps/desktop/src/main/ai/qt-project-scaffolder.ts`
+
+**Interfaces:** Discovery and build metadata expose `integration` and `sourcePaths`; qmake scaffolding consumes these paths through `HEADERS`, `SOURCES`, and `INCLUDEPATH`.
+
+- [ ] Test `.cpp/.cc/.cxx` association with matching control headers.
+- [ ] Automatically approve visually confirmed source and header-only controls while retaining ABI checks for binary controls.
+- [ ] Add source/header paths to generated QMake projects and validate paths under the component root.
+- [ ] Replace mapping UI for automatically ready source controls with compact “自动接入” status.
+- [ ] Run scanner, contracts, service, scaffolder, settings, and typecheck verification.
+
 ### Task 3: Page mapping UI without concealing source totals
 
 **Files:**
 - Modify: `apps/desktop/src/renderer/pages/settings/ComponentSourcesPanel.tsx`
 - Modify: `apps/desktop/src/renderer/pages/settings/ComponentSourcesPanel.test.tsx`
 
-**Interfaces:** Renderer loads 100 candidates initially, appends a subsequent page, and reports indexed versus displayed counts.
+**Interfaces:** Renderer loads 25 candidates initially, appends a subsequent page, and reports indexed versus displayed counts.
 
-- [ ] Write a test asserting `已索引 300 个控件，当前显示 100 个`, then click `加载更多控件` and assert 200 are displayed.
-- [ ] Update the renderer to request a first 100-item page and append later pages using the returned `total`.
+- [ ] Write a test asserting `已索引 26 个控件，当前显示 25 个`, then click `加载更多控件` and assert 26 are displayed.
+- [ ] Update the renderer to request a first 25-item page and append later pages by offset.
 - [ ] Run `pnpm --filter @qt-ui-copilot/desktop test -- ComponentSourcesPanel.test.tsx` and `pnpm --filter @qt-ui-copilot/desktop typecheck`.
 
 ### Task 4: Regression verification

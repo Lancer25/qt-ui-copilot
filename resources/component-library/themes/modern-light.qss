@@ -1,0 +1,17 @@
+QFrame[componentRole="card"], QGroupBox[componentRole="card"] {
+    background: #ffffff;
+    border: 1px solid #dbe3ef;
+    border-radius: 8px;
+}
+QFrame[componentRole="toolbar"] {
+    background: #f8fafc;
+    border: 1px solid #dbe3ef;
+    border-radius: 7px;
+}
+QFrame[finderTone="success"] { background: #ecfdf5; border: 1px solid #86efac; border-radius: 7px; }
+QFrame[finderTone="warning"] { background: #fffbeb; border: 1px solid #fcd34d; border-radius: 7px; }
+QLabel[heading="true"] { color: #172033; font-size: 18px; font-weight: 600; }
+QLabel[muted="true"] { color: #64748b; }
+QLabel[metric="true"] { color: #245eea; font-size: 24px; font-weight: 700; }
+QPushButton[primary="true"] { color: white; background: #356fe5; border-color: #356fe5; }
+QPushButton[primary="true"]:hover { background: #285fcf; }

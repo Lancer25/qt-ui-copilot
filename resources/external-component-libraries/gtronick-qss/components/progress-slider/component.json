@@ -1,0 +1,1 @@
+{"id":"gtronick-progress-slider","name":"MaterialDark 进度与滑块","description":"包含进度反馈和水平数值调节的状态组件。","tags":["进度","滑块","QProgressBar","QSlider","MaterialDark","GTRONICK"],"sourceUiFile":"progress-slider.ui","qssDependencies":["../../styles/MaterialDark.qss"],"qtVersionRange":">=5.9.6 <7.0.0"}

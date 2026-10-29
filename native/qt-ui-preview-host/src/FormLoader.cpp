@@ -1,4 +1,5 @@
 #include "FormLoader.h"
+#include "CustomWidgetFactory.h"
 #include "ResourceLoader.h"
 
 #include <QApplication>
@@ -7,7 +8,6 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QImage>
-#include <QPainter>
 #include <QLocale>
 #include <QTextStream>
 #include <QWidget>
@@ -30,7 +30,10 @@ void FormLoader::readPromotedWidgets(const QString &uiFile)
 QWidget *FormLoader::createWidget(const QString &className, QWidget *parent, const QString &name)
 {
     QWidget *widget = QUiLoader::createWidget(className, parent, name);
-    if (widget || !promotedBases_.contains(className)) return widget;
+    if (widget) return widget;
+    widget = createGeneratedCustomWidget(className, parent);
+    if (widget) { widget->setObjectName(name); return widget; }
+    if (!promotedBases_.contains(className)) return widget;
     const QString base = promotedBases_.value(className);
     widget = QUiLoader::createWidget(base, parent, name);
     if (widget && result_) {
@@ -61,14 +64,12 @@ PreviewResult renderPreview(const PreviewRequest &request)
     FormLoader loader;
     QWidget *root = loader.loadForm(request, &result, &error);
     if (!root) { result.error = error; return result; }
-    root->resize(request.width, request.height); root->show();
+    root->show();
     QApplication::processEvents(); QApplication::processEvents();
     const QPixmap image = root->grab();
     if (image.isNull()) { result.error = QString("Unable to capture preview image"); delete root; return result; }
-    QImage canvas(request.width, request.height, QImage::Format_ARGB32_Premultiplied); canvas.fill(Qt::transparent);
-    const QImage fitted = image.toImage().scaled(request.width, request.height, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-    QPainter painter(&canvas); painter.drawImage((request.width - fitted.width()) / 2, (request.height - fitted.height()) / 2, fitted); painter.end();
-    if (!canvas.save(request.outputImage)) { result.error = QString("Unable to save screenshot: %1").arg(request.outputImage); delete root; return result; }
+    result.width = root->width(); result.height = root->height();
+    if (!image.save(request.outputImage)) { result.error = QString("Unable to save screenshot: %1").arg(request.outputImage); delete root; return result; }
     const QList<QWidget *> children = root->findChildren<QWidget *>();
     QList<QWidget *> all; all.append(root); all.append(children);
     foreach (QWidget *widget, all) {

@@ -4,6 +4,7 @@ export type IntentWarningCode =
   | 'object_name_repaired'
   | 'duplicate_name_repaired'
   | 'node_degraded'
+  | 'widget_inferred'
   | 'default_size_applied';
 
 export interface IntentWarning {
@@ -64,14 +65,22 @@ export function normalizeUiIntent(input: CanonicalUiIntent): { intent: Canonical
     const role = typeof node.role === 'string' && node.role.trim() ? node.role.trim() : kind === 'layout' ? 'layout' : kind === 'spacer' ? 'spacer' : 'container';
     let widget: CanonicalUiNode['widget'];
     let layout: CanonicalUiNode['layout'];
+    let inferredWidget = false;
     if (kind === 'layout') {
       const rawLayout = typeof node.layout === 'string' ? node.layout : '';
       layout = validLayouts.has(rawLayout) ? rawLayout as CanonicalUiNode['layout'] : 'vertical';
       if (layout !== rawLayout) warn('node_degraded', `${path}.layout`, `不支持的布局“${rawLayout || '缺失'}”已降级为 vertical。`);
     } else if (kind === 'widget') {
       const rawWidget = typeof node.widget === 'string' ? node.widget : '';
-      widget = validWidgets.has(rawWidget) ? rawWidget as CanonicalUiNode['widget'] : 'container';
-      if (widget !== rawWidget) warn('node_degraded', `${path}.widget`, `不支持的控件“${rawWidget || '缺失'}”已降级为 container。`);
+      const emptyContainerWithContent = rawWidget === 'container' && (!Array.isArray(node.children) || node.children.length === 0) && (typeof node.text === 'string' || typeof node.placeholder === 'string');
+      if (!rawWidget || emptyContainerWithContent) {
+        widget = inferWidget(node, role);
+        inferredWidget = true;
+        warn(widget === 'container' ? 'node_degraded' : 'widget_inferred', `${path}.widget`, widget === 'container' ? '缺少控件类型，已降级为 container。' : `缺少有效控件类型，已根据“${role}”推断为 ${widget}。`);
+      } else {
+        widget = validWidgets.has(rawWidget) ? rawWidget as CanonicalUiNode['widget'] : 'container';
+        if (widget !== rawWidget) warn('node_degraded', `${path}.widget`, `不支持的控件“${rawWidget}”已降级为 container。`);
+      }
     }
 
     const result: CanonicalUiNode = {
@@ -85,7 +94,8 @@ export function normalizeUiIntent(input: CanonicalUiIntent): { intent: Canonical
     if (widget) result.widget = widget;
     if (layout) result.layout = layout;
     if (typeof node.capabilityId === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(node.capabilityId)) result.capabilityId = node.capabilityId;
-    if (typeof node.text === 'string') result.text = node.text.slice(0, 2048);
+    if (typeof node.text === 'string' && !(inferredWidget && (widget === 'lineEdit' || widget === 'textEdit'))) result.text = node.text.slice(0, 2048);
+    if (inferredWidget && (widget === 'lineEdit' || widget === 'textEdit') && typeof node.text === 'string' && typeof node.placeholder !== 'string') result.placeholder = node.text.slice(0, 2048);
     if (typeof node.placeholder === 'string') result.placeholder = node.placeholder.slice(0, 2048);
     if (typeof node.stretch === 'number' && Number.isFinite(node.stretch)) {
       result.stretch = Math.max(0, Math.min(100, Math.trunc(node.stretch)));
@@ -114,6 +124,20 @@ export function normalizeUiIntent(input: CanonicalUiIntent): { intent: Canonical
     },
     warnings,
   };
+}
+
+function inferWidget(node: UntrustedNode, role: string): CanonicalUiNode['widget'] {
+  const semantic = [role, node.objectName, node.text, node.placeholder].filter((value): value is string => typeof value === 'string').join(' ').toLowerCase();
+  if (/(?:title|subtitle|label|caption|heading|标题|副标题)/i.test(role)) return 'label';
+  if (/(?:table|grid|表格|数据表)/i.test(semantic)) return 'table';
+  if (/(?:list|列表|清单)/i.test(semantic)) return 'list';
+  if (/(?:combo|select|dropdown|下拉|选择框)/i.test(semantic)) return 'comboBox';
+  if (/(?:remember|agree|check|checkbox|记住|同意|勾选|复选)/i.test(semantic)) return 'checkBox';
+  if (/(?:button|btn|action|submit|login|register|confirm|cancel|save|next|back|登录|注册|确认|取消|保存|下一步|返回)/i.test(semantic)) return 'button';
+  if (/(?:password|passwd|account|username|email|phone|search|input|lineedit|密码|账号|用户名|邮箱|手机|搜索|输入)/i.test(semantic) || typeof node.placeholder === 'string') return 'lineEdit';
+  if (/(?:description|textedit|content|comment|备注|描述|正文|多行)/i.test(semantic)) return 'textEdit';
+  if (typeof node.text === 'string' || /(?:title|subtitle|label|caption|welcome|hint|标题|欢迎|提示|说明)/i.test(semantic)) return 'label';
+  return 'container';
 }
 
 function sanitizeObjectName(value: string): string {

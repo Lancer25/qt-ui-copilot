@@ -47,6 +47,19 @@ describe('TaskConversationView', () => {
     expect(screen.getByText('PreviewHost 正在启动')).toBeTruthy();
   });
 
+  it('offers starter prompts that populate the empty composer', async () => {
+    const emptyApi = { ai: { onTaskEvent: () => () => undefined, getTaskSnapshot: vi.fn(async () => undefined), startTaskStream: vi.fn(async () => ({ taskId })) } } as unknown as DesktopApi;
+    const user = userEvent.setup();
+    render(<TaskStreamProvider api={emptyApi}><TaskConversationView taskId={taskId} createTaskInput={(payload) => ({ kind: 'create', request: { workspaceId: 'workspace', contextMode: payload.contextMode, requirement: payload.text, attachments: [], fileName: 'NewWidget.ui', rootType: 'QWidget', directory: 'ui', qtKitId: 'kit', useProjectResources: true, useComponentLibrary: true, capabilityCandidates: [] } })} /></TaskStreamProvider>);
+
+    expect(screen.getByRole('button', { name: '创建登录页' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: '优化当前界面' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: '编译运行项目' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: '编译运行项目' }));
+    expect((screen.getByRole('textbox', { name: '发送给 AI' }) as HTMLTextAreaElement).value).toBe('请编译并运行当前 Qt 应用，检查构建和启动结果。');
+    expect(emptyApi.ai?.startTaskStream).not.toHaveBeenCalled();
+  });
+
   it('queues input while running and exposes a stop action', async () => {
     const user = userEvent.setup();
     renderView();

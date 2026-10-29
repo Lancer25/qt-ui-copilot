@@ -6,3 +6,5 @@ export * from './local-component-capability-adapter.js';
 export * from './capability-registry.js';
 export * from './capability-resolver.js';
 export * from './promoted-widget-scanner.js';
+export * from './local-source-adapter.js';
+export * from './qt-binary-source-adapter.js';

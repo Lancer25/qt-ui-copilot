@@ -30,6 +30,8 @@ describe('PreviewClient protocol failures', () => {
     process.env.PREVIEW_FAKE_MODE = 'degraded';
     await expect(fakeClient('degraded').render(request)).resolves.toMatchObject({
       success: true,
+      width: 420,
+      height: 220,
       degradedFeatures: [expect.stringContaining('Chart previewed as QWidget')],
     });
     delete process.env.PREVIEW_FAKE_MODE;

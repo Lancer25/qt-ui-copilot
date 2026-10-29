@@ -9,6 +9,7 @@ export interface TaskArtifactCardProps {
 }
 
 export function TaskArtifactCard({ candidate, onOpenPreview, onOpenDiff, onCommit, onReject }: TaskArtifactCardProps) {
+  if (candidate.saved) return <article className="v3-task-artifact">本轮已完成：{candidate.blueprint.fileName} 已保存。可以继续输入调整需求。</article>;
   const fileName = candidate.blueprint.fileName;
   const previewLabel = candidate.validation.preview ? '预览已生成' : candidate.validation.uic ? '预览待生成' : 'uic 校验失败';
   const isProject = Boolean(candidate.files?.length);

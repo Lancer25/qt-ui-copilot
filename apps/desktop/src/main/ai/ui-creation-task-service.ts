@@ -1,18 +1,18 @@
 import { createHash } from 'node:crypto';
-import type { CanonicalUiIntent, UiCapabilityCandidate, VisualEnhancementPlan, VisualEnhancementOperation } from '@qt-ui-copilot/contracts';
+import type { BinaryComponentBuildMetadata, CanonicalUiIntent, UiCapabilityCandidate, VisualEnhancementPlan, VisualEnhancementOperation } from '@qt-ui-copilot/contracts';
 import { generateBaseUi, normalizeUiIntent, applyEnhancement } from '@qt-ui-copilot/ui-document';
 
 export type UiCreationStage = 'preparing_context' | 'generating_intent' | 'normalizing_intent' | 'building_base_ui' | 'validating_base_ui' | 'base_candidate_ready' | 'generating_enhancements' | 'applying_enhancements' | 'validating_preview' | 'preview_ready' | 'waiting_approval' | 'failed' | 'cancelled';
 export interface UiCreationProgress { stage: UiCreationStage; message: string; warnings: Array<{ code: string; message: string }>; previewDataUrl?: string; previewStatus?: 'ready' | 'warning' | 'failed'; }
 export interface UiCreationTaskInput { requirement: string; targetQtVersion: string; fileName: string; rootType: CanonicalUiIntent['rootType']; referenceImages?: Array<{ name: string; mimeType: string; dataUrl: string }>; capabilityCandidates?: UiCapabilityCandidate[]; }
-export interface UiCreationBaseResult { baseSource: string; baseHash: string; intent: CanonicalUiIntent; warnings: Array<{ code: string; message: string }>; stage: 'base_candidate_ready'; }
-export interface UiCreationTaskResult { baseSource: string; enhancedSource: string; baseHash: string; enhancedHash: string; intent: CanonicalUiIntent; warnings: Array<{ code: string; message: string }>; stage: UiCreationStage; }
+export interface UiCreationBaseResult { baseSource: string; baseHash: string; intent: CanonicalUiIntent; componentIds: string[]; componentStylesheets: string[]; binaryComponents: BinaryComponentBuildMetadata[]; warnings: Array<{ code: string; message: string }>; stage: 'base_candidate_ready'; }
+export interface UiCreationTaskResult { baseSource: string; enhancedSource: string; baseHash: string; enhancedHash: string; intent: CanonicalUiIntent; componentIds: string[]; componentStylesheets: string[]; binaryComponents: BinaryComponentBuildMetadata[]; warnings: Array<{ code: string; message: string }>; stage: UiCreationStage; }
 export interface UiCreationTaskDeps {
   planIntent(input: UiCreationTaskInput): Promise<CanonicalUiIntent>;
   planEnhancements(input: { requirement: string; baseUi: string; objectNames: string[]; referenceImage?: { name: string; mimeType: string; dataUrl: string } }): Promise<VisualEnhancementPlan>;
   validateUic(source: string): Promise<boolean>;
   /** Optional deterministic application-owned capability materializer. */
-  applyCapabilities?(input: { source: string; intent: CanonicalUiIntent; candidates: UiCapabilityCandidate[] }): { source: string; warnings?: Array<{ code: string; message: string }> };
+  applyCapabilities?(input: { source: string; intent: CanonicalUiIntent; candidates: UiCapabilityCandidate[] }): { source: string; componentIds?: string[]; componentStylesheets?: string[]; stylesheets?: string[]; binaryComponents?: BinaryComponentBuildMetadata[]; warnings?: Array<{ code: string; message: string }> };
 }
 
 export class UiCreationTaskService {
@@ -24,14 +24,14 @@ export class UiCreationTaskService {
    * preview continue in a separate lane.
    */
   async runBase(input: UiCreationTaskInput, onProgress?: (progress: UiCreationProgress) => void): Promise<UiCreationBaseResult> {
-    const { intent, source, warnings, report } = await this.prepareBase(input, onProgress);
+    const { intent, source, componentIds, componentStylesheets, binaryComponents, warnings, report } = await this.prepareBase(input, onProgress);
     report('base_candidate_ready', '基础 UI 已通过 uic 校验，可立即保存');
-    return { baseSource: source, baseHash: hash(source), intent, warnings, stage: 'base_candidate_ready' };
+    return { baseSource: source, baseHash: hash(source), intent, componentIds, componentStylesheets, binaryComponents, warnings, stage: 'base_candidate_ready' };
   }
 
   async run(input: UiCreationTaskInput, onProgress?: (progress: UiCreationProgress) => void): Promise<UiCreationTaskResult> {
     const base = await this.prepareBase(input, onProgress);
-    const { intent: sanitizedIntent, source: baseSource, warnings, report } = base;
+    const { intent: sanitizedIntent, source: baseSource, componentIds, componentStylesheets, binaryComponents, warnings, report } = base;
     let enhancedSource = baseSource;
     report('generating_enhancements', '正在规划视觉增强');
     const plan = await this.deps.planEnhancements({ requirement: input.requirement, baseUi: baseSource, objectNames: collectObjectNames(sanitizedIntent), referenceImage: input.referenceImages?.[0] });
@@ -43,10 +43,10 @@ export class UiCreationTaskService {
     }
     report('validating_preview', '基础版本和增强版本均已准备');
     report('waiting_approval', '等待用户审批保存');
-    return { baseSource, enhancedSource, intent: sanitizedIntent, baseHash: hash(baseSource), enhancedHash: hash(enhancedSource), warnings, stage: 'waiting_approval' };
+    return { baseSource, enhancedSource, intent: sanitizedIntent, componentIds, componentStylesheets, binaryComponents, baseHash: hash(baseSource), enhancedHash: hash(enhancedSource), warnings, stage: 'waiting_approval' };
   }
 
-  private async prepareBase(input: UiCreationTaskInput, onProgress?: (progress: UiCreationProgress) => void): Promise<{ intent: CanonicalUiIntent; source: string; warnings: Array<{ code: string; message: string }>; report: (stage: UiCreationStage, message: string) => void }> {
+  private async prepareBase(input: UiCreationTaskInput, onProgress?: (progress: UiCreationProgress) => void): Promise<{ intent: CanonicalUiIntent; source: string; componentIds: string[]; componentStylesheets: string[]; binaryComponents: BinaryComponentBuildMetadata[]; warnings: Array<{ code: string; message: string }>; report: (stage: UiCreationStage, message: string) => void }> {
     const warnings: Array<{ code: string; message: string }> = [];
     const report = (stage: UiCreationStage, message: string) => onProgress?.({ stage, message, warnings: [...warnings] });
     report('preparing_context', '正在准备项目上下文');
@@ -68,7 +68,7 @@ export class UiCreationTaskService {
     const source = materialized.source;
     report('validating_base_ui', '正在执行基础 UI 校验');
     if (!await this.deps.validateUic(source)) { report('failed', '基础 UI 未通过 uic 校验'); throw new Error('base_ui_uic_failed'); }
-    return { intent: sanitizedIntent, source, warnings, report };
+    return { intent: sanitizedIntent, source, componentIds: materialized.componentIds ?? [], componentStylesheets: materialized.stylesheets ?? [], binaryComponents: materialized.binaryComponents ?? [], warnings, report };
   }
 }
 

@@ -20,9 +20,15 @@ export type ArtifactTabsAction =
 
 const leafName = (filePath: string): string => filePath.split(/[\\/]/).filter(Boolean).at(-1) ?? filePath;
 const identityForArtifact = (filePath?: string, taskId?: string): string => filePath ?? taskId ?? 'default';
+const normalizedFileIdentity = (value: string): string => value.replaceAll('\\', '/').toLowerCase();
 
 /** Stable IDs make duplicate opens idempotent on case-insensitive filesystems. */
-export const artifactTabId = (kind: ArtifactTab['kind'], identity: string): string => `${kind}:${identity.toLowerCase()}`;
+export const artifactTabId = (kind: ArtifactTab['kind'], identity: string): string => {
+  const normalizedIdentity = kind === 'preview' || kind === 'source' || kind === 'diff'
+    ? normalizedFileIdentity(identity)
+    : identity;
+  return `${kind}:${normalizedIdentity}`;
+};
 
 export const initialArtifactTabsState: ArtifactTabsState = {
   tabs: [{ id: artifactTabId('task', 'default'), kind: 'task', taskId: 'default', title: 'AI 任务' }],

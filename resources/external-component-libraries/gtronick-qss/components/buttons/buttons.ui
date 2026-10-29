@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>GtronickButtons</class>
+ <widget class="QFrame" name="gtronickButtons">
+  <property name="minimumSize"><size><width>360</width><height>190</height></size></property>
+  <layout class="QVBoxLayout" name="buttonsLayout">
+   <property name="spacing"><number>10</number></property>
+   <item><widget class="QLabel" name="titleLabel"><property name="text"><string>常用操作</string></property><property name="font"><font><pointsize>14</pointsize><weight>75</weight><bold>true</bold></font></property></widget></item>
+   <item><widget class="QPushButton" name="primaryButton"><property name="text"><string>确认操作</string></property><property name="default"><bool>true</bool></property></widget></item>
+   <item><widget class="QPushButton" name="secondaryButton"><property name="text"><string>普通按钮</string></property></widget></item>
+   <item><widget class="QPushButton" name="disabledButton"><property name="enabled"><bool>false</bool></property><property name="text"><string>不可用按钮</string></property></widget></item>
+   <item><widget class="QToolButton" name="toolButton"><property name="text"><string>更多操作</string></property><property name="toolButtonStyle"><enum>Qt::ToolButtonTextOnly</enum></property></widget></item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

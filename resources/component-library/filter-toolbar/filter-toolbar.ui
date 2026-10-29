@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0"><class>FilterToolbar</class><widget class="QFrame" name="filterToolbar"><property name="componentRole" stdset="0"><string>toolbar</string></property><layout class="QHBoxLayout" name="filterToolbarLayout">
+ <item><widget class="QLineEdit" name="searchEdit"><property name="placeholderText"><string>搜索内容…</string></property></widget></item>
+ <item><widget class="QComboBox" name="categoryCombo"><item><property name="text"><string>全部类型</string></property></item><item><property name="text"><string>启用</string></property></item><item><property name="text"><string>停用</string></property></item></widget></item>
+ <item><widget class="QPushButton" name="refreshButton"><property name="text"><string>刷新</string></property></widget></item>
+</layout></widget><resources/><connections/></ui>

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>GtronickNumericDateInputs</class>
+ <widget class="QFrame" name="gtronickNumericDateInputs">
+  <property name="minimumSize"><size><width>400</width><height>190</height></size></property>
+  <layout class="QFormLayout" name="numericFormLayout">
+   <property name="horizontalSpacing"><number>14</number></property><property name="verticalSpacing"><number>12</number></property>
+   <item row="0" column="0"><widget class="QLabel" name="countLabel"><property name="text"><string>数量</string></property></widget></item>
+   <item row="0" column="1"><widget class="QSpinBox" name="countSpin"><property name="maximum"><number>999</number></property><property name="value"><number>24</number></property></widget></item>
+   <item row="1" column="0"><widget class="QLabel" name="rateLabel"><property name="text"><string>比例</string></property></widget></item>
+   <item row="1" column="1"><widget class="QDoubleSpinBox" name="rateSpin"><property name="suffix"><string>%</string></property><property name="maximum"><double>100.000000000000000</double></property><property name="value"><double>68.500000000000000</double></property></widget></item>
+   <item row="2" column="0"><widget class="QLabel" name="dateLabel"><property name="text"><string>日期</string></property></widget></item>
+   <item row="2" column="1"><widget class="QDateEdit" name="dateEdit"><property name="calendarPopup"><bool>true</bool></property><property name="date"><date><year>2026</year><month>9</month><day>19</day></date></property></widget></item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

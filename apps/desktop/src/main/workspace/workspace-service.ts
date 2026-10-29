@@ -1,6 +1,7 @@
-import { createHash } from 'node:crypto';
-import { lstat, readdir, readFile, writeFile } from 'node:fs/promises';
-import { basename, join, relative, resolve, sep } from 'node:path';
+import { createHash, randomUUID } from 'node:crypto';
+import { lstat, mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path';
+export { matchPortableQtKit, portableQtFingerprint, type LocalQtKitFingerprint, type PortableQtKitFingerprint, type PortableQtKitMatch } from '../../shared/portable-qt-kit-match';
 
 export type WorkspaceFileKind = 'ui' | 'qss' | 'qrc' | 'source' | 'header' | 'cmake' | 'font' | 'plugin' | 'other';
 
@@ -29,6 +30,34 @@ export interface WorkspaceScanOptions {
   ignorePatterns?: string[];
 }
 
+/**
+ * The shareable portion of a workspace binding. Tool executable locations are
+ * deliberately excluded because they are tied to the machine that owns a Qt
+ * installation, rather than to the project.
+ */
+export interface PortableProjectProfile {
+  id: string;
+  qt: {
+    version: string;
+    qtMajor?: 5 | 6;
+    compilerAbi: string;
+    architecture: string;
+  };
+  build: {
+    backend: 'auto' | 'qmake' | 'msbuild';
+    directory?: string;
+  };
+  run?: { executable?: string };
+  preview?: {
+    width?: number;
+    height?: number;
+    locale?: string;
+    style?: string;
+    mode?: 'quick' | 'enhanced';
+    highDpiMode?: 'project-default' | 'logical-96' | 'system';
+  };
+}
+
 const ignoredDirectories = new Set(['.git', '.svn', 'node_modules', 'build', '.qt-ui-copilot']);
 const sourceExtensions = new Set(['.c', '.cc', '.cpp', '.cxx', '.mm']);
 const headerExtensions = new Set(['.h', '.hh', '.hpp', '.hxx']);
@@ -40,6 +69,42 @@ const textExtensions = new Set(['.md', '.txt', '.xml', '.ini', '.conf', '.config
 const normalizeRoot = (rootDir: string): string => resolve(rootDir);
 const normalizeRelative = (value: string): string => value.split(sep).join('/');
 const hashContent = (content: Buffer): string => createHash('sha256').update(content).digest('hex');
+const windowsAbsolutePath = /^[a-z]:[\\/]/i;
+const uncPath = /^(?:\\\\|\/\/)/;
+const isPortableRelativePath = (value: string): boolean => Boolean(value) && !isAbsolute(value) && !windowsAbsolutePath.test(value) && !uncPath.test(value) && !value.split(/[\\/]+/).includes('..');
+const forbiddenProfileKeys = new Set(['uic', 'rcc', 'binDirectory', 'cmake', 'cmakePrefixPath', 'qmake', 'rootDir']);
+
+function portableProjectProfile(profile: PortableProjectProfile): PortableProjectProfile {
+  const candidate = profile as unknown as Record<string, unknown>;
+  const invalidKey = (value: unknown): boolean => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+    return Object.entries(value as Record<string, unknown>).some(([key, nested]) => forbiddenProfileKeys.has(key) || invalidKey(nested));
+  };
+  if (invalidKey(candidate)) throw new Error('项目同步只接受可移植配置，不能包含本机 Qt 工具路径。');
+  if (!profile.id.trim() || !profile.qt.version.trim() || !profile.qt.compilerAbi.trim() || !profile.qt.architecture.trim()) throw new Error('项目同步需要完整的 Qt 逻辑指纹。');
+  if (profile.build.directory !== undefined && !isPortableRelativePath(profile.build.directory)) throw new Error('构建目录必须是相对于项目根目录的路径。');
+  if (profile.run?.executable !== undefined && !isPortableRelativePath(profile.run.executable)) throw new Error('可执行文件必须是相对于项目根目录的路径。');
+
+  return {
+    id: profile.id,
+    qt: {
+      version: profile.qt.version,
+      ...(profile.qt.qtMajor !== undefined ? { qtMajor: profile.qt.qtMajor } : {}),
+      compilerAbi: profile.qt.compilerAbi,
+      architecture: profile.qt.architecture,
+    },
+    build: { backend: profile.build.backend, ...(profile.build.directory ? { directory: normalizeRelative(profile.build.directory) } : {}) },
+    ...(profile.run?.executable ? { run: { executable: normalizeRelative(profile.run.executable) } } : {}),
+    ...(profile.preview ? { preview: {
+      ...(profile.preview.width !== undefined ? { width: profile.preview.width } : {}),
+      ...(profile.preview.height !== undefined ? { height: profile.preview.height } : {}),
+      ...(profile.preview.locale ? { locale: profile.preview.locale } : {}),
+      ...(profile.preview.style ? { style: profile.preview.style } : {}),
+      ...(profile.preview.mode ? { mode: profile.preview.mode } : {}),
+      ...(profile.preview.highDpiMode ? { highDpiMode: profile.preview.highDpiMode } : {}),
+    } } : {}),
+  };
+}
 
 const globToRegExp = (pattern: string): RegExp => {
   let source = '';
@@ -120,6 +185,24 @@ export class WorkspaceService {
     const root = this.getRoot(workspaceId); const absolute = resolve(root, filePath); const relativePath = relative(root, absolute);
     if (relativePath.startsWith('..') || absolute === root || filePath.replaceAll('\\', '/') !== '.qt-ui-copilot/project.json') throw new Error('Only the workspace project profile can be edited from Settings');
     await writeFile(absolute, content, 'utf8');
+  }
+
+  /** Explicitly persists only the portable, shareable portion of a binding. */
+  async syncProjectProfile(workspaceId: string, profile: PortableProjectProfile): Promise<void> {
+    const root = this.getRoot(workspaceId);
+    const portable = portableProjectProfile(profile);
+    const profileDirectory = join(root, '.qt-ui-copilot');
+    const profilePath = join(profileDirectory, 'project.json');
+    const temporaryPath = join(profileDirectory, `project.json.tmp-${randomUUID()}`);
+    await mkdir(profileDirectory, { recursive: true });
+    try {
+      await writeFile(temporaryPath, `${JSON.stringify(portable, null, 2)}\n`, 'utf8');
+      await rename(temporaryPath, profilePath);
+    } catch (error) {
+      // A failed temp-file write never replaces the last good project profile.
+      await rm(temporaryPath, { force: true }).catch(() => undefined);
+      throw error;
+    }
   }
 
   private async scanRoot(rootDir: string, options: WorkspaceScanOptions): Promise<WorkspaceFile[]> {

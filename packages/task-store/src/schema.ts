@@ -144,4 +144,43 @@ export const DATABASE_SCHEMA = `
     preferences_json TEXT NOT NULL,
     updated_at INTEGER NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS v3_task_snapshots (
+    task_id TEXT PRIMARY KEY,
+    workspace_id TEXT,
+    title TEXT NOT NULL,
+    target_path TEXT,
+    status TEXT NOT NULL,
+    snapshot_json TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_v3_task_snapshots_workspace_updated
+    ON v3_task_snapshots(workspace_id, updated_at DESC);
+
+  CREATE TABLE IF NOT EXISTS component_sources (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    enabled INTEGER NOT NULL CHECK (enabled IN (0, 1)),
+    protected INTEGER NOT NULL DEFAULT 0 CHECK (protected IN (0, 1)),
+    config_json TEXT NOT NULL,
+    health_json TEXT NOT NULL,
+    encrypted_credential BLOB,
+    last_sync_at INTEGER,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS component_source_items (
+    source_id TEXT NOT NULL REFERENCES component_sources(id) ON DELETE CASCADE,
+    component_id TEXT NOT NULL,
+    item_json TEXT NOT NULL,
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY (source_id, component_id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_component_source_items_updated
+    ON component_source_items(source_id, updated_at DESC);
 `;

@@ -1,6 +1,6 @@
 import { ipcMain, type BrowserWindow, dialog } from 'electron';
 import { readFile, writeFile } from 'node:fs/promises';
-import { basename, relative, resolve } from 'node:path';
+import { basename, posix, relative, resolve, win32 } from 'node:path';
 import { z } from 'zod';
 import { ArtifactStore, loadProjectConfig, prepareBuild, profileFromConfig, runProcess, RuntimeSession, scanProject, validateUiWithUic } from '@qt-ui-copilot/project-core';
 import { openDatabase, SettingsRepository, TaskRepository, V3Repository } from '@qt-ui-copilot/task-store';
@@ -17,6 +17,22 @@ import { QtKitService, type QtKit, type QtKitHealth } from '../settings/qt-kit-s
 import { checkProjectBinding } from '../settings/project-binding-service';
 import { migrateToV3 } from '../v3-migration';
 
+export function defaultQtKitRoots(env: { QT_ROOT?: string; QTDIR?: string } = { QT_ROOT: process.env.QT_ROOT, QTDIR: process.env.QTDIR }, platform = process.platform): string[] {
+  const qtdirRoot = env.QTDIR ? (platform === 'win32'
+    ? win32.dirname(win32.dirname(env.QTDIR))
+    : posix.dirname(posix.dirname(env.QTDIR))) : undefined;
+  const candidates = platform === 'win32'
+    ? [env.QT_ROOT, qtdirRoot, 'C:/Qt', 'D:/Qt', 'E:/Qt', 'D:/Qt5.9.6', 'D:/Qt6.10.2']
+    : [env.QT_ROOT, qtdirRoot, '/opt/Qt'];
+  const seen = new Set<string>();
+  return candidates.filter((value): value is string => Boolean(value)).filter((value) => {
+    const identity = value.replaceAll('\\', '/').replace(/\/+$/, '').toLowerCase();
+    if (!identity || seen.has(identity)) return false;
+    seen.add(identity);
+    return true;
+  });
+}
+
 const ImportProjectSchema = z.object({ rootDir: z.string().min(1).max(4096) }).strict();
 const ChooseDirectorySchema = z.undefined();
 const StartTaskSchema = z.object({ projectId: z.string().min(1), targetUi: z.string().min(1), requirement: z.string().min(1).max(10_000) }).strict();
@@ -28,7 +44,7 @@ const ImagePayloadModeSchema = z.enum(['base64_data_url', 'remote_url']);
 const ModelSettingsInputSchema = z.object({ baseUrl: z.string().url().max(2048), model: z.string().min(1).max(256), apiKey: z.string().min(1).max(4096).optional(), imagePayloadMode: ImagePayloadModeSchema.default('base64_data_url') }).strict();
 const TestModelInputSchema = z.undefined();
 const TestModelCapabilityInputSchema = z.object({ capability: ModelCapabilitySchema }).strict();
-const QtKitSchema = z.object({ id: z.string().min(1), displayName: z.string().min(1), version: z.string().min(1), qtMajor: z.union([z.literal(5), z.literal(6)]), rootDir: z.string().min(1), binDirectory: z.string().min(1), uic: z.string().min(1), rcc: z.string().min(1), qmake: z.string().optional(), cmakePrefixPath: z.string().optional(), compilerAbi: z.string().optional(), architecture: z.string().optional() }).strict();
+const QtKitSchema = z.object({ id: z.string().min(1), displayName: z.string().min(1), version: z.string().min(1), qtMajor: z.union([z.literal(5), z.literal(6)]), rootDir: z.string().min(1), binDirectory: z.string().min(1), uic: z.string().min(1), rcc: z.string().min(1), qmake: z.string().optional(), cmakePrefixPath: z.string().optional(), compilerAbi: z.string().optional(), architecture: z.string().optional(), isDefault: z.boolean().optional() }).strict();
 const QtKitRootsSchema = z.array(z.string().min(1)).max(32);
 const ProjectBindingSchema = z.object({ projectId: z.string().min(1), qtKitId: z.string().min(1), config: z.record(z.string(), z.unknown()) }).strict();
 export const ModelSettingsSchema = z.object({
@@ -51,6 +67,8 @@ export const ModelConnectionResultSchema = z.object({
 const ReportSchema = z.object({ task: z.object({ taskId: z.string().min(1), targetUi: z.string().min(1), status: z.string().min(1), node: z.string().min(1), plan: z.object({ summary: z.string(), operations: z.array(z.unknown()), expectedResults: z.array(z.string()) }).passthrough().optional(), xmlBefore: z.string().max(2_000_000).optional(), xmlAfter: z.string().max(2_000_000).optional(), beforeImage: z.string().max(4_000_000).optional(), afterImage: z.string().max(4_000_000).optional(), deterministicFindings: z.array(z.string()), visualFindings: z.array(z.string()), visualReviewStatus: z.enum(['not_run', 'passed', 'unavailable', 'failed']).optional(), evidence: z.array(z.string()).optional(), routeEvidence: z.array(z.string()), qtKit: z.string().optional(), build: z.object({ executable: z.string(), args: z.array(z.string()), exitCode: z.number().optional() }).optional() }).passthrough(), selectedComponent: z.object({ component: z.object({ id: z.string(), name: z.string(), sourceUiFile: z.string() }).passthrough() }).passthrough().optional() }).strict();
 
 export interface DesktopBackend {
+  readonly v3Repository: V3Repository;
+  readonly settingsRepository: SettingsRepository;
   createModelProvider?(): ModelProvider;
   importProject(input: z.infer<typeof ImportProjectSchema>): Promise<unknown>;
   listProjects(): Promise<unknown>;
@@ -252,11 +270,25 @@ export class OpenAiCompatibleProvider implements ModelProvider {
       throw new Error('图片发送格式已设为远程图片 URL，但当前图片没有可用的 http(s) URL');
     }
     const textInput = Object.fromEntries(Object.entries(request.input).filter(([key]) => !['beforeImage', 'afterImage', 'referenceImage'].includes(key)));
-    const userContent = request.kind === 'ui_creation'
+    // The intent and enhancement planners carry reference images in the same
+    // `visualAttachments` envelope as UI creation.  Only the planned kinds may
+    // stringify their input, otherwise those images reach the model as an
+    // unreadable base64 wall instead of image content parts.
+    const carriesVisualAttachments = Array.isArray(request.input.visualAttachments) && request.input.visualAttachments.length > 0;
+    const rawUserContent = request.kind === 'ui_creation' || carriesVisualAttachments
       ? providerInputContent(request.input, this.settings.imagePayloadMode ?? 'base64_data_url')
       : visualImages.length > 0
         ? [{ type: 'text', text: JSON.stringify(textInput) }, ...visualImages.map((image) => ({ type: 'image_url', image_url: { url: image.value } }))]
         : JSON.stringify(request.input);
+    // Some OpenAI-compatible gateways only inspect the user message when
+    // validating json_object mode. Keep the explicit JSON requirement in
+    // both roles so the same request works with those gateways as well.
+    const userJsonInstruction = 'Return exactly one valid JSON object that matches the requested schema.';
+    const userContent = typeof rawUserContent === 'string'
+      ? `${userJsonInstruction}\n${rawUserContent}`
+      : Array.isArray(rawUserContent)
+        ? rawUserContent.map((part, index) => index === 0 && part && typeof part === 'object' && 'type' in part && part.type === 'text' && 'text' in part && typeof part.text === 'string' ? { ...part, text: `${userJsonInstruction}\n${part.text}` } : part)
+        : `${userJsonInstruction}\n${JSON.stringify(rawUserContent)}`;
     try {
       const response = await this.fetchImpl(`${this.settings.baseUrl.replace(/\/$/, '')}/chat/completions`, {
         method: 'POST',
@@ -364,9 +396,10 @@ async function testOpenAiCompatibleConnection(settings: { baseUrl: string; model
 export function createLocalBackend(options: LocalBackendOptions = {}): DesktopBackend {
   const database = openDatabase(options.databasePath ?? ':memory:');
   const repository = new TaskRepository(database);
-  migrateToV3(new V3Repository(database), repository);
+  const v3Repository = new V3Repository(database);
+  migrateToV3(v3Repository, repository);
   const settingsRepository = new SettingsRepository(database);
-  const qtKitService = new QtKitService({ roots: options.qtKitRoots ?? [process.env.QT_ROOT, 'D:/Qt5.9.6', 'D:/Qt6.10.2', 'C:/Qt', '/opt/Qt'].filter((value): value is string => Boolean(value)) });
+  const qtKitService = new QtKitService({ roots: options.qtKitRoots ?? defaultQtKitRoots() });
   const catalog = new ComponentCatalog({ databasePath: ':memory:' });
   const projects = new Map<string, StoredProject>();
   const snapshots = new Map<string, UiState>();
@@ -607,6 +640,8 @@ export function createLocalBackend(options: LocalBackendOptions = {}): DesktopBa
     }
   } });
   return {
+    v3Repository,
+    settingsRepository,
     async listProjects() {
       return repository.listProjects().map((record) => {
         let uiFiles: string[] = [];

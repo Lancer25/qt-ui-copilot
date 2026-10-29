@@ -29,7 +29,14 @@ void PreviewHostTest::loadsResourceAndStyleSheet()
     QVERIFY(save->styleSheetMatched);
     QVERIFY(QFileInfo(result.imagePath).size() > 1000);
     const QImage image(result.imagePath);
-    QCOMPARE(image.size(), QSize(900, 640));
+    QCOMPARE(result.width, 420);
+    QCOMPARE(result.height, 220);
+    // Qt 6 captures device pixels on high-DPI displays while the widget and
+    // protocol dimensions remain logical pixels. Preserve those extra pixels
+    // for sharp previews, but require a uniform scale and the original ratio.
+    QVERIFY(image.width() >= result.width);
+    QVERIFY(image.height() >= result.height);
+    QCOMPARE(image.width() * result.height, image.height() * result.width);
 }
 
 void PreviewHostTest::isolatesResourceCacheAcrossQtMajors()

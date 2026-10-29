@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0"><class>EmptyState</class><widget class="QFrame" name="emptyState"><property name="componentRole" stdset="0"><string>card</string></property><layout class="QVBoxLayout" name="emptyStateLayout">
+ <item><spacer name="topSpacer"><property name="orientation"><enum>Qt::Vertical</enum></property><property name="sizeHint" stdset="0"><size><width>20</width><height>24</height></size></property></spacer></item>
+ <item><widget class="QLabel" name="emptyTitle"><property name="heading" stdset="0"><bool>true</bool></property><property name="text"><string>暂无数据</string></property><property name="alignment"><set>Qt::AlignCenter</set></property></widget></item>
+ <item><widget class="QLabel" name="emptyDescription"><property name="muted" stdset="0"><bool>true</bool></property><property name="text"><string>创建第一条记录后将在这里显示</string></property><property name="alignment"><set>Qt::AlignCenter</set></property></widget></item>
+ <item><widget class="QPushButton" name="emptyAction"><property name="primary" stdset="0"><bool>true</bool></property><property name="text"><string>立即创建</string></property></widget></item>
+ <item><spacer name="bottomSpacer"><property name="orientation"><enum>Qt::Vertical</enum></property><property name="sizeHint" stdset="0"><size><width>20</width><height>24</height></size></property></spacer></item>
+</layout></widget><resources/><connections/></ui>

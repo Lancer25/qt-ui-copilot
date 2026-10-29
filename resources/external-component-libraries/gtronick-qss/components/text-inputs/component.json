@@ -1,0 +1,1 @@
+{"id":"gtronick-text-inputs","name":"MaterialDark 文本输入","description":"包含单行、密码和多行输入的标准表单组件。","tags":["输入框","表单","QLineEdit","QTextEdit","密码","MaterialDark","GTRONICK"],"sourceUiFile":"text-inputs.ui","qssDependencies":["../../styles/MaterialDark.qss"],"qtVersionRange":">=5.9.6 <7.0.0"}

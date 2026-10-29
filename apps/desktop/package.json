@@ -1,6 +1,9 @@
 {
   "name": "@qt-ui-copilot/desktop",
+  "productName": "Qt UI Copilot",
   "version": "0.1.0",
+  "description": "AI-assisted Qt Widgets interface development, preview, and project workflow.",
+  "author": "Qt UI Copilot",
   "private": true,
   "main": ".vite/build/main.js",
   "scripts": {
@@ -14,6 +17,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@modelcontextprotocol/client": "2.0.0",
     "@qt-ui-copilot/agent-workflow": "workspace:*",
     "@qt-ui-copilot/component-library": "workspace:*",
     "@qt-ui-copilot/contracts": "workspace:*",
@@ -39,6 +43,7 @@
     "@types/react-dom": "19.1.9",
     "@vitejs/plugin-react": "4.3.4",
     "electron": "40.0.0",
+    "electron-winstaller": "5.4.4",
     "extract-zip": "2.0.1",
     "jsdom": "26.1.0",
     "typescript": "5.8.3",

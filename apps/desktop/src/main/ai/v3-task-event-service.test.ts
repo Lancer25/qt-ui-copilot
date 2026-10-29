@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { V3TaskEventService } from './v3-task-event-service';
+import { openDatabase, V3Repository } from '@qt-ui-copilot/task-store';
 
 describe('V3TaskEventService', () => {
   it('allocates monotonic sequences and exposes a bounded serializable snapshot', () => {
@@ -35,5 +36,37 @@ describe('V3TaskEventService', () => {
     service.updateCandidate('task-1', (candidate) => ({ ...candidate, previewDataUrl: 'data:image/png;base64,AA==', validation: { ...candidate.validation, preview: true } }));
 
     expect(service.snapshot('task-1')).toMatchObject({ candidate: { id: 'candidate-1', validation: { preview: true } }, preview: { status: 'completed' } });
+  });
+
+  it('restores persisted events and exposes workspace-scoped history', () => {
+    const database = openDatabase(':memory:');
+    const repository = new V3Repository(database);
+    const first = new V3TaskEventService(repository);
+    first.beginTask('task-1', { workspaceId: 'workspace-1', title: '创建登录页', targetPath: 'ui/Login.ui' });
+    first.append('task-1', { lane: 'conversation', type: 'done', status: 'completed', title: '完成' });
+
+    const reopened = new V3TaskEventService(repository);
+    expect(reopened.snapshot('task-1')?.events[0]?.title).toBe('完成');
+    expect(reopened.list('workspace-1')).toEqual([expect.objectContaining({ taskId: 'task-1', title: '创建登录页', status: 'completed' })]);
+    database.close();
+  });
+
+  it('keeps the task alive when the repository refuses a snapshot', () => {
+    // Reproduced from the reported failure: a snapshot the schema rejected threw
+    // from inside the task's own error handler, so the real failure surfaced as an
+    // unhandled promise rejection and the task looked like it had crashed.
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const repository = { reconcileInterruptedTasks: () => {}, getTaskSnapshot: () => undefined, getTaskHistoryItem: () => undefined, saveTaskSnapshot: () => { throw new Error('project paths must be relative'); } } as unknown as V3Repository;
+    const service = new V3TaskEventService(repository);
+    const listener = vi.fn();
+    service.subscribe(listener);
+    service.beginTask('task-1', { title: '创建主窗口' });
+    service.append('task-1', { lane: 'generation', type: 'status', status: 'failed', title: '任务执行失败', detail: '构建失败' });
+
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(service.snapshot('task-1')?.events[0]?.detail).toBe('构建失败');
+    // Reported once per task: a degraded history must not log per event.
+    expect(consoleError).toHaveBeenCalledTimes(1);
+    consoleError.mockRestore();
   });
 });

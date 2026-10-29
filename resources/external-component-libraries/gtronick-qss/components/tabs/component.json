@@ -1,0 +1,1 @@
+{"id":"gtronick-tabs","name":"MaterialDark 标签页","description":"包含概览和设置页面的标准 QTabWidget 内容容器。","tags":["标签页","QTabWidget","导航","MaterialDark","GTRONICK"],"sourceUiFile":"tabs.ui","qssDependencies":["../../styles/MaterialDark.qss"],"qtVersionRange":">=5.9.6 <7.0.0"}

@@ -42,12 +42,14 @@ bool PreviewRequest::fromJson(const QJsonObject &object, PreviewRequest *request
     return true;
 }
 
-PreviewResult::PreviewResult() : success(false) {}
+PreviewResult::PreviewResult() : success(false), width(0), height(0) {}
 
 QJsonObject PreviewResult::toJson() const
 {
     QJsonObject object;
     object.insert("success", success);
+    if (width > 0) object.insert("width", width);
+    if (height > 0) object.insert("height", height);
     if (!imagePath.isEmpty()) object.insert("imagePath", imagePath);
     if (!error.isEmpty()) object.insert("error", error);
     QJsonArray resources; foreach (const QString &value, loadedResources) resources.append(value);

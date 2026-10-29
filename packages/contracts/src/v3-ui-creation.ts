@@ -113,6 +113,7 @@ export type UiProjectFile = z.infer<typeof UiProjectFileSchema>;
 
 export const UiCreationCandidateSchema = z.object({
   id: z.string().min(1),
+  saved: z.boolean().optional(),
   stagedPath: z.string().min(1).max(4096).optional(),
   workspaceId: z.string().min(1),
   targetPath: z.string().min(1),

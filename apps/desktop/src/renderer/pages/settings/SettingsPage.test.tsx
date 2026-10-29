@@ -23,6 +23,19 @@ describe('SettingsPage', () => {
     await waitFor(() => expect(screen.getByText(/rcc 检测失败/)).not.toBeNull());
   });
 
+  it('shows a friendly error and restores scanning after Qt Kit discovery fails', async () => {
+    const api = new FakeDesktopApi();
+    api.settings.qtKits!.scan = async () => { throw new Error('访问 Qt 安装目录被拒绝'); };
+    const user = userEvent.setup();
+    render(<SettingsPage api={api} initialSection="qt-kits" />);
+
+    const scan = screen.getByRole('button', { name: '扫描 Qt Kits' });
+    await user.click(scan);
+
+    expect((await screen.findByRole('alert')).textContent).toContain('扫描 Qt Kits 失败：访问 Qt 安装目录被拒绝');
+    expect((scan as HTMLButtonElement).disabled).toBe(false);
+  });
+
   it('keeps unsaved model fields when changing settings categories in central mode', async () => {
     const user = userEvent.setup();
     render(<SettingsPage api={new FakeDesktopApi()} central />);

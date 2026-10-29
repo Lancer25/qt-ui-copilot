@@ -6,6 +6,7 @@ export interface ProcessCommand {
   cwd?: string;
   environment?: NodeJS.ProcessEnv;
   timeoutMs?: number;
+  windowsVerbatimArguments?: boolean;
 }
 
 export interface ProcessResult {
@@ -27,6 +28,7 @@ export const runProcess: ProcessRunner = (command) => {
       env: command.environment,
       shell: false,
       windowsHide: true,
+      windowsVerbatimArguments: command.windowsVerbatimArguments,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     let stdout = '';

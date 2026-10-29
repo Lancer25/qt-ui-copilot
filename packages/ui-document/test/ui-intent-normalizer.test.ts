@@ -30,4 +30,21 @@ describe('normalizeUiIntent', () => {
     expect(result.intent.tree.children[0].widget).toBe('container');
     expect(result.warnings.map((item) => item.code)).toEqual(expect.arrayContaining(['node_degraded', 'default_size_applied']));
   });
+
+  it('infers visible Qt controls when the model omits widget kinds', () => {
+    const result = normalizeUiIntent({
+      fileName: 'Login.ui', rootType: 'QWidget', rootObjectName: 'login', windowTitle: '登录', expectedResults: ['可登录'],
+      tree: { kind: 'layout', role: 'main', layout: 'vertical', children: [
+        { kind: 'widget', role: 'title', text: '微信登录', children: [] },
+        { kind: 'widget', role: 'account', text: '账号', children: [] },
+        { kind: 'widget', role: 'password', text: '密码', children: [] },
+        { kind: 'widget', role: 'remember', text: '记住密码', children: [] },
+        { kind: 'widget', role: 'login', text: '登录', children: [] },
+      ] },
+    } as unknown as CanonicalUiIntent);
+    expect(result.intent.tree.children.map((node) => node.widget)).toEqual(['label', 'lineEdit', 'lineEdit', 'checkBox', 'button']);
+    expect(result.intent.tree.children[1]).toMatchObject({ placeholder: '账号' });
+    expect(result.intent.tree.children[1].text).toBeUndefined();
+    expect(result.warnings.filter((warning) => warning.code === 'widget_inferred')).toHaveLength(5);
+  });
 });
