@@ -15,7 +15,10 @@ export interface QtProjectScaffoldInput {
 export const stripUiInlineStyles = (source: string): string => source.replace(/\s*<property\s+name=["']styleSheet["']>[\s\S]*?<\/property>/gi, '');
 
 const qmakePath = (value: string): string => value.replaceAll('\\', '/').replaceAll('"', '\\"');
-const sourceFile = (component: BinaryComponentBuildMetadata, relativePath: string): string => qmakePath(path.resolve(component.sourceRoot, relativePath));
+const sourceFile = (component: BinaryComponentBuildMetadata, relativePath: string): string => {
+  const resolver = /^[A-Za-z]:[\\/]/.test(component.sourceRoot) ? path.win32 : path;
+  return qmakePath(resolver.resolve(component.sourceRoot, relativePath));
+};
 
 function qmakeBinaryIntegration(components: readonly BinaryComponentBuildMetadata[]): string {
   if (!components.length) return '';
