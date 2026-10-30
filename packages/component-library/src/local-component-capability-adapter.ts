@@ -35,7 +35,7 @@ function capabilityPath(sourceUiFile: string, projectRoot?: string): string {
   }
   // The capability contract deliberately forbids host absolute paths. Keep a
   // useful stable reference when records predate that contract.
-  return path.basename(sourceUiFile);
+  return path.posix.basename(normalized);
 }
 
 function rootClass(record: ComponentRecord): string {
