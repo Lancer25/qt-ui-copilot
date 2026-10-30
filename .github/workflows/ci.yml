@@ -10,10 +10,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 24, cache: pnpm }
       - uses: pnpm/action-setup@v4
         with: { version: 10.15.0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: pnpm }
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm typecheck
@@ -24,40 +24,41 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 24, cache: pnpm }
       - uses: pnpm/action-setup@v4
         with: { version: 10.15.0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: pnpm }
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @qt-ui-copilot/desktop package
       - uses: actions/upload-artifact@v4
-        with: { name: windows-unpacked, path: out/**, if-no-files-found: error }
+        with: { name: windows-unpacked, path: apps/desktop/out/**, if-no-files-found: error }
 
   linux-package-verification:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 24, cache: pnpm }
       - uses: pnpm/action-setup@v4
         with: { version: 10.15.0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: pnpm }
       - run: pnpm install --frozen-lockfile
       # The current Forge makers target Windows; package verifies Linux's core
       # layout without pretending to emit a Linux installer.
       - run: pnpm --filter @qt-ui-copilot/desktop package
       - uses: actions/upload-artifact@v4
-        with: { name: linux-unpacked, path: out/**, if-no-files-found: error }
+        with: { name: linux-unpacked, path: apps/desktop/out/**, if-no-files-found: error }
 
   qt-native-qualified:
+    if: ${{ vars.QT_NATIVE_RUNNER_ENABLED == 'true' }}
     # Qt 5.9.6 is a legacy ABI and must be supplied by a controlled runner.
     # A hosted runner must never replace this job with a green placeholder.
     runs-on: [self-hosted, windows, qt-ui-copilot, qt59, qt6]
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 24, cache: pnpm }
       - uses: pnpm/action-setup@v4
         with: { version: 10.15.0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 24, cache: pnpm }
       - run: pnpm install --frozen-lockfile
       - name: Qualify both target Kits
         run: node scripts/verify-qt-matrix.mjs --required
