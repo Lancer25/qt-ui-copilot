@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import path from 'node:path';
+import { tmpdir } from 'node:os';
 import type { ProjectProfile } from '@qt-ui-copilot/contracts';
 import { parseQtMajorMinor, probeQtToolchain, validateUiWithUic, type ProcessCommand } from '../src/index.js';
 
 const profile: ProjectProfile = {
-  id: 'demo', rootDir: 'D:/demo',
+  id: 'demo', rootDir: path.resolve(tmpdir(), 'demo'),
   qt: { version: '5.9.6', uic: 'D:/Qt/bin/uic.exe', rcc: 'D:/Qt/bin/rcc.exe' },
   build: { command: { executable: 'cmake', args: ['--build', 'build'] } },
   run: { executable: 'D:/demo/build/demo.exe', args: [], environment: {} },
@@ -16,17 +18,18 @@ describe('toolchain helpers', () => {
   });
 
   it('rejects validation targets outside the configured project root before spawning', async () => {
-    await expect(validateUiWithUic(profile, 'D:/other/Settings.ui')).rejects.toThrow('escapes project root');
+    await expect(validateUiWithUic(profile, path.resolve(tmpdir(), 'other', 'Settings.ui'))).rejects.toThrow('escapes project root');
   });
 
   it('passes a target-kit uic an argv array and never accepts a shell string', async () => {
     const captured: ProcessCommand[] = [];
-    await validateUiWithUic(profile, 'D:/demo/Settings.ui', async (command) => {
+    const uiFile = path.join(profile.rootDir, 'Settings.ui');
+    await validateUiWithUic(profile, uiFile, async (command) => {
       captured.push(command);
       return { executable: command.executable, args: [...command.args], stdout: '', stderr: '', exitCode: 0, timedOut: false };
     });
     expect(captured).toHaveLength(1);
-    expect(captured[0]).toMatchObject({ executable: profile.qt.uic, args: expect.arrayContaining(['-o', 'D:\\demo\\Settings.ui']) });
+    expect(captured[0]).toMatchObject({ executable: profile.qt.uic, args: expect.arrayContaining(['-o', uiFile]) });
     expect(captured[0]).not.toHaveProperty('shell');
   });
 

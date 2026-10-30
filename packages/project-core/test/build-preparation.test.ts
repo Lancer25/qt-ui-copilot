@@ -17,10 +17,11 @@ const profile = (rootDir: string): ProjectProfile => ({
 
 describe('build preparation', () => {
   it('infers an argv build directory without invoking a shell', () => {
-    const root = 'D:/projects/demo';
+    const root = path.resolve(tmpdir(), 'projects', 'demo');
     expect(inferBuildDirectory(['--build', path.join(root, '.qt-ui-copilot', 'build')], root))
       .toBe(path.normalize(path.join(root, '.qt-ui-copilot', 'build')));
-    expect(inferBuildDirectory(['--build=D:/build'], root)).toBe(path.normalize('D:/build'));
+    const build = path.resolve(tmpdir(), 'build');
+    expect(inferBuildDirectory([`--build=${build}`], root)).toBe(build);
   });
 
   it('runs configure once when the build directory is missing', async () => {
